@@ -1,0 +1,8 @@
+{
+  "name": "printbakery-ga4-dashboard",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": { "fetch": "node scripts/fetch-data.mjs" },
+  "dependencies": { "@google-analytics/data": "^4.12.0" }
+}
