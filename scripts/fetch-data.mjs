@@ -24,32 +24,45 @@ const ga = new BetaAnalyticsDataClient({ credentials: JSON.parse(GA_SA_KEY) });
 const property = `properties/${GA4_PROPERTY_ID}`;
 const excluded = (sm) => EXCLUDE_SOURCES.some((s) => (sm || '').toLowerCase().includes(s.toLowerCase()));
 
-// ── 날짜 유틸 ──
-const KST = (d = new Date()) => new Date(d.getTime() + 9 * 3600 * 1000); // UTC→KST
-const iso = (d) => d.toISOString().slice(0, 10);
-const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+// ── 날짜 유틸 (UTC 기준으로 KST 날짜 계산) ──
+const pad = (n) => String(n).padStart(2, '0');
+function todayKST() {
+  const k = new Date(Date.now() + 9 * 3600 * 1000); // UTC+9
+  return `${k.getUTCFullYear()}-${pad(k.getUTCMonth() + 1)}-${pad(k.getUTCDate())}`;
+}
+function addDays(s, n) {
+  const d = new Date(s + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+// 빈 문자열/미설정 모두 방어 → 기본값 사용
+const RENEWAL = (RENEWAL_DATE && RENEWAL_DATE.trim()) ? RENEWAL_DATE.trim() : '2026-07-01';
 
 function buildPresets() {
-  const today = KST();
-  const y = iso(new Date(today.getTime() - 86400000)); // 어제(완결일)
-  // 최근 N일 vs 직전 N일
+  const todayStr = todayKST();
+  const y = addDays(todayStr, -1); // 어제(데이터 완결일)
+
   const lastN = (n) => ({
     before: { start: addDays(y, -(2 * n - 1)), end: addDays(y, -n) },
     after:  { start: addDays(y, -(n - 1)),     end: y },
   });
-  // 리뉴얼 전후: 오픈일 기준 직전/직후 동일 길이 (가용 데이터 = 후 종료를 어제로, 전은 대칭)
-  const afterStart = RENEWAL_DATE;
-  const afterEnd = y < addDays(afterStart, 6) ? y : addDays(afterStart, 6); // 최소 7일 목표
-  const span = Math.max(1, Math.round((new Date(afterEnd) - new Date(afterStart)) / 86400000) + 1);
+
+  // 리뉴얼 전후: 오픈일 기준 직후 최대 7일(단, 어제까지), 직전은 동일 길이
+  const afterStart = RENEWAL;
+  const afterEnd = (y < addDays(afterStart, 6)) ? y : addDays(afterStart, 6);
+  const span = Math.max(1, Math.round((Date.parse(afterEnd) - Date.parse(afterStart)) / 86400000) + 1);
   const renewal = {
     before: { start: addDays(afterStart, -span), end: addDays(afterStart, -1) },
     after:  { start: afterStart, end: afterEnd },
   };
-  // 월별: 지난달 vs 이번달(1일~어제)
-  const t = today;
-  const thisStart = iso(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1)));
-  const prevStart = iso(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 1, 1)));
-  const prevEnd   = addDays(thisStart, -1);
+
+  // 월별: 지난달(1일~말일) vs 이번달(1일~어제)
+  const [Y, M] = todayStr.split('-').map(Number);
+  const thisStart = `${Y}-${pad(M)}-01`;
+  const prevY = M === 1 ? Y - 1 : Y;
+  const prevM = M === 1 ? 12 : M - 1;
+  const prevStart = `${prevY}-${pad(prevM)}-01`;
+  const prevEnd = addDays(thisStart, -1);
   const monthly = { before: { start: prevStart, end: prevEnd }, after: { start: thisStart, end: y } };
 
   return [
