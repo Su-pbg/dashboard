@@ -3,276 +3,205 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PrintBakery 리뉴얼 성과 리포트</title>
+<title>PrintBakery 대시보드</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --paper:#F4F6F9;--surface:#FFFFFF;--ink:#172230;--muted:#66768A;--hair:#E4E9F0;
-    --accent:#0E7C6E;--accent-soft:#E3F1EE;--ghost:#D8DEE7;
-    --up:#1E9C68;--down:#C85A3F;--up-soft:#E6F4EC;--down-soft:#FBEAE4;
-    --mono:'IBM Plex Mono',ui-monospace,monospace;--sans:'Pretendard',system-ui,sans-serif;
-  }
+  :root{--paper:#F4F6F9;--surface:#FFFFFF;--ink:#172230;--muted:#66768A;--hair:#E4E9F0;
+    --accent:#0E7C6E;--accent-soft:#E3F1EE;--ghost:#D8DEE7;--up:#1E9C68;--down:#C85A3F;
+    --up-soft:#E6F4EC;--down-soft:#FBEAE4;--mono:'IBM Plex Mono',ui-monospace,monospace;--sans:'Pretendard',system-ui,sans-serif;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px;}
-  .top-rule{height:3px;background:var(--accent);border-radius:2px;width:56px;margin-bottom:22px;}
-  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 10px;}
-  h1{font-size:34px;line-height:1.15;font-weight:700;margin:0 0 18px;letter-spacing:-.01em;}
-  .meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
-  .period{display:inline-flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:9px 14px;}
-  .period .lbl{font-size:11px;color:var(--muted);}
-  .period .val{font-family:var(--mono);font-size:13px;font-weight:500;}
-  .period.after{border-color:var(--accent);background:var(--accent-soft);}
-  .period.after .lbl{color:var(--accent);}
-  .arrow{color:var(--muted);font-size:18px;}
-  #preset-select{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink);
-    background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:9px 12px;cursor:pointer;}
-  #preset-select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
-  .source{margin-left:auto;font-size:12px;color:var(--muted);text-align:right;}
-  .source b{color:var(--ink);font-weight:600;}
-  section{margin-top:52px;}
-  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:18px;}
-  .sec-num{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:600;}
-  .sec-title{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em;}
-  .sec-desc{font-size:13px;color:var(--muted);margin:0 0 0 auto;text-align:right;max-width:360px;}
-  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
-  .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px 16px 16px;}
-  .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:500;}
-  .kpi .k-now{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em;line-height:1;}
-  .kpi .k-was{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:8px;}
-  .delta{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:12px;font-weight:600;padding:2px 7px;border-radius:999px;margin-top:10px;}
-  .delta.good{color:var(--up);background:var(--up-soft);}
-  .delta.bad{color:var(--down);background:var(--down-soft);}
-  .callout{margin-top:18px;background:var(--surface);border:1px solid var(--hair);border-left:3px solid var(--accent);border-radius:12px;padding:18px 20px;}
-  .callout h3{margin:0 0 8px;font-size:14px;font-weight:700;}
-  .callout p{margin:0;font-size:13.5px;line-height:1.65;color:#3a4757;}
-  .callout b{color:var(--ink);}
-  .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:26px 26px 22px;}
-  .funnel-legend{display:flex;gap:18px;margin-bottom:22px;font-size:12px;color:var(--muted);}
-  .swatch{display:inline-block;width:22px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle;}
-  .sw-before{background:var(--ghost);}.sw-after{background:var(--accent);}
-  .stage{margin-bottom:18px;}.stage:last-child{margin-bottom:0;}
-  .stage-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;gap:10px;}
-  .stage-name{font-size:14px;font-weight:600;}
-  .stage-conv{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right;}
-  .stage-conv b{color:var(--accent);}
-  .stage-conv .worse{color:var(--down);}
-  .bars{display:grid;gap:5px;}
-  .bar-row{display:flex;align-items:center;gap:12px;}
-  .bar-tag{width:26px;font-size:11px;color:var(--muted);flex:none;text-align:right;}
-  .bar-track{flex:1;background:var(--paper);border-radius:6px;height:26px;overflow:hidden;}
-  .bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:500;min-width:64px;transition:width .9s cubic-bezier(.22,1,.36,1);}
-  .bar-fill.before{background:var(--ghost);color:var(--ink);}
-  .bar-fill.after{background:var(--accent);}
-  .pages{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
-  .page{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 20px 18px;}
-  .page-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .page-icon{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none;}
-  .page-icon svg{width:17px;height:17px;}
-  .page-name{font-size:15px;font-weight:700;}
-  .m-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--hair);}
-  .m-row:first-of-type{border-top:none;}
-  .m-label{font-size:13px;}
-  .m-vals{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:right;white-space:nowrap;}
-  .m-vals b{color:var(--ink);font-weight:600;}
-  .m-delta{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;min-width:56px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:36px 24px 80px;}
+  .top-rule{height:3px;background:var(--accent);border-radius:2px;width:56px;margin-bottom:20px;}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 8px;}
+  h1{font-size:30px;font-weight:700;margin:0 0 20px;letter-spacing:-.01em;}
+  /* 탭 */
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--hair);margin-bottom:24px;}
+  .tab{padding:11px 18px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border:0;background:none;
+    border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  /* 컨트롤바(달력) */
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;background:var(--surface);border:1px solid var(--hair);
+    border-radius:12px;padding:16px 18px;margin-bottom:24px;}
+  .ctrl{display:flex;flex-direction:column;gap:5px;}
+  .ctrl label{font-size:11px;color:var(--muted);font-weight:600;}
+  .ctrl .pair{display:flex;gap:6px;align-items:center;}
+  input[type=date]{font-family:var(--mono);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:7px 10px;color:var(--ink);}
+  .seg{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;}
+  .seg.b{background:var(--paper);color:var(--muted);}
+  .seg.a{background:var(--accent-soft);color:var(--accent);}
+  .preset-btns{display:flex;gap:6px;flex-wrap:wrap;}
+  .preset-btns button{font-size:12px;font-weight:600;color:var(--ink);background:var(--paper);border:1px solid var(--hair);
+    border-radius:999px;padding:6px 12px;cursor:pointer;}
+  .preset-btns button:hover{border-color:var(--accent);color:var(--accent);}
+  .go{margin-left:auto;background:var(--accent);color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;}
+  /* 상태 */
+  .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;}
+  .spinner{width:26px;height:26px;border:3px solid var(--hair);border-top-color:var(--accent);border-radius:50%;
+    animation:spin .8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .err{background:var(--down-soft);color:var(--down);border-radius:10px;padding:16px;font-size:13px;}
+  .period-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;}
+  .period-label b{color:var(--accent);}
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px;}
+  .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;}
+  .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
+  .kpi .k-now{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;}
+  .kpi .k-was{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;}
+  .delta{display:inline-flex;gap:3px;font-family:var(--mono);font-size:12px;font-weight:600;padding:2px 7px;border-radius:999px;margin-top:9px;}
+  .delta.good{color:var(--up);background:var(--up-soft);}.delta.bad{color:var(--down);background:var(--down-soft);}
+  h2.sec{font-size:17px;font-weight:700;margin:32px 0 14px;}
+  /* 퍼널 */
+  .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:22px;}
+  .stage{margin-bottom:16px;}.stage:last-child{margin-bottom:0;}
+  .stage-top{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;}
+  .stage-name{font-weight:600;}.stage-conv{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .stage-conv b{color:var(--accent);}.stage-conv .w{color:var(--down);}
+  .bars{display:grid;gap:4px;}
+  .bar-row{display:flex;align-items:center;gap:10px;}.bar-tag{width:22px;font-size:11px;color:var(--muted);text-align:right;}
+  .bar-track{flex:1;background:var(--paper);border-radius:6px;height:24px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:9px;
+    color:#fff;font-family:var(--mono);font-size:12px;min-width:56px;transition:width .8s ease;}
+  .bar-fill.b{background:var(--ghost);color:var(--ink);}.bar-fill.a{background:var(--accent);}
+  /* 페이지/슬롯 테이블 */
+  .pages{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  .page{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
+  .page-name{font-size:14px;font-weight:700;margin-bottom:12px;}
+  .m-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:8px 0;border-top:1px solid var(--hair);align-items:center;}
+  .m-row:first-of-type{border-top:none;}.m-label{font-size:13px;}
+  .m-vals{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:right;}.m-vals b{color:var(--ink);}
+  .m-delta{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;min-width:52px;}
   .m-delta.good{color:var(--up);}.m-delta.bad{color:var(--down);}
-  .page-note{margin-top:13px;font-size:12.5px;line-height:1.55;color:var(--muted);background:var(--paper);border-radius:9px;padding:10px 12px;}
-  .page-note b{color:var(--ink);font-weight:600;}
-  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--hair);font-size:12px;color:var(--muted);line-height:1.7;}
-  @media (max-width:820px){.kpis{grid-template-columns:repeat(2,1fr);}.pages{grid-template-columns:1fr;}.sec-desc{display:none;}}
-  @media (max-width:480px){h1{font-size:26px;}.wrap{padding:28px 16px 60px;}.kpis{grid-template-columns:1fr;}.source{margin-left:0;width:100%;text-align:left;}}
-  @media (prefers-reduced-motion:reduce){.bar-fill{transition:none;}}
+  table.slot{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--hair);border-radius:12px;overflow:hidden;}
+  table.slot th,table.slot td{text-align:left;padding:10px 14px;font-size:13px;border-bottom:1px solid var(--hair);}
+  table.slot th{background:var(--paper);color:var(--muted);font-weight:600;font-size:12px;}
+  table.slot td.num{font-family:var(--mono);text-align:right;}
+  table.slot a{color:var(--accent);text-decoration:none;word-break:break-all;}
+  .slot-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .hide{display:none;}
+  @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr);}.pages,.slot-cols{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top-rule"></div>
-  <p class="eyebrow">리뉴얼 성과 리포트</p>
-  <h1>PrintBakery 리뉴얼 전 · 후 비교</h1>
-  <div class="meta">
-    <div class="period"><span class="lbl">리뉴얼 전 (7일)</span><span class="val" id="p-before">2026.06.24 – 06.30</span></div>
-    <span class="arrow">→</span>
-    <div class="period after"><span class="lbl">리뉴얼 후 (7일)</span><span class="val" id="p-after">2026.07.01 – 07.07</span></div>
-    <select id="preset-select" aria-label="비교 기간 선택"></select>
-    <div class="source">리뉴얼 오픈 <b>7/1</b> 기준 · 전후 동일 7일<br>데이터 · <b>GA4 (일별)</b> · 매출 제외</div>
+  <p class="eyebrow">PrintBakery Analytics</p>
+  <h1>리뉴얼 · 슬롯 성과 대시보드</h1>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="renewal">① 리뉴얼 전/후 성과</button>
+    <button class="tab" data-tab="slots">② 메인 슬롯 이동 (art·life)</button>
   </div>
 
-  <section>
-    <div class="sec-head">
-      <span class="sec-num">01</span><h2 class="sec-title">규모 지표</h2>
-      <p class="sec-desc">리뉴얼 후 유입과 상품 탐색이 크게 늘었습니다.</p>
-    </div>
-    <div class="kpis" id="kpis"></div>
-    <div class="callout">
-      <h3>한눈에</h3>
-      <p><b>유입은 확실한 성공입니다.</b> 방문 +65%, 신규 방문자 +91%, 새 메인(art·life) 유입 +609%, 상품상세 조회 +134%로 리뉴얼 후 사람들이 훨씬 많이 들어와 더 많은 상품을 봅니다.
-      <b>다음 과제는 전환</b>입니다. 장바구니·구매는 절대 수로는 늘었지만(+28%, +12%) 방문 증가폭에는 못 미쳐, 방문 대비 구매 전환율은 0.21% → 0.14%로 낮아졌습니다. 늘어난 방문자를 구매로 잇는 것이 다음 스텝입니다.</p>
-    </div>
-  </section>
+  <div class="controls">
+    <div class="ctrl"><label>리뉴얼 전 (before)</label><div class="pair"><span class="seg b">전</span>
+      <input type="date" id="bs"><span>~</span><input type="date" id="be"></div></div>
+    <div class="ctrl"><label>리뉴얼 후 (after)</label><div class="pair"><span class="seg a">후</span>
+      <input type="date" id="as"><span>~</span><input type="date" id="ae"></div></div>
+    <button class="go" id="go">조회</button>
+    <div class="ctrl" style="flex-basis:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div>
+  </div>
 
-  <section>
-    <div class="sec-head">
-      <span class="sec-num">02</span><h2 class="sec-title">구매 전환 퍼널</h2>
-      <p class="sec-desc">규모는 전 단계에서 커졌고, 특히 상품조회 전환이 크게 개선됐습니다.</p>
-    </div>
-    <div class="funnel">
-      <div class="funnel-legend"><span><span class="swatch sw-before"></span>리뉴얼 전</span><span><span class="swatch sw-after"></span>리뉴얼 후</span></div>
-      <div id="funnel"></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head">
-      <span class="sec-num">03</span><h2 class="sec-title">페이지별 트래픽 변화</h2>
-      <p class="sec-desc">조회수·활성 사용자 기준 전/후 비교입니다.</p>
-    </div>
-    <div class="pages" id="pages"></div>
-  </section>
-
-  <footer>
-    비교 방식: 리뉴얼 오픈일(7/1) 기준으로 직전 7일(6/24–6/30)과 직후 7일(7/1–7/7)을 동일 길이로 비교. 출처: GA4 일별 이벤트·페이지 데이터. 매출·주문 지표는 별도 관리되어 이 리포트에서 제외.<br>
-    참고: 리뉴얼과 함께 일부 이벤트 정의(form 관련)가 바뀌어 해당 지표는 전후 직접 비교에서 제외했습니다. 퍼널은 정의가 일관된 지표(세션·상품상세·장바구니·주문서·구매)로 구성했습니다.
-  </footer>
+  <div id="content"><div class="state"><div class="spinner"></div>데이터 불러오는 중…</div></div>
 </div>
 
 <script>
-const SAMPLE = {
-  kpis: [
-    { label:'세션(방문)',    before:86479, after:142750, unit:'count' },
-    { label:'신규 방문자',    before:49638, after:94942,  unit:'count' },
-    { label:'상품상세 조회',  before:39546, after:92429,  unit:'count' },
-    { label:'장바구니 담기',  before:2428,  after:3108,   unit:'count' },
-    { label:'구매',          before:180,   after:201,    unit:'count' },
-  ],
-  funnel: [
-    { name:'방문',           before:86479, after:142750 },
-    { name:'상품조회',        before:39546, after:92429 },
-    { name:'장바구니 담기',   before:2428,  after:3108 },
-    { name:'결제(주문서)',    before:1203,  after:1338 },
-    { name:'구매',           before:180,   after:201 },
-  ],
-  pages: [
-    { name:'메인 (art · life)', icon:'home', metrics:[
-        { label:'조회수', before:2037, after:14446 },
-        { label:'활성 사용자', before:785, after:6615 },
-      ], note:'실제 메인인 <b>/art.html · /life.html</b> 합산. 리뉴얼로 새 메인이 자리잡으며 유입이 <b>7배 이상</b> 급증 — 가장 뚜렷한 성과입니다.' },
-    { name:'상품 목록', icon:'grid', metrics:[
-        { label:'조회수', before:97992, after:110661 },
-        { label:'활성 사용자', before:38276, after:37532 },
-      ], note:'사용자 수는 비슷한데 조회수가 늘어 <b>탐색이 더 활발</b>해졌습니다.' },
-    { name:'상품 상세', icon:'tag', metrics:[
-        { label:'조회수', before:39546, after:92429 },
-        { label:'활성 사용자', before:20246, after:70076 },
-      ], note:'조회수·사용자 모두 폭증 — <b>리뉴얼의 가장 큰 성과</b>. 상품 발견이 크게 개선됐습니다.' },
-    { name:'상품 검색', icon:'search', metrics:[
-        { label:'조회수', before:8956, after:13632 },
-        { label:'활성 사용자', before:2117, after:4313 },
-      ], note:'검색 사용자가 2배로. <b>능동적으로 상품을 찾는</b> 방문자가 늘었습니다.' },
-    { name:'장바구니', icon:'cart', metrics:[
-        { label:'조회수', before:3252, after:3636 },
-        { label:'활성 사용자', before:910, after:1122 },
-      ], note:'장바구니 사용자 +23%. 담기까지는 늘었으나 이후 결제 연결이 과제입니다.' },
-    { name:'주문서(결제)', icon:'card', metrics:[
-        { label:'조회수', before:1203, after:1338 },
-        { label:'활성 사용자', before:562, after:696 },
-      ], note:'결제 단계 도달자 +24%. 여기서 구매까지 이어지는 비율을 높이는 것이 핵심 과제입니다.' },
-  ],
-};
-
+const WORKER="https://proud-sea-35f9.sugim-386.workers.dev";
+const $=(id)=>document.getElementById(id);
 const nf=new Intl.NumberFormat('ko-KR');
-const fmt=(v)=>nf.format(v);
-function delta(b,a,lowerIsBetter){const p=b===0?0:((a-b)/b*100);const improved=lowerIsBetter?a<b:a>b;return{text:(p>0?'+':'')+p.toFixed(1)+'%',good:improved};}
+const fmt=(v)=>nf.format(v||0);
+const delta=(b,a)=>{const p=b===0?0:((a-b)/b*100);return{text:(p>0?'+':'')+p.toFixed(1)+'%',good:a>=b};};
 
-const ICONS={
-  home:'<path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
-  grid:'<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="1.7"/>',
-  tag:'<path d="M3 11V4h7l10 10-7 7L3 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor"/>',
-  search:'<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15 15l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
-  cart:'<path d="M4 5h2l2 11h10l2-8H7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.4" fill="currentColor"/><circle cx="18" cy="20" r="1.4" fill="currentColor"/>',
-  card:'<rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 10h18" stroke="currentColor" stroke-width="1.7"/>',
-};
+let TAB='renewal';
+function iso(d){return d.toISOString().slice(0,10);}
+function addDays(base,n){const d=new Date(base);d.setDate(d.getDate()+n);return d;}
 
-// data.json(프리셋 구조) 또는 내장 SAMPLE(단일 기간)을 공통 형태로 정규화
-function normalize(D){
-  if(D && D.presets && D.data) return D; // 이미 프리셋 구조
-  return { // SAMPLE 폴백을 단일 프리셋으로
-    shopName:'PrintBakery', source:'내장 샘플 데이터', updatedAt:'',
-    defaultPreset:'renewal',
-    presets:[{id:'renewal',label:'리뉴얼 전후'}],
-    data:{ renewal:{ label:'리뉴얼 전후',
-      periodBefore:'2026-06-24 ~ 2026-06-30', periodAfter:'2026-07-01 ~ 2026-07-07',
-      kpis:D.kpis, funnel:D.funnel, pages:D.pages } }
-  };
+// 기본 기간: 리뉴얼 전후
+function setDates(bs,be,as,ae){$('bs').value=bs;$('be').value=be;$('as').value=as;$('ae').value=ae;}
+setDates('2026-06-24','2026-06-30','2026-07-01','2026-07-07');
+
+// 빠른 선택 버튼
+const PRESETS=[
+  {label:'리뉴얼 전후',fn:()=>setDates('2026-06-24','2026-06-30','2026-07-01','2026-07-07')},
+  {label:'최근 7일',fn:()=>{const y=addDays(new Date(),-1);setDates(iso(addDays(y,-13)),iso(addDays(y,-7)),iso(addDays(y,-6)),iso(y));}},
+  {label:'최근 28일',fn:()=>{const y=addDays(new Date(),-1);setDates(iso(addDays(y,-55)),iso(addDays(y,-28)),iso(addDays(y,-27)),iso(y));}},
+  {label:'지난달 vs 이번달',fn:()=>{const n=new Date();const ts=new Date(n.getFullYear(),n.getMonth(),1);const ps=new Date(n.getFullYear(),n.getMonth()-1,1);setDates(iso(ps),iso(addDays(ts,-1)),iso(ts),iso(addDays(new Date(),-1)));}},
+];
+$('presets').innerHTML=PRESETS.map((p,i)=>`<button data-i="${i}">${p.label}</button>`).join('');
+$('presets').addEventListener('click',(e)=>{const i=e.target.dataset.i;if(i!=null){PRESETS[i].fn();load();}});
+
+// 탭 전환
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');TAB=t.dataset.tab;load();
+}));
+$('go').addEventListener('click',load);
+
+function q(){return `bs=${$('bs').value}&be=${$('be').value}&as=${$('as').value}&ae=${$('ae').value}`;}
+function showLoading(){$('content').innerHTML='<div class="state"><div class="spinner"></div>데이터 불러오는 중…</div>';}
+function showErr(m){$('content').innerHTML=`<div class="err">데이터를 불러오지 못했습니다.<br>${m}<br><br>잠시 후 [조회]를 다시 눌러보세요.</div>`;}
+
+async function load(){
+  showLoading();
+  try{
+    const url=WORKER+'/?'+q()+(TAB==='slots'?'&tab=slots':'');
+    const r=await fetch(url);
+    const d=await r.json();
+    if(d.error){showErr(d.error);return;}
+    TAB==='slots'?renderSlots(d):renderRenewal(d);
+  }catch(e){showErr(String(e));}
 }
 
-let MODEL=null;
-async function init(){
-  let D=SAMPLE, live=false;
-  try{ const r=await fetch('./data.json?t='+Date.now(),{cache:'no-store'}); if(r.ok){ D=await r.json(); live=true; } }catch(e){}
-  MODEL=normalize(D);
+function periodLabel(d){return `<div class="period-label">비교 기간 &nbsp; <b>전</b> ${d.periodBefore} &nbsp;→&nbsp; <b>후</b> ${d.periodAfter}</div>`;}
 
-  // 드롭다운 채우기
-  const sel=document.getElementById('preset-select');
-  sel.innerHTML=MODEL.presets.map(p=>`<option value="${p.id}">${p.label}</option>`).join('');
-  sel.value=MODEL.defaultPreset||MODEL.presets[0].id;
-  sel.addEventListener('change',()=>renderPreset(sel.value));
-
-  renderPreset(sel.value);
-}
-
-function fmtPeriod(p){ return (p||'').replace(/-/g,'.').replace('~','–'); }
-
-function renderPreset(id){
-  const P=MODEL.data[id]; if(!P) return;
-  const pb=document.getElementById('p-before'), pa=document.getElementById('p-after');
-  if(pb) pb.textContent=fmtPeriod(P.periodBefore);
-  if(pa) pa.textContent=fmtPeriod(P.periodAfter);
-
+function renderRenewal(d){
+  let h=periodLabel(d);
   // KPI
-  document.getElementById('kpis').innerHTML=P.kpis.map(k=>{
-    const d=delta(k.before,k.after,false);
-    return `<div class="kpi"><div class="k-label">${k.label}</div>
-      <div class="k-now">${fmt(k.after)}</div>
-      <div class="delta ${d.good?'good':'bad'}">${d.good?'▲':'▼'} ${d.text}</div>
-      <div class="k-was">전: ${fmt(k.before)}</div></div>`;
-  }).join('');
-
+  h+='<div class="kpis">'+d.kpis.map(k=>{const x=delta(k.before,k.after);
+    return `<div class="kpi"><div class="k-label">${k.label}</div><div class="k-now">${fmt(k.after)}</div>
+    <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">전: ${fmt(k.before)}</div></div>`;
+  }).join('')+'</div>';
   // 퍼널
-  const topB=P.funnel[0].before, topA=P.funnel[0].after;
-  document.getElementById('funnel').innerHTML=P.funnel.map((s,i)=>{
-    const prev=P.funnel[i-1];
-    const cB=prev?(s.before/prev.before*100):100, cA=prev?(s.after/prev.after*100):100, dd=prev?(cA-cB):0;
-    const wB=s.before/topB*100, wA=s.after/topA*100, cls=dd<0?'worse':'';
-    const conv=prev
-      ?`<span class="stage-conv">통과율 ${cB.toFixed(1)}% → <b class="${cls}">${cA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`
-      :`<span class="stage-conv">유입 기준 100%</span>`;
-    return `<div class="stage"><div class="stage-top"><span class="stage-name">${s.name}</span>${conv}</div>
-      <div class="bars">
-        <div class="bar-row"><span class="bar-tag">전</span><div class="bar-track"><div class="bar-fill before" style="width:${Math.max(wB,7)}%">${fmt(s.before)}</div></div></div>
-        <div class="bar-row"><span class="bar-tag">후</span><div class="bar-track"><div class="bar-fill after" style="width:0" data-w="${Math.max(wA,7)}">${fmt(s.after)}</div></div></div>
-      </div></div>`;
-  }).join('');
-
+  h+='<h2 class="sec">구매 전환 퍼널</h2><div class="funnel">';
+  const tB=d.funnel[0].before,tA=d.funnel[0].after;
+  h+=d.funnel.map((s,i)=>{const p=d.funnel[i-1];
+    const cB=p?(s.before/p.before*100):100,cA=p?(s.after/p.after*100):100,dd=p?cA-cB:0,cls=dd<0?'w':'';
+    const conv=p?`<span class="stage-conv">통과율 ${cB.toFixed(1)}% → <b class="${cls}">${cA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`:`<span class="stage-conv">유입 100%</span>`;
+    return `<div class="stage"><div class="stage-top"><span class="stage-name">${s.name}</span>${conv}</div><div class="bars">
+      <div class="bar-row"><span class="bar-tag">전</span><div class="bar-track"><div class="bar-fill b" style="width:${Math.max(s.before/tB*100,7)}%">${fmt(s.before)}</div></div></div>
+      <div class="bar-row"><span class="bar-tag">후</span><div class="bar-track"><div class="bar-fill a" style="width:${Math.max(s.after/tA*100,7)}%">${fmt(s.after)}</div></div></div>
+    </div></div>`;
+  }).join('')+'</div>';
   // 페이지
-  document.getElementById('pages').innerHTML=P.pages.map(pg=>{
-    const rows=pg.metrics.map(m=>{const d=delta(m.before,m.after,false);
-      return `<div class="m-row"><span class="m-label">${m.label}</span>
-        <span class="m-vals">${fmt(m.before)} → <b>${fmt(m.after)}</b></span>
-        <span class="m-delta ${d.good?'good':'bad'}">${d.good?'▲':'▼'} ${d.text}</span></div>`;}).join('');
-    return `<div class="page"><div class="page-head"><span class="page-icon"><svg viewBox="0 0 24 24">${ICONS[pg.icon]||''}</svg></span><span class="page-name">${pg.name}</span></div>
-      ${rows}<div class="page-note">${pg.note||''}</div></div>`;
-  }).join('');
-
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    document.querySelectorAll('.bar-fill.after').forEach(el=>{el.style.width=el.dataset.w+'%';});
-  }));
+  h+='<h2 class="sec">페이지별 트래픽</h2><div class="pages">'+d.pages.map(pg=>{
+    const rows=pg.metrics.map(m=>{const x=delta(m.before,m.after);
+      return `<div class="m-row"><span class="m-label">${m.label}</span><span class="m-vals">${fmt(m.before)} → <b>${fmt(m.after)}</b></span>
+      <span class="m-delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</span></div>`;}).join('');
+    return `<div class="page"><div class="page-name">${pg.name}</div>${rows}</div>`;
+  }).join('')+'</div>';
+  $('content').innerHTML=h;
 }
 
-init();
+function slotTable(list){
+  if(!list||!list.length)return '<div class="state">이동 데이터 없음</div>';
+  return '<table class="slot"><tr><th>목적지</th><th style="text-align:right;">이동 세션</th></tr>'+
+    list.map(x=>`<tr><td><a href="https://printbakery.com${x.path}" target="_blank">${x.path}</a></td><td class="num">${fmt(x.sessions)}</td></tr>`).join('')+'</table>';
+}
+function renderSlots(d){
+  let h=periodLabel(d);
+  h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인(art·life)에서 클릭해 넘어간 목적지를 이동 세션 많은 순으로 보여줍니다. 리뉴얼 후(after) 기간 기준.</p>';
+  ['art.html','life.html'].forEach(k=>{
+    const s=d.slots[k]||{};
+    h+=`<h2 class="sec">${k} 메인에서의 이동 (상위 30)</h2>`;
+    h+=`<div class="slot-cols"><div><div class="period-label"><b>전</b> ${d.periodBefore}</div>${slotTable(s.before)}</div>
+      <div><div class="period-label"><b>후</b> ${d.periodAfter}</div>${slotTable(s.after)}</div></div>`;
+  });
+  $('content').innerHTML=h;
+}
+
+load();
 </script>
 </body>
 </html>
