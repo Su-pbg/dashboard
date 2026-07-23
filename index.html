@@ -111,6 +111,7 @@ const TABS=[
   {id:'acquisition',name:'획득',ready:false},
   {id:'funnel',name:'퍼널·페이지',ready:true},
   {id:'product',name:'상품·슬롯',ready:true},
+  {id:'slotperf',name:'구좌 성과',ready:true},
   {id:'revenue',name:'매출',ready:false},
 ];
 let TAB='overview';
@@ -147,11 +148,12 @@ async function load(){
   if(cur && !cur.ready){$('content').innerHTML=`<div class="soon-box"><b>${cur.name}</b> 탭은 준비 중입니다.<br>다음 단계에서 추가됩니다.</div>`;return;}
   showLoading();
   try{
-    const tabParam=(TAB==='product')?'&tab=slots':'';
+    const tabParam=(TAB==='product')?'&tab=slots':(TAB==='slotperf')?'&tab=slotperf':'';
     const r=await fetch(WORKER+'/?'+q()+tabParam);
     const d=await r.json();
     if(d.error){showErr(d.error);return;}
-    if(TAB==='product')renderProduct(d);
+    if(TAB==='slotperf')renderSlotPerf(d);
+    else if(TAB==='product')renderProduct(d);
     else if(TAB==='funnel')renderFunnel(d);
     else renderOverview(d);
   }catch(e){showErr(String(e));}
@@ -209,6 +211,28 @@ function renderProduct(d){
     h+=`<h2 class="sec">${k} 메인에서의 이동 (상위 30)</h2>`;
     h+=`<div class="slot-cols"><div><div class="period-label"><b>전</b> ${d.periodBefore}</div>${slotTable(s.before)}</div>
       <div><div class="period-label"><b>후</b> ${d.periodAfter}</div>${slotTable(s.after)}</div></div>`;});
+  $('content').innerHTML=h;
+}
+
+
+function fmtDwell(sec){ if(!sec) return '-'; const m=Math.floor(sec/60),x=sec%60; return m>0?`${m}:${String(x).padStart(2,'0')}`:`${x}초`; }
+function slotPerfTable(rows){
+  return '<table class="slot"><tr><th>순서</th><th>구좌명</th><th style="text-align:right;">이동(전→후)</th><th style="text-align:right;">비중(후)</th><th style="text-align:right;">체류(후)</th></tr>'+
+    rows.map(r=>{
+      const dd=r.after.sessions-r.before.sessions;
+      const arrow=dd>0?'▲':(dd<0?'▼':'–'), cls=dd>0?'good':(dd<0?'bad':'');
+      return `<tr><td class="num">${r.order}</td><td>${r.name}</td>
+        <td class="num">${fmt(r.before.sessions)} → <b>${fmt(r.after.sessions)}</b> <span class="m-delta ${cls}">${arrow}</span></td>
+        <td class="num">${r.after.share.toFixed(1)}%</td>
+        <td class="num">${fmtDwell(r.after.dwell)}</td></tr>`;
+    }).join('')+'</table>';
+}
+function renderSlotPerf(d){
+  let h=periodLabel(d);
+  h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인의 구좌(노출 순서)별 클릭 이동 · 비중 · 도착 페이지 체류시간. 상품 재배치 판단용. 체류시간은 클릭해 들어간 페이지 기준.</p>';
+  ['art','life'].forEach(tab=>{
+    h+=`<h2 class="sec">${tab}.html 구좌별 성과</h2>`+slotPerfTable(d.slotperf[tab]||[]);
+  });
   $('content').innerHTML=h;
 }
 
