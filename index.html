@@ -121,7 +121,7 @@ const TABS=[
   {id:'funnel',name:'퍼널·페이지',ready:true},
   {id:'product',name:'상품·슬롯',ready:true},
   {id:'slotperf',name:'구좌 성과',ready:true},
-  {id:'revenue',name:'매출',ready:false},
+  {id:'revenue',name:'매출',ready:true},
 ];
 let TAB='overview';
 $('tabs').innerHTML=TABS.map(t=>`<button class="tab ${t.id===TAB?'active':''}" data-tab="${t.id}">${t.name}${t.ready?'':'<span class="soon">준비중</span>'}</button>`).join('');
@@ -174,6 +174,7 @@ function periodLabel(d){
 async function load(){
   const cur=TABS.find(t=>t.id===TAB);
   if(cur && !cur.ready){$('content').innerHTML=`<div class="soon-box"><b>${cur.name}</b> 탭은 준비 중입니다.<br>다음 단계에서 추가됩니다.</div>`;return;}
+  if(TAB==='revenue'){ await loadRevenue(); return; }
   showLoading();
   try{
     const tabParam=(TAB==='product')?'&tab=slots':(TAB==='slotperf')?'&tab=slotperf':(TAB==='acquisition')?'&tab=acquisition':'';
@@ -305,6 +306,70 @@ function renderSlotPerf(d){
       h+=`<div class="section-title">${sec}${badge}</div>`+sectionTable(groups[sec]);
     });
   });
+  $('content').innerHTML=h;
+}
+
+function rankTable(rows,label){
+  const tot=rows.reduce((s,x)=>s+x.sessions,0)||1;
+  return '<table class="slot"><tr><th>'+label+'</th><th style="text-align:right;">세션</th><th style="text-align:right;">비중</th></tr>'+
+    rows.map(x=>`<tr><td>${x.name}</td><td class="num">${fmt(x.sessions)}</td><td class="num">${x.share.toFixed(1)}%</td></tr>`).join('')+'</table>';
+}
+function renderAcquisition(d){
+  let h=`<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
+  h+='<h2 class="sec">유입 소스별</h2>'+rankTable(d.acquisition.bySource,'소스 / 매체');
+  h+='<h2 class="sec">디바이스별</h2>'+rankTable(d.acquisition.byDevice,'디바이스');
+  $('content').innerHTML=h;
+}
+
+function won(v){ return fmt(v)+'원'; }
+let REVENUE_CACHE=null;
+async function loadRevenue(){
+  showLoading();
+  try{
+    if(!REVENUE_CACHE){
+      const r=await fetch('./revenue-daily.json');
+      REVENUE_CACHE=await r.json();
+    }
+    const daily=REVENUE_CACHE.daily||[];
+    const inRange=(d,s0,e0)=>d>=s0 && d<=e0;
+    const sumRange=(s0,e0)=>{
+      const rows=daily.filter(d=>inRange(d.date,s0,e0));
+      const agg={gmv:0,net:0,count:0,refund:0,items:{}};
+      rows.forEach(r=>{
+        agg.gmv+=r.gmv; agg.net+=r.net; agg.count+=r.count; agg.refund+=r.refund;
+        (r.topItems||[]).forEach(it=>{
+          const k=it.product_no;
+          if(!agg.items[k]) agg.items[k]={name:it.name,amt:0,qty:0};
+          agg.items[k].amt+=it.amt; agg.items[k].qty+=it.qty;
+        });
+      });
+      agg.aov = agg.count? Math.round(agg.net/agg.count):0;
+      agg.topItems = Object.values(agg.items).sort((a,b)=>b.amt-a.amt).slice(0,5);
+      return agg;
+    };
+    const as=$('s').value, ae=$('e').value;
+    const after=sumRange(as,ae);
+    const before = $('cmp').checked ? sumRange($('cs').value,$('ce').value) : after;
+    renderRevenue({periodAfter:`${as} ~ ${ae}`, revenue:{before,after}});
+  }catch(e){
+    showErr('매출 데이터를 불러오지 못했습니다.<br><span style="font-size:12px;">레포에 revenue-daily.json 파일이 있는지 확인해주세요.</span>');
+  }
+}
+function renderRevenue(d){
+  let h=periodLabel(d);
+  const b=d.revenue.before, a=d.revenue.after;
+  const rows=[
+    {label:'거래액(GMV)',b:b.gmv,a:a.gmv},
+    {label:'매출총액',b:b.net,a:a.net},
+    {label:'주문 건수',b:b.count,a:a.count},
+    {label:'객단가',b:b.aov,a:a.aov},
+    {label:'환불액',b:b.refund,a:a.refund},
+  ];
+  h+='<div class="kpis">'+rows.map(r=>{const x=delta(r.b,r.a);
+    return `<div class="kpi"><div class="k-label">${r.label}</div><div class="k-now">${won(r.a)}</div>
+    <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+won(r.b):''}</div></div>`;}).join('')+'</div>';
+  h+='<h2 class="sec">판매 TOP 5 (선택 기간)</h2><table class="slot"><tr><th>상품명</th><th style="text-align:right;">판매액</th><th style="text-align:right;">수량</th></tr>'+
+    (a.topItems.length? a.topItems.map(it=>`<tr><td>${it.name}</td><td class="num">${won(it.amt)}</td><td class="num">${it.qty}개</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted);">데이터 없음</td></tr>')+'</table>';
   $('content').innerHTML=h;
 }
 
