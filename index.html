@@ -31,6 +31,7 @@
   .preset-btns{display:flex;gap:6px;flex-wrap:wrap;}
   .preset-btns button{font-size:12px;font-weight:600;color:var(--ink);background:var(--paper);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;cursor:pointer;}
   .preset-btns button:hover{border-color:var(--accent);color:var(--accent);}
+  .preset-btns button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
   .go{margin-left:auto;background:var(--accent);color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;}
   .excl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;}
   .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;}
@@ -98,10 +99,17 @@
     <div class="ctrl"><label>기간</label><div class="pair">
       <input type="date" id="s"><span>~</span><input type="date" id="e"></div></div>
     <label class="excl"><input type="checkbox" id="cmp"> 이전 기간과 비교</label>
-    <div class="ctrl" id="cmpBox" style="display:none;"><label>비교 대상(이전) 기간</label><div class="pair">
+    <div class="ctrl" id="cmpModeBox"><label>비교 방식</label>
+      <select id="cmpMode" style="font-family:var(--mono);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:7px 10px;">
+        <option value="prev">직전 기간</option>
+        <option value="lastyear">작년 동기간</option>
+      </select>
+    </div>
+    <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
       <span class="seg b">비교</span><input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
     <button class="go" id="go">조회</button>
+    <button class="go" id="refreshBtn" style="background:var(--surface);color:var(--accent);border:1px solid var(--accent);" title="캐시 무시하고 데이터 새로 받아오기">↻ 새로고침</button>
     <div class="ctrl" style="flex-basis:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div>
   </div>
 
@@ -117,27 +125,39 @@ const delta=(b,a)=>{const p=b===0?0:((a-b)/b*100);return{text:(p>0?'+':'')+p.toF
 
 const TABS=[
   {id:'overview',name:'개요',ready:true},
+  {id:'revenue',name:'매출',ready:true},
   {id:'acquisition',name:'획득',ready:true},
   {id:'funnel',name:'퍼널·페이지',ready:true},
-  {id:'product',name:'상품·슬롯',ready:true},
-  {id:'slotperf',name:'구좌 성과',ready:true},
-  {id:'revenue',name:'매출',ready:true},
+  {id:'product',name:'구좌·상품 성과',ready:true},
 ];
-let TAB='overview';
+const SAVED_TAB=localStorage.getItem('pbg_dashboard_tab');
+let TAB = (SAVED_TAB && TABS.find(t=>t.id===SAVED_TAB)) ? SAVED_TAB : 'overview';
 $('tabs').innerHTML=TABS.map(t=>`<button class="tab ${t.id===TAB?'active':''}" data-tab="${t.id}">${t.name}${t.ready?'':'<span class="soon">준비중</span>'}</button>`).join('');
 $('tabs').addEventListener('click',(e)=>{const b=e.target.closest('.tab');if(!b)return;
-  TAB=b.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===TAB));load();});
+  TAB=b.dataset.tab;
+  localStorage.setItem('pbg_dashboard_tab',TAB);
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===TAB));load();});
 
-function iso(d){return d.toISOString().slice(0,10);}
+function iso(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function addDays(base,n){const d=new Date(base);d.setDate(d.getDate()+n);return d;}
 function setRange(s0,e0){$('s').value=s0;$('e').value=e0;}
 function autoCompare(){
   const s0=new Date($('s').value), e0=new Date($('e').value);
-  const days=Math.round((e0-s0)/86400000)+1;
-  const ce=addDays(s0,-1), cs=addDays(ce,-(days-1));
-  $('cs').value=iso(cs); $('ce').value=iso(ce);
+  const mode=$('cmpMode').value;
+  if(mode==='lastyear'){
+    const cs=new Date(s0); cs.setFullYear(cs.getFullYear()-1);
+    const ce=new Date(e0); ce.setFullYear(ce.getFullYear()-1);
+    $('cs').value=iso(cs); $('ce').value=iso(ce);
+  } else {
+    const days=Math.round((e0-s0)/86400000)+1;
+    const ce=addDays(s0,-1), cs=addDays(ce,-(days-1));
+    $('cs').value=iso(cs); $('ce').value=iso(ce);
+  }
 }
-{ const y=iso(addDays(new Date(),-1)); setRange(y,y); }
+{ const y=iso(addDays(new Date(),-1)); setRange(y,y); $('cmp').checked=true; autoCompare(); }
 
 const PRESETS=[
   {label:'어제',fn:()=>{const y=iso(addDays(new Date(),-1));setRange(y,y);}},
@@ -145,15 +165,29 @@ const PRESETS=[
   {label:'최근 28일',fn:()=>{const y=addDays(new Date(),-1);setRange(iso(addDays(y,-27)),iso(y));}},
   {label:'이번달',fn:()=>{const n=new Date();setRange(iso(new Date(n.getFullYear(),n.getMonth(),1)),iso(addDays(new Date(),-1)));}},
 ];
-$('presets').innerHTML=PRESETS.map((p,i)=>`<button data-i="${i}">${p.label}</button>`).join('');
-$('presets').addEventListener('click',(e)=>{const i=e.target.dataset.i;if(i!=null){PRESETS[i].fn();if($('cmp').checked)autoCompare();load();}});
+$('presets').innerHTML=PRESETS.map((p,i)=>`<button data-i="${i}" data-preset-btn>${p.label}</button>`).join('');
+document.querySelectorAll('[data-preset-btn]')[0]?.classList.add('active'); // 기본값=어제
+$('presets').addEventListener('click',(e)=>{const i=e.target.dataset.i;if(i==null)return;
+  PRESETS[i].fn();
+  document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');
+  if($('cmp').checked)autoCompare();
+  load();
+});
+// 날짜를 직접 수정하면 프리셋 선택 표시 해제
+$('s').addEventListener('change',()=>document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active')));
+$('e').addEventListener('change',()=>document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active')));
 $('cmp').addEventListener('change',()=>{
-  const on=$('cmp').checked; $('cmpBox').style.display=on?'flex':'none';
+  const on=$('cmp').checked;
+  $('cmpBox').style.display=on?'flex':'none';
+  $('cmpModeBox').style.display=on?'flex':'none';
   if(on) autoCompare();
   load();
 });
+$('cmpMode').addEventListener('change',()=>{ autoCompare(); load(); });
 $('exclLpoint').addEventListener('change',load);
 $('go').addEventListener('click',load);
+$('refreshBtn').addEventListener('click',()=>{ REVENUE_CACHE=null; load(); });
 
 function q(extra){
   const cmp=$('cmp').checked;
@@ -175,35 +209,138 @@ async function load(){
   const cur=TABS.find(t=>t.id===TAB);
   if(cur && !cur.ready){$('content').innerHTML=`<div class="soon-box"><b>${cur.name}</b> 탭은 준비 중입니다.<br>다음 단계에서 추가됩니다.</div>`;return;}
   if(TAB==='revenue'){ await loadRevenue(); return; }
+  if(TAB==='product'){ await loadProductTab(); return; }
   showLoading();
   try{
-    const tabParam=(TAB==='product')?'&tab=slots':(TAB==='slotperf')?'&tab=slotperf':(TAB==='acquisition')?'&tab=acquisition':'';
-    const r=await fetch(WORKER+'/?'+q()+tabParam);
+    const tabParam=(TAB==='acquisition')?'&tab=acquisition':'';
+    const r=await fetch(WORKER+'/?'+q()+tabParam,{cache:'no-store'});
     const d=await r.json();
     if(d.error){showErr(d.error);return;}
     if(TAB==='acquisition')renderAcquisition(d);
-    else if(TAB==='slotperf')renderSlotPerf(d);
-    else if(TAB==='product')renderProduct(d);
     else if(TAB==='funnel')renderFunnel(d);
     else await renderOverview(d);
   }catch(e){showErr(String(e));}
 }
+async function loadProductTab(){
+  showLoading();
+  try{
+    const [r1,r2]=await Promise.all([
+      fetch(WORKER+'/?'+q()+'&tab=slotperf',{cache:'no-store'}),
+      fetch(WORKER+'/?'+q()+'&tab=slots',{cache:'no-store'}),
+    ]);
+    const dPerf=await r1.json(), dSlots=await r2.json();
+    if(dPerf.error){showErr(dPerf.error);return;}
+    if(dSlots.error){showErr(dSlots.error);return;}
+    renderProductTab(dPerf,dSlots);
+  }catch(e){showErr(String(e));}
+}
 
+function fmtByUnit(v,unit){
+  if(unit==='percent') return v.toFixed(1)+'%';
+  if(unit==='duration'){ const m=Math.floor(v/60), s=Math.round(v%60); return m>0?`${m}:${String(s).padStart(2,'0')}`:`${s}초`; }
+  if(unit==='decimal') return v.toFixed(1);
+  if(unit==='won') return fmt(v)+'원';
+  return fmt(v);
+}
 function kpiHTML(kpis){return '<div class="kpis">'+kpis.map(k=>{const x=delta(k.before,k.after);
-  return `<div class="kpi"><div class="k-label">${k.label}</div><div class="k-now">${fmt(k.after)}</div>
-  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+fmt(k.before):''}</div></div>`;}).join('')+'</div>';}
+  return `<div class="kpi"><div class="k-label">${k.label}</div><div class="k-now">${fmtByUnit(k.after,k.unit)}</div>
+  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+fmtByUnit(k.before,k.unit):''}</div></div>`;}).join('')+'</div>';}
+
+function auCard(label,valText,sub){
+  return `<div class="kpi"><div class="k-label">${label}</div><div class="k-now">${valText}</div><div class="k-was">${sub||''}</div></div>`;
+}
+async function revenueRangeNet(s0,e0){
+  if(!REVENUE_CACHE){
+    const r=await fetch('./revenue-daily.json',{cache:'no-store'});
+    REVENUE_CACHE=await r.json();
+  }
+  const daily=REVENUE_CACHE.daily||[];
+  return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+x.net,0);
+}
+async function revenueRangeNewMembers(s0,e0){
+  if(!REVENUE_CACHE){
+    const r=await fetch('./revenue-daily.json',{cache:'no-store'});
+    REVENUE_CACHE=await r.json();
+  }
+  const daily=REVENUE_CACHE.daily||[];
+  return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+(x.newMembers||0),0);
+}
 
 async function renderOverview(d){
   let h=periodLabel(d);
-  h+='<h2 class="sec">핵심 지표</h2>'+kpiHTML(d.kpis);
+  const byGroup=(g)=>d.kpis.filter(k=>k.group===g);
+
+  h+='<h2 class="sec">① 획득 (Acquisition)</h2>'+kpiHTML(byGroup('acquisition'));
+
+  h+='<h2 class="sec">② 활성화 (Activation)</h2><div id="actWrap">'+kpiHTML(byGroup('activation'))+'</div>';
+  h+='<p style="font-size:12px;color:var(--muted);margin-top:-14px;margin-bottom:24px;">방문 세션 중 상품 상세·장바구니로 이어진 비율 · 신규 가입은 cafe24 회원 데이터 기준</p>';
+
+  h+='<h2 class="sec">③ 유지 (Retention)</h2><div id="auWrap" class="kpis"><div class="state" style="grid-column:1/-1;"><div class="spinner"></div>불러오는 중…</div></div>';
+  h+=kpiHTML(byGroup('retention'));
+
+  h+='<h2 class="sec">④ 수익 (Revenue)</h2><div id="revWrap">'+kpiHTML(byGroup('revenue'))+'</div>';
+
+  h+='<h2 class="sec">⑤ 추천 (Referral)</h2><div class="soon-box">아직 측정 안 됨.<br><span style="font-size:12px;">공유·바이럴 이벤트가 GA4에 연결돼 있지 않아요. 공유 버튼 등에 클릭 이벤트를 추가하면 바이럴계수·공유율을 여기에 넣을 수 있어요.</span></div>';
+
   h+='<h2 class="sec">일별 추이</h2><div id="chartWrap" class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div>';
   $('content').innerHTML=h;
+
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=daily');
+    const r=await fetch(WORKER+'/?'+q()+'&tab=daily',{cache:'no-store'});
     const dd=await r.json();
     if(dd.daily && dd.daily.length) drawChart(dd.daily);
     else document.getElementById('chartWrap').innerHTML='<div class="state">추이 데이터 없음</div>';
   }catch(e){ document.getElementById('chartWrap').innerHTML='<div class="state">추이를 불러오지 못했습니다</div>'; }
+
+  try{
+    const r2=await fetch(WORKER+'/?'+q()+'&tab=activeusers',{cache:'no-store'});
+    const au=await r2.json();
+    if(au.error){ document.getElementById('auWrap').innerHTML='<div class="state">불러오지 못함</div>'; }
+    else{
+      document.getElementById('auWrap').innerHTML =
+        auCard('DAU (일간 활성)', fmt(au.dau), au.referenceDate+' 기준') +
+        auCard('WAU (주간 활성)', fmt(au.wau), '최근 7일 고유') +
+        auCard('MAU (월간 활성)', fmt(au.mau), '최근 28일 고유') +
+        auCard('Stickiness', au.stickiness.toFixed(1)+'%', 'DAU/MAU');
+    }
+  }catch(e){ document.getElementById('auWrap').innerHTML='<div class="state">불러오지 못했습니다</div>'; }
+
+  // ARPU: GA4 사용자 수 + cafe24 실매출을 합쳐 계산 (실패해도 나머지 카드는 유지)
+  try{
+    const asDate=$('s').value, aeDate=$('e').value;
+    const netAfter=await revenueRangeNet(asDate,aeDate);
+    const usersAfter=d.usersInRange?.after||0;
+    const arpuAfter = usersAfter ? Math.round(netAfter/usersAfter) : null;
+    let arpuBefore=arpuAfter;
+    if($('cmp').checked){
+      const netBefore=await revenueRangeNet($('cs').value,$('ce').value);
+      const usersBefore=d.usersInRange?.before||0;
+      arpuBefore = usersBefore ? Math.round(netBefore/usersBefore) : arpuAfter;
+    }
+    if(arpuAfter!=null){
+      const arpuItem=[{label:'ARPU (사용자당 매출)', before:arpuBefore, after:arpuAfter, unit:'won'}];
+      document.getElementById('revWrap').innerHTML = kpiHTML([...byGroup('revenue'), ...arpuItem]);
+    }
+  }catch(e){ /* ARPU 계산 실패해도 기존 수익 카드는 그대로 둠 */ }
+
+  // 신규 가입자 수 + 가입 완료율 (cafe24 회원 데이터 + GA4 신규방문자)
+  try{
+    const asDate=$('s').value, aeDate=$('e').value;
+    const newMembersAfter=await revenueRangeNewMembers(asDate,aeDate);
+    const newVisitorsAfter=(byGroup('acquisition').find(k=>k.label==='신규 방문자')||{}).after||0;
+    const signupRateAfter = newVisitorsAfter ? (newMembersAfter/newVisitorsAfter*100) : 0;
+    let newMembersBefore=newMembersAfter, signupRateBefore=signupRateAfter;
+    if($('cmp').checked){
+      newMembersBefore=await revenueRangeNewMembers($('cs').value,$('ce').value);
+      const newVisitorsBefore=(byGroup('acquisition').find(k=>k.label==='신규 방문자')||{}).before||0;
+      signupRateBefore = newVisitorsBefore ? (newMembersBefore/newVisitorsBefore*100) : 0;
+    }
+    const signupItems=[
+      {label:'신규 가입자', before:newMembersBefore, after:newMembersAfter, unit:'count'},
+      {label:'가입 완료율', before:signupRateBefore, after:signupRateAfter, unit:'percent'},
+    ];
+    document.getElementById('actWrap').innerHTML = kpiHTML([...byGroup('activation'), ...signupItems]);
+  }catch(e){ /* 실패해도 기존 활성화 카드는 그대로 둠 */ }
 }
 
 const SERIES=[
@@ -271,41 +408,75 @@ function destLabel(x){
   else if(/list\.html/.test(t)){const m=t.match(/cate_no=(\d+)/);t='카테고리 목록'+(m?` (${m[1]})`:'');}
   return `<a href="https://printbakery.com${x.path}" target="_blank">${t}</a>`;
 }
+function fmtDwell(sec){ if(!sec) return '-'; const m=Math.floor(sec/60),x=sec%60; return m>0?`${m}:${String(x).padStart(2,'0')}`:`${x}초`; }
+
+// 구좌 순서(화면 배치 위치) + 유입(그 구좌를 통해 실제 넘어간 세션) 표
+const SECTION_ROWS={}, SECTION_SORT={};
+function sortArrow(id,key){
+  const st=SECTION_SORT[id];
+  if(!st||st.key!==key) return '<span style="color:var(--ghost);">↕</span>';
+  return st.dir==='asc' ? '<span style="color:var(--accent);">▲</span>' : '<span style="color:var(--accent);">▼</span>';
+}
+function sortSection(id,key){
+  const st=SECTION_SORT[id]||{key:'sessions',dir:'desc'};
+  const dir = (st.key===key && st.dir==='desc') ? 'asc' : 'desc';
+  SECTION_SORT[id]={key,dir};
+  const wrap=document.getElementById('wrap-'+id);
+  if(wrap) wrap.innerHTML=sectionTable(SECTION_ROWS[id], id);
+}
+let SECTION_TABLE_SEQ=0;
+function sectionTable(rows, id){
+  if(!id){ id='sec'+(SECTION_TABLE_SEQ++); }
+  SECTION_ROWS[id]=rows;
+  const st=SECTION_SORT[id]||{key:'sessions',dir:'desc'};
+  SECTION_SORT[id]=st;
+  const val=(r)=> st.key==='order' ? r.order : r.after.sessions;
+  const sorted=[...rows].sort((a,b)=> st.dir==='asc' ? (val(a)-val(b)) : (val(b)-val(a)));
+  const tot=sorted.reduce((s,x)=>s+x.after.sessions,0)||1;
+  return `<div id="wrap-${id}"><table class="slot">
+    <colgroup><col style="width:38%"><col style="width:14%"><col style="width:16%"><col style="width:14%"><col style="width:18%"></colgroup>
+    <tr><th>구좌명</th>
+      <th style="text-align:right;cursor:pointer;" onclick="sortSection('${id}','order')">구좌 순서 ${sortArrow(id,'order')}</th>
+      <th style="text-align:right;cursor:pointer;" onclick="sortSection('${id}','sessions')">유입 세션 ${sortArrow(id,'sessions')}</th>
+      <th style="text-align:right;">비중</th><th style="text-align:right;">체류시간</th></tr>`+
+    sorted.map(r=>`<tr><td>${r.name}</td><td class="num">${r.order}번째</td><td class="num">${fmt(r.after.sessions)}</td>
+      <td class="num">${(r.after.sessions/tot*100).toFixed(1)}%</td><td class="num">${fmtDwell(r.after.dwell)}</td></tr>`).join('')+'</table></div>';
+}
+
+// 목적지(상품/카테고리) 이동 순위 표
 function slotTable(list){
   if(!list||!list.length)return '<div class="state">이동 데이터 없음</div>';
   const tot=list.reduce((s,x)=>s+x.sessions,0);
-  return '<table class="slot"><tr><th>순위</th><th>목적지</th><th style="text-align:right;">이동</th><th style="text-align:right;">비중</th></tr>'+
+  return `<table class="slot">
+    <colgroup><col style="width:10%"><col style="width:56%"><col style="width:18%"><col style="width:16%"></colgroup>
+    <tr><th>순위</th><th>목적지</th><th style="text-align:right;">유입 세션</th><th style="text-align:right;">비중</th></tr>`+
     list.map((x,i)=>`<tr><td class="num">${i+1}</td><td>${destLabel(x)}</td><td class="num">${fmt(x.sessions)}</td><td class="num">${tot?(x.sessions/tot*100).toFixed(1):0}%</td></tr>`).join('')+'</table>';
 }
-function renderProduct(d){
-  let h=periodLabel(d);
-  h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인(art·life)에서 클릭해 넘어간 목적지를 이동 세션 많은 순으로.</p>';
-  ['art.html','life.html'].forEach(k=>{const s=d.slots[k]||{};
-    h+=`<h2 class="sec">${k} 메인에서의 이동 (상위 30)</h2>`;
-    h+=`<div class="slot-cols"><div>${slotTable(s.before)}</div><div>${slotTable(s.after)}</div></div>`;});
-  $('content').innerHTML=h;
-}
 
-function fmtDwell(sec){ if(!sec) return '-'; const m=Math.floor(sec/60),x=sec%60; return m>0?`${m}:${String(x).padStart(2,'0')}`:`${x}초`; }
-function sectionTable(rows){
-  const sorted=[...rows].sort((a,b)=>b.after.sessions-a.after.sessions);
-  const tot=sorted.reduce((s,x)=>s+x.after.sessions,0)||1;
-  return '<table class="slot"><tr><th>구좌명</th><th>노출</th><th style="text-align:right;">유입(세션)</th><th style="text-align:right;">비중</th><th style="text-align:right;">체류시간</th></tr>'+
-    sorted.map(r=>`<tr><td>${r.name}</td><td class="num">${r.order}번</td><td class="num">${fmt(r.after.sessions)}</td>
-      <td class="num">${(r.after.sessions/tot*100).toFixed(1)}%</td><td class="num">${fmtDwell(r.after.dwell)}</td></tr>`).join('')+'</table>';
-}
-function renderSlotPerf(d){
-  let h=`<div class="period-label">기준 기간 &nbsp; <b>${d.periodAfter}</b> &nbsp;<span style="color:var(--muted)">· 구좌는 수시로 바뀌어 선택 기간 성과만 표시</span></div>`;
+function renderProductTab(dPerf, dSlots){
+  let h=`<div class="period-label">기준 기간 &nbsp; <b>${dPerf.periodAfter}</b> &nbsp;<span style="color:var(--muted)">· 구좌는 수시로 바뀌어 선택 기간 성과만 표시</span></div>`;
+  h+=`<p style="font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.6;">
+    <b>구좌 순서</b> = 메인 화면에 배치된 위치(몇 번째 칸인지). &nbsp;
+    <b>유입 세션</b> = 그 구좌를 눌러서 실제로 넘어간 방문 수. 위치는 고정, 그 자리에 걸린 상품은 바뀔 수 있어요.</p>`;
+
+  h+='<h2 class="sec">구좌 성과 (섹션별)</h2>';
   ['art','life'].forEach(tab=>{
-    const rows=(d.slotperf[tab]||[]);
+    const rows=(dPerf.slotperf[tab]||[]);
     const order=[]; const groups={};
     rows.forEach(r=>{ const sec=r.section||'기타'; if(!groups[sec]){groups[sec]=[];order.push(sec);} groups[sec].push(r); });
-    h+=`<h2 class="sec">${tab.toUpperCase()} 메인 · 섹션별 구좌 성과</h2>`;
+    h+=`<div class="section-title" style="font-size:15px;margin-top:22px;">${tab.toUpperCase()} 메인</div>`;
     order.forEach(sec=>{
       const badge = sec==='글로벌네비' ? ' <span class="badge">(공통 메뉴)</span>':'';
       h+=`<div class="section-title">${sec}${badge}</div>`+sectionTable(groups[sec]);
     });
   });
+
+  h+='<h2 class="sec">목적지별 이동 순위 (상위 30)</h2>';
+  h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인(art·life)에서 클릭해 넘어간 목적지(상품·카테고리)를 유입 세션 많은 순으로.</p>';
+  ['art.html','life.html'].forEach(k=>{const s=dSlots.slots[k]||{};
+    h+=`<h2 class="sec" style="font-size:15px;">${k} 메인에서의 이동</h2>`;
+    h+=`<div class="slot-cols"><div>${slotTable(s.before)}</div><div>${slotTable(s.after)}</div></div>`;});
+
   $('content').innerHTML=h;
 }
 
@@ -327,7 +498,7 @@ async function loadRevenue(){
   showLoading();
   try{
     if(!REVENUE_CACHE){
-      const r=await fetch('./revenue-daily.json');
+      const r=await fetch('./revenue-daily.json',{cache:'no-store'});
       REVENUE_CACHE=await r.json();
     }
     const daily=REVENUE_CACHE.daily||[];
