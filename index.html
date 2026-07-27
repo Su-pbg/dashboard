@@ -40,7 +40,7 @@
   .err{background:var(--down-soft);color:var(--down);border-radius:10px;padding:16px;font-size:13px;}
   .period-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;}
   .period-label b{color:var(--accent);}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:28px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:28px;}
   .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;display:flex;flex-direction:column;min-height:118px;}
   .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
   .kpi .k-now{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;}
@@ -77,16 +77,32 @@
   .section-title{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--accent);}
   .section-title .badge{font-size:11px;color:var(--muted);font-weight:400;}
   
-  .chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
   .mini-chart{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:14px;}
   .mini-head{font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:6px;}
   .mini-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
   .mini-total{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent);}
   @media(max-width:820px){.chart-grid{grid-template-columns:1fr;}}
   @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr);}.pages,.slot-cols{grid-template-columns:1fr;}}
+  #authGate{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:9999;}
+  .authBox{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:36px 32px;width:320px;text-align:center;}
+  .authBox p{font-size:13px;color:var(--muted);margin:0 0 16px;}
+  .authBox input{width:100%;font-family:var(--mono);font-size:14px;border:1px solid var(--hair);border-radius:8px;padding:10px 12px;margin-bottom:12px;}
+  .authBox button{width:100%;background:var(--accent);color:#fff;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;}
+  .authBox .err{display:none;color:var(--down);font-size:12px;margin-top:8px;background:none;padding:0;}
 </style>
 </head>
 <body>
+<div id="authGate">
+  <div class="authBox">
+    <div class="top-rule" style="margin:0 auto 16px;"></div>
+    <p><b>PrintBakery Product Dashboard</b><br>사내 전용 — 비밀번호를 입력하세요.</p>
+    <input type="password" id="authPw" placeholder="비밀번호">
+    <button id="authBtn">입장</button>
+    <div class="err" id="authErr">비밀번호가 틀렸습니다.</div>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="top-rule"></div>
   <p class="eyebrow">PrintBakery</p>
@@ -617,7 +633,8 @@ async function loadRevenue(){
     const as=$('s').value, ae=$('e').value;
     const after=sumRange(as,ae);
     const before = $('cmp').checked ? sumRange($('cs').value,$('ce').value) : after;
-    renderRevenue({periodAfter:`${as} ~ ${ae}`, revenue:{before,after}});
+    const periodBeforeStr = $('cmp').checked ? `${$('cs').value} ~ ${$('ce').value}` : '';
+    renderRevenue({periodBefore:periodBeforeStr, periodAfter:`${as} ~ ${ae}`, revenue:{before,after}});
   }catch(e){
     showErr('매출 데이터를 불러오지 못했습니다.<br><span style="font-size:12px;">레포에 revenue-daily.json 파일이 있는지 확인해주세요.</span>');
   }
@@ -640,7 +657,28 @@ function renderRevenue(d){
   $('content').innerHTML=h;
 }
 
-load();
+// 비밀번호 게이트: 여기 'PASSWORD_HERE' 값을 원하는 비밀번호로 바꾸세요.
+// 주의: 이건 클라이언트 코드라 완벽한 보안은 아니고, 아무나 못 보게 막는 수준입니다.
+const DASHBOARD_PASSWORD = 'printbakery2026';
+
+function tryUnlock(){
+  const input = document.getElementById('authPw').value;
+  if(input === DASHBOARD_PASSWORD){
+    sessionStorage.setItem('pbg_authed','1');
+    document.getElementById('authGate').remove();
+    load();
+  } else {
+    document.getElementById('authErr').style.display='block';
+  }
+}
+document.getElementById('authBtn').addEventListener('click', tryUnlock);
+document.getElementById('authPw').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryUnlock(); });
+
+if(sessionStorage.getItem('pbg_authed')==='1'){
+  document.getElementById('authGate').remove();
+  load();
+}
+// 비밀번호 입력 전에는 위 조건에 안 걸려 load()가 호출되지 않음 (데이터 요청 자체가 안 나감)
 </script>
 </body>
 </html>
