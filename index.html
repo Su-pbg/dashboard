@@ -40,7 +40,7 @@
   .err{background:var(--down-soft);color:var(--down);border-radius:10px;padding:16px;font-size:13px;}
   .period-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;}
   .period-label b{color:var(--accent);}
-  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:28px;}
   .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;}
   .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
   .kpi .k-now{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;}
@@ -77,7 +77,7 @@
   .section-title{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--accent);}
   .section-title .badge{font-size:11px;color:var(--muted);font-weight:400;}
   
-  .chart-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
   .mini-chart{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:14px;}
   .mini-head{font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:6px;}
   .mini-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
@@ -249,6 +249,19 @@ function kpiHTML(kpis){return '<div class="kpis">'+kpis.map(k=>{const x=delta(k.
 function auCard(label,valText,sub){
   return `<div class="kpi"><div class="k-label">${label}</div><div class="k-now">${valText}</div><div class="k-was">${sub||''}</div></div>`;
 }
+let TRAFFIC_CACHE=null;
+async function trafficRangeSum(s0,e0){
+  if(!TRAFFIC_CACHE){
+    try{
+      const r=await fetch('./traffic-daily.json',{cache:'no-store'});
+      TRAFFIC_CACHE=await r.json();
+    }catch(e){ TRAFFIC_CACHE={daily:[]}; }
+  }
+  const daily=TRAFFIC_CACHE.daily||[];
+  const rows=daily.filter(x=>x.date>=s0 && x.date<=e0);
+  return { uv: rows.reduce((s,x)=>s+(x.uv||0),0), pv: rows.reduce((s,x)=>s+(x.pv||0),0), hasData: rows.length>0 };
+}
+
 async function revenueRangeNet(s0,e0){
   if(!REVENUE_CACHE){
     const r=await fetch('./revenue-daily.json',{cache:'no-store'});
@@ -271,6 +284,7 @@ async function renderOverview(d){
   const byGroup=(g)=>d.kpis.filter(k=>k.group===g);
 
   h+='<h2 class="sec">① 획득 (Acquisition)</h2>'+kpiHTML(byGroup('acquisition'));
+  h+='<div id="cafe24TrafficWrap"></div>';
 
   h+='<h2 class="sec">② 활성화 (Activation)</h2><div id="actWrap">'+kpiHTML(byGroup('activation'))+'</div>';
   h+='<p style="font-size:12px;color:var(--muted);margin-top:-14px;margin-bottom:24px;">방문 세션 중 상품 상세·장바구니로 이어진 비율 · 신규 가입은 cafe24 회원 데이터 기준</p>';
@@ -282,15 +296,21 @@ async function renderOverview(d){
 
   h+='<h2 class="sec">⑤ 추천 (Referral)</h2><div class="soon-box">아직 측정 안 됨.<br><span style="font-size:12px;">공유·바이럴 이벤트가 GA4에 연결돼 있지 않아요. 공유 버튼 등에 클릭 이벤트를 추가하면 바이럴계수·공유율을 여기에 넣을 수 있어요.</span></div>';
 
-  h+='<h2 class="sec">일별 추이</h2><div id="chartWrap" class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div>';
+  h+='<h2 class="sec">일별 추이</h2>';
+  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">위에서 고른 기간과 무관하게, 최근 며칠간 흐름을 봅니다.</p>';
+  h+='<div class="preset-btns" id="trendBtns" style="margin-bottom:14px;"></div>';
+  h+='<div id="chartWrap" class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div>';
   $('content').innerHTML=h;
 
-  try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=daily',{cache:'no-store'});
-    const dd=await r.json();
-    if(dd.daily && dd.daily.length) drawChart(dd.daily);
-    else document.getElementById('chartWrap').innerHTML='<div class="state">추이 데이터 없음</div>';
-  }catch(e){ document.getElementById('chartWrap').innerHTML='<div class="state">추이를 불러오지 못했습니다</div>'; }
+  const TREND_PRESETS=[7,30,90];
+  $('trendBtns').innerHTML=TREND_PRESETS.map((n,i)=>`<button data-days="${n}" class="${n===TREND_DAYS?'active':''}">최근 ${n}일</button>`).join('');
+  $('trendBtns').addEventListener('click',(e)=>{
+    const n=e.target.dataset.days; if(!n) return;
+    TREND_DAYS=Number(n);
+    document.querySelectorAll('#trendBtns button').forEach(b=>b.classList.toggle('active', b.dataset.days===n));
+    loadTrend();
+  });
+  await loadTrend();
 
   try{
     const r2=await fetch(WORKER+'/?'+q()+'&tab=activeusers',{cache:'no-store'});
@@ -341,8 +361,37 @@ async function renderOverview(d){
     ];
     document.getElementById('actWrap').innerHTML = kpiHTML([...byGroup('activation'), ...signupItems]);
   }catch(e){ /* 실패해도 기존 활성화 카드는 그대로 둠 */ }
+
+  // cafe24 기준 방문자·페이지뷰 (GA4보다 오래된 기간도 커버, 별도 표시)
+  try{
+    const asDate=$('s').value, aeDate=$('e').value;
+    const after=await trafficRangeSum(asDate,aeDate);
+    let before={uv:0,pv:0,hasData:false};
+    if($('cmp').checked) before=await trafficRangeSum($('cs').value,$('ce').value);
+    if(after.hasData || before.hasData){
+      const items=[
+        {label:'방문자수(UV)', before:before.uv, after:after.uv, unit:'count'},
+        {label:'페이지뷰(PV)', before:before.pv, after:after.pv, unit:'count'},
+      ];
+      let box='<div class="section-title" style="margin-top:14px;">cafe24 기준 <span class="badge">(GA4와 별도 · 더 오래된 기간도 커버)</span></div>'+kpiHTML(items);
+      document.getElementById('cafe24TrafficWrap').innerHTML = box;
+    }
+  }catch(e){ /* 실패해도 무시, GA4 카드는 그대로 둠 */ }
 }
 
+let TREND_DAYS=30;
+async function loadTrend(){
+  const wrap=document.getElementById('chartWrap');
+  wrap.innerHTML='<div class="state"><div class="spinner"></div>추이 불러오는 중…</div>';
+  try{
+    const y=addDays(new Date(),-1);
+    const ae=iso(y), as=iso(addDays(y,-(TREND_DAYS-1)));
+    const r=await fetch(WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily`,{cache:'no-store'});
+    const dd=await r.json();
+    if(dd.daily && dd.daily.length) drawChart(dd.daily);
+    else wrap.innerHTML='<div class="state">추이 데이터 없음</div>';
+  }catch(e){ wrap.innerHTML='<div class="state">추이를 불러오지 못했습니다</div>'; }
+}
 const SERIES=[
   {key:'sessions',label:'세션',color:'#0E7C6E'},
   {key:'first_visit',label:'신규 방문',color:'#2B7DB8'},
@@ -368,10 +417,21 @@ function renderMini(s,daily){
   const max=Math.max(...vals,1);
   const x=(i)=>pad+(W-pad*2)*(daily.length<=1?0.5:i/(daily.length-1));
   const y=(v)=>H-pad-(H-pad*2)*(v/max);
-  let path=daily.map((d,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(d[s.key]||0).toFixed(1)}`).join(' ');
-  let area=path+` L${x(daily.length-1).toFixed(1)},${H-pad} L${x(0).toFixed(1)},${H-pad} Z`;
   const first=daily[0].date.slice(4,6)+'/'+daily[0].date.slice(6,8);
   const last=daily[daily.length-1].date.slice(4,6)+'/'+daily[daily.length-1].date.slice(6,8);
+
+  if(daily.length===1){
+    // 데이터가 하루뿐이면 선 대신 점 하나로 표시
+    const cx=x(0), cy=y(vals[0]);
+    box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;">
+      <circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}"/>
+      <text x="${pad}" y="${H-2}" font-size="9" fill="#66768A" font-family="var(--mono)">${first}</text>
+    </svg>`;
+    return;
+  }
+
+  let path=daily.map((d,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(d[s.key]||0).toFixed(1)}`).join(' ');
+  let area=path+` L${x(daily.length-1).toFixed(1)},${H-pad} L${x(0).toFixed(1)},${H-pad} Z`;
   box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;">
     <path d="${area}" fill="${s.color}" opacity="0.12"/>
     <path d="${path}" fill="none" stroke="${s.color}" stroke-width="2"/>
