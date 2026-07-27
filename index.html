@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<meta name="robots" content="noindex, nofollow, noarchive">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PrintBakery Product Dashboard</title>
@@ -222,11 +223,14 @@ $('exclLpoint').addEventListener('change',load);
 $('go').addEventListener('click',load);
 $('refreshBtn').addEventListener('click',()=>{ REVENUE_CACHE=null; load(); });
 
+// Worker 접근 열쇠. Cloudflare Worker의 DASHBOARD_KEY 시크릿과 같은 값이어야 함.
+const WORKER_KEY = 'pbg-secret-key-2026';
+
 function q(extra){
   const cmp=$('cmp').checked;
   const as=$('s').value, ae=$('e').value;
   const bs=cmp?$('cs').value:as, be=cmp?$('ce').value:ae;
-  let s=`bs=${bs}&be=${be}&as=${as}&ae=${ae}`;
+  let s=`bs=${bs}&be=${be}&as=${as}&ae=${ae}&key=${encodeURIComponent(WORKER_KEY)}`;
   if($('exclLpoint').checked)s+='&excl=lpoint,lotte,l.point';
   if(extra)s+='&'+extra;
   return s;
@@ -438,7 +442,7 @@ async function loadTrend(){
   try{
     const y=addDays(new Date(),-1);
     const ae=iso(y), as=iso(addDays(y,-(TREND_DAYS-1)));
-    const r=await fetch(WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily`,{cache:'no-store'});
+    const r=await fetch(WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`,{cache:'no-store'});
     const dd=await r.json();
     if(dd.daily && dd.daily.length) drawChart(dd.daily);
     else wrap.innerHTML='<div class="state">추이 데이터 없음</div>';
