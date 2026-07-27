@@ -562,6 +562,8 @@ async function loadGrowthMetrics(){
 
   document.getElementById('growthWrap').innerHTML = h;
 }
+
+let TREND_DAYS=30;
 async function loadTrend(){
   const wrap=document.getElementById('chartWrap');
   wrap.innerHTML='<div class="state"><div class="spinner"></div>추이 불러오는 중…</div>';
