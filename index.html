@@ -41,11 +41,11 @@
   .period-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;}
   .period-label b{color:var(--accent);}
   .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:28px;}
-  .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;}
+  .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;display:flex;flex-direction:column;min-height:118px;}
   .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
   .kpi .k-now{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;}
   .kpi .k-was{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;}
-  .delta{display:inline-flex;gap:3px;font-family:var(--mono);font-size:12px;font-weight:600;padding:2px 7px;border-radius:999px;margin-top:9px;}
+  .delta{display:inline-flex;flex-wrap:wrap;align-items:center;gap:3px;font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 7px;border-radius:10px;margin-top:9px;line-height:1.4;}
   .delta.good{color:var(--up);background:var(--up-soft);}.delta.bad{color:var(--down);background:var(--down-soft);}
   h2.sec{font-size:17px;font-weight:700;margin:32px 0 14px;}
   .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:22px;}
@@ -122,6 +122,23 @@ const $=(id)=>document.getElementById(id);
 const nf=new Intl.NumberFormat('ko-KR');
 const fmt=(v)=>nf.format(Math.round(v||0));
 const delta=(b,a)=>{const p=b===0?0:((a-b)/b*100);return{text:(p>0?'+':'')+p.toFixed(1)+'%',good:a>=b};};
+// unit별로 "실제 증감분"과 "비율"을 함께 만든 표시 문자열
+function diffText(before,after,unit){
+  const diff=after-before;
+  const sign=diff>0?'+':(diff<0?'':'');
+  if(unit==='percent'){
+    // 이미 %인 지표는 상대비율(%끼리의 %)이 아니라 %p(포인트) 차이로
+    return `${sign}${diff.toFixed(1)}%p`;
+  }
+  if(unit==='duration'){
+    const abs=Math.abs(diff); const m=Math.floor(abs/60), sec=Math.round(abs%60);
+    const t=m>0?`${m}:${String(sec).padStart(2,'0')}`:`${sec}초`;
+    return `${diff<0?'-':'+'}${t}`;
+  }
+  if(unit==='decimal') return `${sign}${diff.toFixed(1)}`;
+  if(unit==='won') return `${sign}${fmt(diff)}원`;
+  return `${sign}${fmt(diff)}`; // count
+}
 
 const TABS=[
   {id:'overview',name:'개요',ready:true},
@@ -243,11 +260,18 @@ function fmtByUnit(v,unit){
   return fmt(v);
 }
 function kpiHTML(kpis){return '<div class="kpis">'+kpis.map(k=>{const x=delta(k.before,k.after);
+  const dt=diffText(k.before,k.after,k.unit);
   return `<div class="kpi"><div class="k-label">${k.label}</div><div class="k-now">${fmtByUnit(k.after,k.unit)}</div>
-  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+fmtByUnit(k.before,k.unit):''}</div></div>`;}).join('')+'</div>';}
+  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${dt} <span style="opacity:.7;">(${x.text})</span></div><div class="k-was">${$('cmp').checked?'이전: '+fmtByUnit(k.before,k.unit):''}</div></div>`;}).join('')+'</div>';}
 
-function auCard(label,valText,sub){
-  return `<div class="kpi"><div class="k-label">${label}</div><div class="k-now">${valText}</div><div class="k-was">${sub||''}</div></div>`;
+function auCard(label,before,after,sub,unit){
+  const x=delta(before,after);
+  const dt=diffText(before,after,unit);
+  const valText = unit==='percent' ? after.toFixed(1)+'%' : fmt(after);
+  const wasText = unit==='percent' ? before.toFixed(1)+'%' : fmt(before);
+  return `<div class="kpi"><div class="k-label">${label}</div><div class="k-now">${valText}</div>
+  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${dt} <span style="opacity:.7;">(${x.text})</span></div>
+  <div class="k-was">${sub?sub+' · ':''}이전: ${wasText}</div></div>`;
 }
 let TRAFFIC_CACHE=null;
 async function trafficRangeSum(s0,e0){
@@ -318,30 +342,36 @@ async function renderOverview(d){
     if(au.error){ document.getElementById('auWrap').innerHTML='<div class="state">불러오지 못함</div>'; }
     else{
       document.getElementById('auWrap').innerHTML =
-        auCard('DAU (일간 활성)', fmt(au.dau), au.referenceDate+' 기준') +
-        auCard('WAU (주간 활성)', fmt(au.wau), '최근 7일 고유') +
-        auCard('MAU (월간 활성)', fmt(au.mau), '최근 28일 고유') +
-        auCard('Stickiness', au.stickiness.toFixed(1)+'%', 'DAU/MAU');
+        auCard('DAU (일간 활성)', au.dauBefore, au.dau, au.referenceDate+' 기준, 전날 대비') +
+        auCard('WAU (주간 활성)', au.wauBefore, au.wau, '최근 7일 고유, 그 전 7일 대비') +
+        auCard('MAU (월간 활성)', au.mauBefore, au.mau, '최근 28일 고유, 그 전 28일 대비') +
+        auCard('Stickiness', au.stickinessBefore, au.stickiness, 'DAU/MAU', 'percent');
     }
   }catch(e){ document.getElementById('auWrap').innerHTML='<div class="state">불러오지 못했습니다</div>'; }
 
-  // ARPU: GA4 사용자 수 + cafe24 실매출을 합쳐 계산 (실패해도 나머지 카드는 유지)
+  // ARPU(전체 방문자 기준) + ARPPU(실 구매자 기준): GA4 사용자 수 + cafe24 실매출 결합
   try{
     const asDate=$('s').value, aeDate=$('e').value;
     const netAfter=await revenueRangeNet(asDate,aeDate);
     const usersAfter=d.usersInRange?.after||0;
+    const purchasersAfter=d.purchasersInRange?.after||0;
     const arpuAfter = usersAfter ? Math.round(netAfter/usersAfter) : null;
-    let arpuBefore=arpuAfter;
+    const arppuAfter = purchasersAfter ? Math.round(netAfter/purchasersAfter) : null;
+    let arpuBefore=arpuAfter, arppuBefore=arppuAfter;
     if($('cmp').checked){
       const netBefore=await revenueRangeNet($('cs').value,$('ce').value);
       const usersBefore=d.usersInRange?.before||0;
+      const purchasersBefore=d.purchasersInRange?.before||0;
       arpuBefore = usersBefore ? Math.round(netBefore/usersBefore) : arpuAfter;
+      arppuBefore = purchasersBefore ? Math.round(netBefore/purchasersBefore) : arppuAfter;
     }
-    if(arpuAfter!=null){
-      const arpuItem=[{label:'ARPU (사용자당 매출)', before:arpuBefore, after:arpuAfter, unit:'won'}];
-      document.getElementById('revWrap').innerHTML = kpiHTML([...byGroup('revenue'), ...arpuItem]);
+    const extraItems=[];
+    if(arpuAfter!=null) extraItems.push({label:'ARPU (전체 방문자 기준)', before:arpuBefore, after:arpuAfter, unit:'won'});
+    if(arppuAfter!=null) extraItems.push({label:'ARPPU (실 구매자 기준)', before:arppuBefore, after:arppuAfter, unit:'won'});
+    if(extraItems.length){
+      document.getElementById('revWrap').innerHTML = kpiHTML([...byGroup('revenue'), ...extraItems]);
     }
-  }catch(e){ /* ARPU 계산 실패해도 기존 수익 카드는 그대로 둠 */ }
+  }catch(e){ /* 계산 실패해도 기존 수익 카드는 그대로 둠 */ }
 
   // 신규 가입자 수 + 가입 완료율 (cafe24 회원 데이터 + GA4 신규방문자)
   try{
