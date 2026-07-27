@@ -217,8 +217,11 @@ function q(extra){
 }
 function showLoading(){$('content').innerHTML='<div class="state"><div class="spinner"></div>데이터 불러오는 중…</div>';}
 function showErr(m){$('content').innerHTML=`<div class="err">데이터를 불러오지 못했습니다.<br>${m}<br><br>잠시 후 [조회]를 다시 눌러보세요.</div>`;}
+function cmpModeLabel(){
+  return $('cmpMode').value==='lastyear' ? '작년 동기간' : '직전 기간';
+}
 function periodLabel(d){
-  if($('cmp').checked) return `<div class="period-label">비교 기간 &nbsp; <b>이전</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
+  if($('cmp').checked) return `<div class="period-label">비교 기간(${cmpModeLabel()}) &nbsp; <b>이전</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
   return `<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
 }
 
@@ -261,8 +264,9 @@ function fmtByUnit(v,unit){
 }
 function kpiHTML(kpis){return '<div class="kpis">'+kpis.map(k=>{const x=delta(k.before,k.after);
   const dt=diffText(k.before,k.after,k.unit);
+  const wasLabel = $('cmp').checked ? `${cmpModeLabel()}: ${fmtByUnit(k.before,k.unit)}` : '';
   return `<div class="kpi"><div class="k-label">${k.label}</div><div class="k-now">${fmtByUnit(k.after,k.unit)}</div>
-  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${dt} <span style="opacity:.7;">(${x.text})</span></div><div class="k-was">${$('cmp').checked?'이전: '+fmtByUnit(k.before,k.unit):''}</div></div>`;}).join('')+'</div>';}
+  <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${dt} <span style="opacity:.7;">(${x.text})</span></div><div class="k-was">${wasLabel}</div></div>`;}).join('')+'</div>';}
 
 function auCard(label,before,after,sub,unit){
   const x=delta(before,after);
@@ -293,6 +297,14 @@ async function revenueRangeNet(s0,e0){
   }
   const daily=REVENUE_CACHE.daily||[];
   return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+x.net,0);
+}
+async function revenueRangeCount(s0,e0){
+  if(!REVENUE_CACHE){
+    const r=await fetch('./revenue-daily.json',{cache:'no-store'});
+    REVENUE_CACHE=await r.json();
+  }
+  const daily=REVENUE_CACHE.daily||[];
+  return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+(x.count||0),0);
 }
 async function revenueRangeNewMembers(s0,e0){
   if(!REVENUE_CACHE){
@@ -349,26 +361,20 @@ async function renderOverview(d){
     }
   }catch(e){ document.getElementById('auWrap').innerHTML='<div class="state">불러오지 못했습니다</div>'; }
 
-  // ARPU(전체 방문자 기준) + ARPPU(실 구매자 기준): GA4 사용자 수 + cafe24 실매출 결합
+  // 객단가(AOV) = 매출총액 ÷ 주문건수 (cafe24 실데이터 기준)
   try{
     const asDate=$('s').value, aeDate=$('e').value;
     const netAfter=await revenueRangeNet(asDate,aeDate);
-    const usersAfter=d.usersInRange?.after||0;
-    const purchasersAfter=d.purchasersInRange?.after||0;
-    const arpuAfter = usersAfter ? Math.round(netAfter/usersAfter) : null;
-    const arppuAfter = purchasersAfter ? Math.round(netAfter/purchasersAfter) : null;
-    let arpuBefore=arpuAfter, arppuBefore=arppuAfter;
+    const countAfter=await revenueRangeCount(asDate,aeDate);
+    const aovAfter = countAfter ? Math.round(netAfter/countAfter) : null;
+    let aovBefore=aovAfter;
     if($('cmp').checked){
       const netBefore=await revenueRangeNet($('cs').value,$('ce').value);
-      const usersBefore=d.usersInRange?.before||0;
-      const purchasersBefore=d.purchasersInRange?.before||0;
-      arpuBefore = usersBefore ? Math.round(netBefore/usersBefore) : arpuAfter;
-      arppuBefore = purchasersBefore ? Math.round(netBefore/purchasersBefore) : arppuAfter;
+      const countBefore=await revenueRangeCount($('cs').value,$('ce').value);
+      aovBefore = countBefore ? Math.round(netBefore/countBefore) : aovAfter;
     }
-    const extraItems=[];
-    if(arpuAfter!=null) extraItems.push({label:'ARPU (전체 방문자 기준)', before:arpuBefore, after:arpuAfter, unit:'won'});
-    if(arppuAfter!=null) extraItems.push({label:'ARPPU (실 구매자 기준)', before:arppuBefore, after:arppuAfter, unit:'won'});
-    if(extraItems.length){
+    if(aovAfter!=null){
+      const extraItems=[{label:'객단가', before:aovBefore, after:aovAfter, unit:'won'}];
       document.getElementById('revWrap').innerHTML = kpiHTML([...byGroup('revenue'), ...extraItems]);
     }
   }catch(e){ /* 계산 실패해도 기존 수익 카드는 그대로 둠 */ }
