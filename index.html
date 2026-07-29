@@ -125,7 +125,7 @@
     <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
       <span class="seg b">비교</span><input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
-    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 제외 </label>
+    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 자동 제외 (해외 + 평균 체류 5초 미만)</label>
     <button class="go" id="go">조회</button>
     <button class="go" id="refreshBtn" style="background:var(--surface);color:var(--accent);border:1px solid var(--accent);" title="캐시 무시하고 데이터 새로 받아오기">↻ 새로고침</button>
     <div class="ctrl" style="flex-basis:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div>
@@ -702,7 +702,7 @@ function sectionTable(rows, id){
       const hasProducts = r.topProducts && r.topProducts.length>0;
       const rowId=`${id}-${i}`;
       const nameCell = hasProducts
-        ? `<span style="cursor:pointer;text-decoration:underline dotted;" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="font-size:11px;color:var(--muted);">(상품 ${r.topProducts.length}개 · 펼치기)</span></span>`
+        ? `<span style="cursor:pointer;text-decoration:underline dotted;" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="font-size:11px;color:var(--muted);">(기간 내 클릭된 상품 ${r.topProducts.length}개 · 펼치기)</span></span>`
         : r.name;
       let html = `<tr><td>${nameCell}</td><td class="num">${r.order}번째</td><td class="num">${fmt(r.after.sessions)}</td>
       <td class="num">${(r.after.sessions/tot*100).toFixed(1)}%</td><td class="num">${fmtDwell(r.after.dwell)}</td></tr>`;
@@ -741,6 +741,19 @@ function renderProductTab(dPerf, dSlots){
   h+=`<p style="font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.6;">
     <b>구좌 순서</b> = 메인 화면에 배치된 위치(몇 번째 칸인지). &nbsp;
     <b>유입 세션</b> = 그 구좌를 눌러서 실제로 넘어간 방문 수. 위치는 고정, 그 자리에 걸린 상품은 바뀔 수 있어요.</p>`;
+
+  // 핵심 구좌 TOP 10: art+life 전체(글로벌네비 중복 제외)를 합쳐서, 전체 유입 대비 비중이 높은 순
+  const allRows=[
+    ...(dPerf.slotperf['art']||[]).map(r=>({...r, tab:'ART'})),
+    ...(dPerf.slotperf['life']||[]).filter(r=>r.section!=='글로벌네비').map(r=>({...r, tab:'LIFE'})),
+  ];
+  const grandTotal = allRows.reduce((s,r)=>s+r.after.sessions,0)||1;
+  const top10 = [...allRows].sort((a,b)=>b.after.sessions-a.after.sessions).slice(0,10);
+  h+='<h2 class="sec">핵심 구좌 TOP 10 (전체 유입 대비)</h2>';
+  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">art·life 전체 구좌를 통틀어, 실제 유입이 가장 많이 몰린 자리들이에요.</p>';
+  h+='<table class="slot"><tr><th>구좌명</th><th>탭</th><th>섹션</th><th style="text-align:right;">유입 세션</th><th style="text-align:right;">전체 대비</th></tr>'+
+    top10.map(r=>`<tr><td>${r.name}</td><td>${r.tab}</td><td>${r.section}</td><td class="num">${fmt(r.after.sessions)}</td><td class="num">${(r.after.sessions/grandTotal*100).toFixed(1)}%</td></tr>`).join('')+
+    '</table>';
 
   // 공통(글로벌 네비) — art/life 둘 다 동일하므로 한 번만
   const commonRows = (dPerf.slotperf['art']||[]).filter(r=>r.section==='글로벌네비');
