@@ -57,6 +57,25 @@
   .bars{display:grid;gap:4px;}
   .bar-row{display:flex;align-items:center;gap:10px;}.bar-tag{width:22px;font-size:11px;color:var(--muted);text-align:right;}
   .bar-track{flex:1;background:var(--paper);border-radius:6px;height:24px;overflow:hidden;}
+  .slotbar-row{display:grid;grid-template-columns:1fr 3fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--hair);}
+  .slotbar-row:last-child{border-bottom:0;}
+  .slotbar-name{font-size:13px;font-weight:600;cursor:pointer;}
+  .slotbar-name:hover{color:var(--accent);}
+  .slotbar-meta{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;}
+  .slotbar-track{background:var(--paper);border-radius:6px;height:20px;overflow:hidden;position:relative;}
+  .slotbar-fill{height:100%;border-radius:6px;transition:width .6s ease;}
+  .slotbar-val{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;white-space:nowrap;min-width:64px;}
+  .slotbar-sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;}
+  .section-block{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px 18px;margin-bottom:16px;}
+  .section-block-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .section-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .section-block-title{font-size:14px;font-weight:700;}
+  .section-block-total{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .prod-mini-row{display:flex;align-items:center;gap:10px;padding:6px 0 6px 20px;font-size:12px;}
+  .prod-mini-name{flex:1;color:var(--ink);}
+  .prod-mini-track{width:120px;background:var(--paper);border-radius:5px;height:12px;overflow:hidden;}
+  .prod-mini-fill{height:100%;border-radius:5px;}
+  .prod-mini-val{font-family:var(--mono);color:var(--muted);min-width:70px;text-align:right;}
   .bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:9px;color:#fff;font-family:var(--mono);font-size:12px;min-width:56px;transition:width .8s ease;}
   .bar-fill.b{background:var(--ghost);color:var(--ink);}.bar-fill.a{background:var(--accent);}
   .pages{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
@@ -125,7 +144,7 @@
     <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
       <span class="seg b">비교</span><input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
-    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 제외</label>
+    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 자동 제외 (해외 + 평균 체류 5초 미만)</label>
     <button class="go" id="go">조회</button>
     <button class="go" id="refreshBtn" style="background:var(--surface);color:var(--accent);border:1px solid var(--accent);" title="캐시 무시하고 데이터 새로 받아오기">↻ 새로고침</button>
     <div class="ctrl" style="flex-basis:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div>
@@ -197,7 +216,7 @@ function autoCompare(){
 const PRESETS=[
   {label:'어제',fn:()=>{const y=iso(addDays(new Date(),-1));setRange(y,y);}},
   {label:'최근 7일',fn:()=>{const y=addDays(new Date(),-1);setRange(iso(addDays(y,-6)),iso(y));}},
-  {label:'최근 28일',fn:()=>{const y=addDays(new Date(),-1);setRange(iso(addDays(y,-27)),iso(y));}},
+  {label:'지난달',fn:()=>{const n=new Date();const firstOfThisMonth=new Date(n.getFullYear(),n.getMonth(),1);const lastOfPrevMonth=addDays(firstOfThisMonth,-1);const firstOfPrevMonth=new Date(lastOfPrevMonth.getFullYear(),lastOfPrevMonth.getMonth(),1);setRange(iso(firstOfPrevMonth),iso(lastOfPrevMonth));}},
   {label:'이번달',fn:()=>{const n=new Date();setRange(iso(new Date(n.getFullYear(),n.getMonth(),1)),iso(addDays(new Date(),-1)));}},
 ];
 $('presets').innerHTML=PRESETS.map((p,i)=>`<button data-i="${i}" data-preset-btn>${p.label}</button>`).join('');
@@ -670,6 +689,14 @@ function destLabel(x){
 function fmtDwell(sec){ if(!sec) return '-'; const m=Math.floor(sec/60),x=sec%60; return m>0?`${m}:${String(x).padStart(2,'0')}`:`${x}초`; }
 
 // 구좌 순서(화면 배치 위치) + 유입(그 구좌를 통해 실제 넘어간 세션) 표
+// 섹션별 색상 (일관된 팔레트로 시각적 통일감)
+const SECTION_COLORS={
+  '글로벌네비':'#66768A','상단배너':'#0E7C6E','숏컷':'#C8993F','주제별 추천작':'#7A3FC8',
+  'For Collector':'#2B7DB8','추천 작가':'#D85A30','프로모션':'#C85A9E','전시 소식':'#4C5B73',
+  '카테고리':'#0E7C6E','선물추천':'#2B7DB8','추천 브랜드':'#7A3FC8',
+};
+function sectionColor(sec){ return SECTION_COLORS[sec] || '#66768A'; }
+
 const SECTION_ROWS={}, SECTION_SORT={};
 function sortArrow(id,key){
   const st=SECTION_SORT[id];
@@ -681,7 +708,7 @@ function sortSection(id,key){
   const dir = (st.key===key && st.dir==='desc') ? 'asc' : 'desc';
   SECTION_SORT[id]={key,dir};
   const wrap=document.getElementById('wrap-'+id);
-  if(wrap) wrap.innerHTML=sectionTable(SECTION_ROWS[id], id);
+  if(wrap) wrap.outerHTML=sectionTable(SECTION_ROWS[id], id);
 }
 let SECTION_TABLE_SEQ=0;
 function sectionTable(rows, id){
@@ -691,30 +718,45 @@ function sectionTable(rows, id){
   SECTION_SORT[id]=st;
   const val=(r)=> st.key==='order' ? r.order : r.after.sessions;
   const sorted=[...rows].sort((a,b)=> st.dir==='asc' ? (val(a)-val(b)) : (val(b)-val(a)));
+  const maxSessions=Math.max(...sorted.map(r=>r.after.sessions),1);
   const tot=sorted.reduce((s,x)=>s+x.after.sessions,0)||1;
-  return `<div id="wrap-${id}"><table class="slot">
-    <colgroup><col style="width:38%"><col style="width:14%"><col style="width:16%"><col style="width:14%"><col style="width:18%"></colgroup>
-    <tr><th>구좌명</th>
-      <th style="text-align:right;cursor:pointer;" onclick="sortSection('${id}','order')">구좌 순서 ${sortArrow(id,'order')}</th>
-      <th style="text-align:right;cursor:pointer;" onclick="sortSection('${id}','sessions')">유입 세션 ${sortArrow(id,'sessions')}</th>
-      <th style="text-align:right;">비중</th><th style="text-align:right;">체류시간</th></tr>`+
-    sorted.map((r,i)=>{
-      const hasProducts = r.topProducts && r.topProducts.length>0;
-      const rowId=`${id}-${i}`;
-      const nameCell = hasProducts
-        ? `<span style="cursor:pointer;text-decoration:underline dotted;" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="font-size:11px;color:var(--muted);">(기간 내 클릭된 상품 ${r.topProducts.length}개 · 펼치기)</span></span>`
-        : r.name;
-      let html = `<tr><td>${nameCell}</td><td class="num">${r.order}번째</td><td class="num">${fmt(r.after.sessions)}</td>
-      <td class="num">${(r.after.sessions/tot*100).toFixed(1)}%</td><td class="num">${fmtDwell(r.after.dwell)}</td></tr>`;
-      if(hasProducts){
-        html += `<tr id="prod-${rowId}" style="display:none;"><td colspan="5" style="padding:0;">
-          <table class="slot" style="margin:6px 0 10px;">
-            <tr><th>상품명</th><th style="text-align:right;">상품번호</th><th style="text-align:right;">유입 세션</th><th style="text-align:right;">체류시간</th></tr>
-            ${r.topProducts.map(p=>`<tr><td>${p.name||'(이름 조회 실패)'}</td><td class="num">${p.pno}</td><td class="num">${fmt(p.sessions)}</td><td class="num">${fmtDwell(p.dwell)}</td></tr>`).join('')}
-          </table></td></tr>`;
-      }
-      return html;
-    }).join('')+'</table></div>';
+  const color = sectionColor(sorted[0]?.section);
+
+  let html = `<div id="wrap-${id}">`;
+  html += `<div style="display:flex;gap:14px;margin-bottom:6px;font-size:11px;color:var(--muted);">
+    <span style="cursor:pointer;" onclick="sortSection('${id}','order')">구좌 순서 정렬 ${sortArrow(id,'order')}</span>
+    <span style="cursor:pointer;" onclick="sortSection('${id}','sessions')">유입 세션 정렬 ${sortArrow(id,'sessions')}</span>
+  </div>`;
+
+  sorted.forEach((r,i)=>{
+    const hasProducts = r.topProducts && r.topProducts.length>0;
+    const label = r.topProductsLabel || '상품';
+    const rowId=`${id}-${i}`;
+    const widthPct = Math.max(r.after.sessions/maxSessions*100, r.after.sessions>0?4:0);
+    const nameHtml = hasProducts
+      ? `<span class="slotbar-name" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="color:var(--accent);font-size:11px;">▾ ${label} ${r.topProducts.length}개</span></span>`
+      : `<span class="slotbar-name" style="cursor:default;">${r.name}</span>`;
+    html += `<div class="slotbar-row">
+      <div>${nameHtml}<div class="slotbar-meta">${r.order}번째 · ${(r.after.sessions/tot*100).toFixed(1)}%</div></div>
+      <div class="slotbar-track"><div class="slotbar-fill" style="width:${widthPct}%;background:${color};"></div></div>
+      <div><div class="slotbar-val">${fmt(r.after.sessions)}</div><div class="slotbar-sub">${fmtDwell(r.after.dwell)}</div></div>
+    </div>`;
+    if(hasProducts){
+      const maxP=Math.max(...r.topProducts.map(p=>p.sessions),1);
+      html += `<div id="prod-${rowId}" style="display:none;padding:2px 0 8px;">`;
+      html += r.topProducts.map(p=>{
+        const pw=Math.max(p.sessions/maxP*100, 4);
+        return `<div class="prod-mini-row">
+          <span class="prod-mini-name">${p.name||'(이름 조회 실패)'} <span style="color:var(--ghost);">#${p.pno}</span></span>
+          <div class="prod-mini-track"><div class="prod-mini-fill" style="width:${pw}%;background:${color};opacity:.55;"></div></div>
+          <span class="prod-mini-val">${fmt(p.sessions)} · ${fmtDwell(p.dwell)}</span>
+        </div>`;
+      }).join('');
+      html += `</div>`;
+    }
+  });
+  html += '</div>';
+  return html;
 }
 function toggleSlotProducts(rowId){
   const el=document.getElementById('prod-'+rowId);
@@ -726,10 +768,15 @@ function toggleSlotProducts(rowId){
 function slotTable(list){
   if(!list||!list.length)return '<div class="state">이동 데이터 없음</div>';
   const tot=list.reduce((s,x)=>s+x.sessions,0);
-  return `<table class="slot">
-    <colgroup><col style="width:10%"><col style="width:56%"><col style="width:18%"><col style="width:16%"></colgroup>
-    <tr><th>순위</th><th>목적지</th><th style="text-align:right;">유입 세션</th><th style="text-align:right;">비중</th></tr>`+
-    list.map((x,i)=>`<tr><td class="num">${i+1}</td><td>${destLabel(x)}</td><td class="num">${fmt(x.sessions)}</td><td class="num">${tot?(x.sessions/tot*100).toFixed(1):0}%</td></tr>`).join('')+'</table>';
+  const maxV=Math.max(...list.map(x=>x.sessions),1);
+  return list.map((x,i)=>{
+    const w=Math.max(x.sessions/maxV*100,4);
+    return `<div class="slotbar-row">
+      <div><span class="slotbar-name" style="cursor:default;">${i+1}. ${destLabel(x)}</span></div>
+      <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#2B7DB8;"></div></div>
+      <div><div class="slotbar-val">${fmt(x.sessions)}</div><div class="slotbar-sub">${tot?(x.sessions/tot*100).toFixed(1):0}%</div></div>
+    </div>`;
+  }).join('');
 }
 
 let PRODUCT_SUBTAB = localStorage.getItem('pbg_product_subtab') || 'art';
@@ -749,17 +796,26 @@ function renderProductTab(dPerf, dSlots){
   ];
   const grandTotal = allRows.reduce((s,r)=>s+r.after.sessions,0)||1;
   const top10 = [...allRows].sort((a,b)=>b.after.sessions-a.after.sessions).slice(0,10);
+  const top10Max = Math.max(...top10.map(r=>r.after.sessions),1);
   h+='<h2 class="sec">핵심 구좌 TOP 10 (전체 유입 대비)</h2>';
   h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">art·life 전체 구좌를 통틀어, 실제 유입이 가장 많이 몰린 자리들이에요.</p>';
-  h+='<table class="slot"><tr><th>구좌명</th><th>탭</th><th>섹션</th><th style="text-align:right;">유입 세션</th><th style="text-align:right;">전체 대비</th></tr>'+
-    top10.map(r=>`<tr><td>${r.name}</td><td>${r.tab}</td><td>${r.section}</td><td class="num">${fmt(r.after.sessions)}</td><td class="num">${(r.after.sessions/grandTotal*100).toFixed(1)}%</td></tr>`).join('')+
-    '</table>';
+  h+='<div class="section-block">'+top10.map((r,i)=>{
+    const w=Math.max(r.after.sessions/top10Max*100,4);
+    const color=sectionColor(r.section);
+    return `<div class="slotbar-row">
+      <div><span class="slotbar-name" style="cursor:default;">${i+1}. ${r.name}</span><div class="slotbar-meta">${r.tab} · ${r.section}</div></div>
+      <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
+      <div><div class="slotbar-val">${fmt(r.after.sessions)}</div><div class="slotbar-sub">${(r.after.sessions/grandTotal*100).toFixed(1)}%</div></div>
+    </div>`;
+  }).join('')+'</div>';
 
   // 공통(글로벌 네비) — art/life 둘 다 동일하므로 한 번만
   const commonRows = (dPerf.slotperf['art']||[]).filter(r=>r.section==='글로벌네비');
   h+='<h2 class="sec">공통 (글로벌 네비)</h2>';
   h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">art·life 어디서 봐도 같은 상단 메뉴라 한 번만 표시해요.</p>';
-  h+=sectionTable(commonRows);
+  h+=`<div class="section-block">
+    <div class="section-block-head"><span class="section-dot" style="background:${sectionColor('글로벌네비')};"></span><span class="section-block-title">글로벌 네비</span></div>
+    ${sectionTable(commonRows)}</div>`;
 
   h+='<h2 class="sec">구좌 성과</h2>';
   h+='<div class="preset-btns" id="productSubtabBtns" style="margin-bottom:16px;"></div>';
@@ -769,7 +825,7 @@ function renderProductTab(dPerf, dSlots){
   h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인(art·life)에서 클릭해 넘어간 목적지(상품·카테고리)를 유입 세션 많은 순으로.</p>';
   ['art.html','life.html'].forEach(k=>{const s=dSlots.slots[k]||{};
     h+=`<h2 class="sec" style="font-size:15px;">${k} 메인에서의 이동</h2>`;
-    h+=`<div class="slot-cols"><div>${slotTable(s.before)}</div><div>${slotTable(s.after)}</div></div>`;});
+    h+=`<div class="slot-cols"><div class="section-block">${slotTable(s.before)}</div><div class="section-block">${slotTable(s.after)}</div></div>`;});
 
   $('content').innerHTML=h;
 
@@ -792,7 +848,10 @@ function renderProductSubtab(){
   rows.forEach(r=>{ const sec=r.section||'기타'; if(!groups[sec]){groups[sec]=[];order.push(sec);} groups[sec].push(r); });
   let h='';
   order.forEach(sec=>{
-    h+=`<div class="section-title">${sec}</div>`+sectionTable(groups[sec]);
+    const total = groups[sec].reduce((s,r)=>s+r.after.sessions,0);
+    h+=`<div class="section-block">
+      <div class="section-block-head"><span class="section-dot" style="background:${sectionColor(sec)};"></span><span class="section-block-title">${sec}</span><span class="section-block-total">합계 ${fmt(total)} 세션</span></div>
+      ${sectionTable(groups[sec])}</div>`;
   });
   document.getElementById('productSubtabWrap').innerHTML=h;
 }
