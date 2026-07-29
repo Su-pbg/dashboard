@@ -125,6 +125,7 @@
     <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
       <span class="seg b">비교</span><input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
+    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 자동 제외 (평균 체류 2초 미만)</label>
     <button class="go" id="go">조회</button>
     <button class="go" id="refreshBtn" style="background:var(--surface);color:var(--accent);border:1px solid var(--accent);" title="캐시 무시하고 데이터 새로 받아오기">↻ 새로고침</button>
     <div class="ctrl" style="flex-basis:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div>
@@ -220,6 +221,7 @@ $('cmp').addEventListener('change',()=>{
 });
 $('cmpMode').addEventListener('change',()=>{ autoCompare(); load(); });
 $('exclLpoint').addEventListener('change',load);
+$('exclBots').addEventListener('change',load);
 $('go').addEventListener('click',load);
 $('refreshBtn').addEventListener('click',()=>{ REVENUE_CACHE=null; load(); });
 
@@ -232,6 +234,7 @@ function q(extra){
   const bs=cmp?$('cs').value:as, be=cmp?$('ce').value:ae;
   let s=`bs=${bs}&be=${be}&as=${as}&ae=${ae}&key=${encodeURIComponent(WORKER_KEY)}`;
   if($('exclLpoint').checked)s+='&excl=lpoint,lotte,l.point';
+  if($('exclBots').checked)s+='&autoExclLowEngagement=1';
   if(extra)s+='&'+extra;
   return s;
 }
@@ -742,7 +745,49 @@ function renderAcquisition(d){
   let h=`<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
   h+='<h2 class="sec">유입 소스별</h2>'+rankTable(d.acquisition.bySource,'소스 / 매체');
   h+='<h2 class="sec">디바이스별</h2>'+rankTable(d.acquisition.byDevice,'디바이스');
+
+  h+='<h2 class="sec">국가별 유입</h2>';
+  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">유입은 많은데 체류시간이 비정상적으로 짧으면(수 초 이내) 봇·광고 어뷰징일 가능성이 있어요.</p>';
+  const countries=d.acquisition.byCountry||[];
+  if(countries.length){
+    h+='<table class="slot"><tr><th>국가</th><th style="text-align:right;">세션</th><th style="text-align:right;">비중</th><th style="text-align:right;">평균 체류시간</th></tr>'+
+      countries.map(c=>{
+        const suspicious = c.avgEngagementSec<3 && c.share>3;
+        const rowStyle = suspicious ? 'background:var(--down-soft);' : '';
+        const flag = suspicious ? ' ⚠️' : '';
+        return `<tr style="${rowStyle}"><td>${c.name}${flag}</td><td class="num">${fmt(c.sessions)}</td><td class="num">${c.share.toFixed(1)}%</td><td class="num">${fmtDwell(c.avgEngagementSec)}</td></tr>`;
+      }).join('')+'</table>';
+  } else {
+    h+='<div class="state">국가별 데이터 없음</div>';
+  }
+
+  h+='<h2 class="sec">상위 5개국 상세 진단</h2><div id="countryDetailWrap" class="state"><div class="spinner"></div>불러오는 중…</div>';
+
   $('content').innerHTML=h;
+  loadCountryDetail();
+}
+
+async function loadCountryDetail(){
+  const wrap=document.getElementById('countryDetailWrap');
+  try{
+    const r=await fetch(WORKER+'/?'+q()+'&tab=countrydetail',{cache:'no-store'});
+    const dd=await r.json();
+    if(dd.error){ wrap.innerHTML='<div class="state">불러오지 못했습니다: '+dd.error+'</div>'; return; }
+    const countries=dd.countries||[];
+    if(!countries.length){ wrap.innerHTML='<div class="state">데이터 없음</div>'; return; }
+    let html='<p style="font-size:12px;color:var(--muted);margin:0 0 14px;">각 국가에서 실제로 어떤 페이지를 봤는지. 같은 페이지만 반복되거나 direct(리퍼러 없음)로 몰려있으면 봇·스크래퍼 의심.</p>';
+    countries.forEach(c=>{
+      html+=`<div class="section-title" style="margin-top:16px;">${c.country} <span class="badge">세션 ${fmt(c.sessions)} · ${c.share.toFixed(1)}%</span></div>`;
+      if(!c.pages || !c.pages.length){ html+='<div class="state">방문 페이지 없음</div>'; return; }
+      html+='<table class="slot"><tr><th>페이지</th><th>유입경로</th><th style="text-align:right;">세션</th><th style="text-align:right;">조회수</th><th style="text-align:right;">평균 체류</th></tr>'+
+        c.pages.map(p=>{
+          const isDirect = /direct|\(none\)/i.test(p.source);
+          const flag = isDirect && p.avgEngagementSec<3 ? ' ⚠️' : '';
+          return `<tr><td style="word-break:break-all;">${p.path}</td><td>${p.source}${flag}</td><td class="num">${fmt(p.sessions)}</td><td class="num">${fmt(p.pageviews)}</td><td class="num">${fmtDwell(p.avgEngagementSec)}</td></tr>`;
+        }).join('')+'</table>';
+    });
+    wrap.innerHTML=html;
+  }catch(e){ wrap.innerHTML='<div class="state">불러오지 못했습니다</div>'; }
 }
 
 function won(v){ return fmt(v)+'원'; }
