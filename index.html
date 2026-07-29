@@ -125,7 +125,7 @@
     <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
       <span class="seg b">비교</span><input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
-    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 제외</label>
+    <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 자동 제외 (해외 + 평균 체류 5초 미만)</label>
     <button class="go" id="go">조회</button>
     <button class="go" id="refreshBtn" style="background:var(--surface);color:var(--accent);border:1px solid var(--accent);" title="캐시 무시하고 데이터 새로 받아오기">↻ 새로고침</button>
     <div class="ctrl" style="flex-basis:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div>
@@ -582,7 +582,10 @@ async function loadTrend(){
   try{
     const y=addDays(new Date(),-1);
     const ae=iso(y), as=iso(addDays(y,-(TREND_DAYS-1)));
-    const r=await fetch(WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`,{cache:'no-store'});
+    let url=WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`;
+    if($('exclLpoint').checked) url+='&excl=lpoint,lotte,l.point';
+    if($('exclBots').checked) url+='&autoExclLowEngagement=1';
+    const r=await fetch(url,{cache:'no-store'});
     const dd=await r.json();
     if(dd.daily && dd.daily.length) drawChart(dd.daily);
     else wrap.innerHTML='<div class="state">추이 데이터 없음</div>';
