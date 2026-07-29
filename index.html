@@ -22,30 +22,33 @@
   .tab{padding:11px 16px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;}
   .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
   .tab .soon{font-size:10px;color:var(--muted);background:var(--paper);border:1px solid var(--hair);border-radius:5px;padding:1px 5px;margin-left:5px;}
-  .controls{display:flex;flex-direction:column;gap:14px;background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:16px 18px;margin-bottom:24px;}
-  .ctrl-row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
-  .ctrl-row-split{justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1px solid var(--hair);min-height:38px;}
-  .excl-group{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
+  .controls{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:12px 14px;margin-bottom:20px;}
+  .ctrl-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
+  .ctrl-row-main{display:grid;grid-template-columns:minmax(0,auto) minmax(0,auto) minmax(0,auto) minmax(0,auto);gap:10px 14px;align-items:end;}
+  .ctrl-row-split{justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--hair);min-height:32px;}
+  .excl-group{display:flex;flex-wrap:wrap;gap:14px;align-items:center;}
   .btn-group{display:flex;gap:8px;align-items:center;}
-  .ctrl{display:flex;flex-direction:column;gap:5px;}
-  .ctrl label{font-size:11px;color:var(--muted);font-weight:600;}
-  .ctrl .pair{display:flex;gap:6px;align-items:center;}
-  .ctrl .pair>span{font-size:13px;color:var(--muted);line-height:36px;}
-  #cmpMode{font-family:var(--sans);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:0 10px;height:36px;background:var(--surface);color:var(--ink);cursor:pointer;}
-  input[type=date]{font-family:var(--mono);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:0 10px;height:36px;color:var(--ink);background:var(--surface);}
-  .ctrl-row>label.excl{padding-bottom:9px;}
+  .ctrl{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .ctrl label{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.02em;}
+  .ctrl .pair{display:flex;gap:4px;align-items:center;}
+  .ctrl .pair>span{font-size:12px;color:var(--muted);line-height:32px;}
+  input[type=date]{font-family:var(--mono);font-size:12px;border:1px solid var(--hair);border-radius:7px;padding:0 6px;height:32px;color:var(--ink);background:var(--surface);min-width:0;flex:1 1 0;}
+  .ctrl-row>label.excl{padding-bottom:7px;}
+  .ctrl.is-off label{color:var(--ghost);}
+  .ctrl.is-off .pair>span{color:var(--ghost);}
+  input[type=date]:disabled,select:disabled{background:var(--paper);color:var(--ghost);border-color:var(--hair);cursor:not-allowed;}
   .seg{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;}
   .seg.b{background:var(--paper);color:var(--muted);}
-  .preset-btns{display:flex;gap:6px;flex-wrap:wrap;}
-  .ctrl-row-top{padding-top:14px;margin-top:2px;border-top:1px solid var(--hair);}
-  .preset-btns button{font-size:12px;font-weight:600;color:var(--ink);background:var(--paper);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;cursor:pointer;}
+  .preset-btns{display:flex;gap:5px;flex-wrap:wrap;}
+  .ctrl-row-top{padding-top:10px;border-top:1px solid var(--hair);}
+  .preset-btns button{font-size:11px;font-weight:600;color:var(--ink);background:var(--paper);border:1px solid var(--hair);border-radius:999px;padding:5px 11px;cursor:pointer;}
   .preset-btns button:hover{border-color:var(--accent);color:var(--accent);}
   .preset-btns button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-  .go{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:9px;padding:0 20px;height:38px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);}
+  .go{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:7px;padding:0 16px;height:32px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);}
   .go:hover{opacity:.9;}
   .go-ghost{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
-  .excl{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink);white-space:nowrap;cursor:pointer;}
-  .excl input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
+  .excl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);white-space:nowrap;cursor:pointer;}
+  .excl input[type=checkbox]{width:14px;height:14px;margin:0;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
   .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;}
   .spinner{width:26px;height:26px;border:3px solid var(--hair);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -53,14 +56,14 @@
   .period-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;}
   .period-label b{color:var(--accent);}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:28px;}
-  .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;display:flex;flex-direction:column;min-height:118px;}
+  .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;display:flex;flex-direction:column;min-height:118px;}
   .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
   .kpi .k-now{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;}
   .kpi .k-was{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;}
   .delta{display:inline-flex;flex-wrap:wrap;align-items:center;gap:3px;font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 7px;border-radius:10px;margin-top:9px;line-height:1.4;}
   .delta.good{color:var(--up);background:var(--up-soft);}.delta.bad{color:var(--down);background:var(--down-soft);}
   h2.sec{font-size:17px;font-weight:700;margin:32px 0 14px;}
-  .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:22px;}
+  .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
   .stage{margin-bottom:16px;}.stage:last-child{margin-bottom:0;}
   .stage-top{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;}
   .stage-name{font-weight:600;}.stage-conv{font-family:var(--mono);font-size:12px;color:var(--muted);}
@@ -68,20 +71,20 @@
   .bars{display:grid;gap:4px;}
   .bar-row{display:flex;align-items:center;gap:10px;}.bar-tag{width:22px;font-size:11px;color:var(--muted);text-align:right;}
   .bar-track{flex:1;background:var(--paper);border-radius:6px;height:24px;overflow:hidden;}
-  .slotbar-row{display:grid;grid-template-columns:1fr 3fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--hair);}
+  .slotbar-row{display:grid;grid-template-columns:1fr 3fr auto;gap:12px;align-items:center;height:56px;border-bottom:1px solid var(--hair);box-sizing:border-box;}
   .slotbar-row:last-child{border-bottom:0;}
   .slotbar-row>div:first-child{min-width:0;overflow:hidden;}
-  .slotbar-name{font-size:13px;font-weight:600;cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .slotbar-name{font-size:13px;font-weight:600;cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px;}
   .slotbar-name:hover{color:var(--accent);}
-  .slotbar-meta{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .slotbar-meta{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:16px;}
   .slotbar-track{background:var(--paper);border-radius:6px;height:20px;overflow:hidden;position:relative;}
   .slotbar-fill{height:100%;border-radius:6px;transition:width .6s ease;}
-  .slotbar-val{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;white-space:nowrap;min-width:64px;}
-  .slotbar-sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;}
-  .section-block{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px 18px;margin-bottom:16px;}
+  .slotbar-val{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;white-space:nowrap;min-width:64px;line-height:20px;}
+  .slotbar-sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:16px;}
+  .section-block{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;margin-bottom:16px;}
   .section-block-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
   .section-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
-  .section-block-title{font-size:14px;font-weight:700;}
+  .section-block-title{font-size:14px;font-weight:700;color:var(--ink);}
   .section-block-total{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);}
   .prod-mini-row{display:flex;align-items:center;gap:10px;padding:6px 0 6px 20px;font-size:12px;}
   .prod-mini-name{flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -106,14 +109,17 @@
   .slot-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
   .soon-box{background:var(--surface);border:1px dashed var(--hair);border-radius:14px;padding:50px 20px;text-align:center;color:var(--muted);}
   .soon-box b{color:var(--ink);}
-  .section-title{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--accent);}
+  .section-title{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--ink);}
   .section-title .badge{font-size:11px;color:var(--muted);font-weight:400;}
   
-  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
-  .mini-chart{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:14px;}
-  .mini-head{font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px;}
+  .mini-chart{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
+  .mini-head{font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:8px;}
   .mini-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
   .mini-total{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent);}
+  @media(max-width:1000px){
+    .ctrl-row-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+  }
   @media(max-width:820px){.chart-grid{grid-template-columns:1fr;}}
   @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr);}.pages,.slot-cols{grid-template-columns:1fr;}}
 
@@ -124,17 +130,17 @@
     .sub{font-size:12px;margin-bottom:16px;}
     .tabs{gap:2px;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
     .tab{padding:9px 11px;font-size:13px;white-space:nowrap;flex-shrink:0;}
-    .controls{gap:12px;padding:14px;}
-    .ctrl-row{flex-direction:column;align-items:stretch;gap:12px;}
-    .ctrl-row-split{flex-direction:column;align-items:stretch;gap:12px;padding-top:12px;min-height:0;}
-    .ctrl-row-top{padding-top:12px;}
+    .controls{gap:10px;padding:12px;}
+    .ctrl-row{flex-direction:column;align-items:stretch;gap:10px;}
+    .ctrl-row-main{grid-template-columns:1fr;}
+    .ctrl-row-split{flex-direction:column;align-items:stretch;gap:10px;padding-top:10px;min-height:0;}
+    .ctrl-row-top{padding-top:10px;}
     .ctrl-row>label.excl{padding-bottom:0;}
-    .excl-group{flex-direction:column;gap:12px;align-items:flex-start;}
+    .excl-group{flex-direction:column;gap:10px;align-items:flex-start;}
     .btn-group{flex-direction:column;width:100%;}
     .ctrl{width:100%;}
     .ctrl .pair{width:100%;}
     .ctrl .pair input[type=date]{flex:1;min-width:0;width:auto;}
-    #cmpMode{width:100%;}
     label.excl{width:100%;}
     .go{width:100%;}
     .preset-btns{width:100%;}
@@ -143,7 +149,7 @@
     .kpi{padding:12px;min-height:96px;}
     .kpi .k-now{font-size:18px;}
     h2.sec{font-size:15px;margin:24px 0 10px;}
-    .slotbar-row{grid-template-columns:1fr;grid-template-areas:"name" "bar" "val";row-gap:4px;padding:10px 0;}
+    .slotbar-row{grid-template-columns:1fr;grid-template-areas:"name" "bar" "val";row-gap:4px;height:auto;padding:10px 0;}
     .slotbar-row>div:first-child{grid-area:name;}
     .slotbar-track{grid-area:bar;}
     .slotbar-row>div:last-child{grid-area:val;display:flex;justify-content:space-between;align-items:baseline;}
@@ -180,16 +186,10 @@
   <div class="tabs" id="tabs"></div>
 
   <div class="controls">
-    <div class="ctrl-row">
+    <div class="ctrl-row ctrl-row-main">
       <div class="ctrl"><label>기간</label><div class="pair">
         <input type="date" id="s"><span>~</span><input type="date" id="e"></div></div>
-      <label class="excl"><input type="checkbox" id="cmp"> 이전 기간과 비교</label>
-      <div class="ctrl" id="cmpModeBox"><label>비교 방식</label>
-        <select id="cmpMode">
-          <option value="prev">직전 기간</option>
-          <option value="lastyear">작년 동기간</option>
-        </select>
-      </div>
+      <label class="excl"><input type="checkbox" id="cmp"> 비교</label>
       <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
         <input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     </div>
@@ -256,14 +256,11 @@ function addDays(base,n){const d=new Date(base);d.setDate(d.getDate()+n);return 
 function setRange(s0,e0){$('s').value=s0;$('e').value=e0;}
 // 달 단위 프리셋(이번달/지난달)을 눌렀을 때는 비교기간도 "직전 달 전체"로 잡음
 let MONTH_MODE=false;
+// 기간을 바꿀 때마다 비교 날짜를 '직전 기간'으로 미리 채워줌.
+// (사용자가 직접 고치면 그 값이 유지됨 — CMP_TOUCHED 플래그로 판단)
 function autoCompare(){
   const s0=new Date($('s').value), e0=new Date($('e').value);
-  const mode=$('cmpMode').value;
-  if(mode==='lastyear'){
-    const cs=new Date(s0); cs.setFullYear(cs.getFullYear()-1);
-    const ce=new Date(e0); ce.setFullYear(ce.getFullYear()-1);
-    $('cs').value=iso(cs); $('ce').value=iso(ce);
-  } else if(MONTH_MODE){
+  if(MONTH_MODE){
     // 선택 기간이 속한 달의 "직전 달 전체"(1일~말일)
     const firstOfSelMonth=new Date(s0.getFullYear(), s0.getMonth(), 1);
     const lastOfPrev=addDays(firstOfSelMonth,-1);
@@ -276,6 +273,14 @@ function autoCompare(){
   }
 }
 { const y=iso(addDays(new Date(),-1)); setRange(y,y); $('cmp').checked=true; autoCompare(); }
+// 비교 off일 때는 숨기지 않고 비활성(회색) 처리 — 레이아웃이 들썩이지 않게
+function syncCmpEnabled(){
+  const on=$('cmp').checked;
+  $('cs').disabled = !on;
+  $('ce').disabled = !on;
+  $('cmpBox').classList.toggle('is-off', !on);
+}
+syncCmpEnabled();
 
 const PRESETS=[
   {label:'어제',month:false,fn:()=>{const y=iso(addDays(new Date(),-1));setRange(y,y);}},
@@ -297,13 +302,13 @@ $('presets').addEventListener('click',(e)=>{const i=e.target.dataset.i;if(i==nul
 $('s').addEventListener('change',()=>{MONTH_MODE=false;document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active'));});
 $('e').addEventListener('change',()=>{MONTH_MODE=false;document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active'));});
 $('cmp').addEventListener('change',()=>{
-  const on=$('cmp').checked;
-  $('cmpBox').style.display=on?'flex':'none';
-  $('cmpModeBox').style.display=on?'flex':'none';
-  if(on) autoCompare();
+  if($('cmp').checked) autoCompare();
+  syncCmpEnabled();
   load();
 });
-$('cmpMode').addEventListener('change',()=>{ autoCompare(); load(); });
+// 비교 날짜를 직접 고치면 바로 조회
+$('cs').addEventListener('change',()=>{ if($('cmp').checked) load(); });
+$('ce').addEventListener('change',()=>{ if($('cmp').checked) load(); });
 $('exclLpoint').addEventListener('change',load);
 $('exclBots').addEventListener('change',load);
 $('go').addEventListener('click',load);
@@ -325,10 +330,10 @@ function q(extra){
 function showLoading(){$('content').innerHTML='<div class="state"><div class="spinner"></div>데이터 불러오는 중…</div>';}
 function showErr(m){$('content').innerHTML=`<div class="err">데이터를 불러오지 못했습니다.<br>${m}<br><br>잠시 후 [조회]를 다시 눌러보세요.</div>`;}
 function cmpModeLabel(){
-  return $('cmpMode').value==='lastyear' ? '작년 동기간' : '직전 기간';
+  return '비교 기간';
 }
 function periodLabel(d){
-  if($('cmp').checked) return `<div class="period-label">비교 기간(${cmpModeLabel()}) &nbsp; <b>이전</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
+  if($('cmp').checked) return `<div class="period-label"><b>비교</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
   return `<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
 }
 
@@ -426,6 +431,11 @@ async function renderOverview(d){
   let h=periodLabel(d);
   const byGroup=(g)=>d.kpis.filter(k=>k.group===g);
 
+  // ===== 최상단: 한눈에 보기 (핵심 지표 3개를 그래프로 먼저) =====
+  h+='<h2 class="sec" style="margin-top:0;">한눈에 보기</h2>';
+  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 14px;">최근 30일 핵심 흐름 · 위 기간 선택과 무관하게 항상 최근 30일이에요.</p>';
+  h+='<div id="heroWrap"><div class="state"><div class="spinner"></div>핵심 지표 불러오는 중…</div></div>';
+
   h+='<h2 class="sec">① 획득 (Acquisition)</h2>'+kpiHTML(byGroup('acquisition'));
   h+='<div id="cafe24TrafficWrap"></div>';
 
@@ -452,6 +462,9 @@ async function renderOverview(d){
   h+='<div class="preset-btns" id="trendBtns" style="margin-bottom:14px;"></div>';
   h+='<div id="chartWrap" class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div>';
   $('content').innerHTML=h;
+
+  // 최상단 핵심 그래프를 가장 먼저 로드 (제일 먼저 보이는 영역이니까)
+  loadHeroCharts();
 
   const TREND_PRESETS=[7,30,90];
   $('trendBtns').innerHTML=TREND_PRESETS.map((n,i)=>`<button data-days="${n}" class="${n===TREND_DAYS?'active':''}">최근 ${n}일</button>`).join('');
@@ -567,25 +580,134 @@ function miniBarChart(labels, values, color, valFmt){
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;">${bars}${labelEls}</svg>`;
 }
 function miniLineChart(labels, values, color, valueFmt){
-  const W=920,H=170,pad=30,topPad=26;
-  const max=Math.max(...values,1), min=Math.min(...values,0);
+  const W=920,H=220,padL=58,padR=16,padB=30,padT=22;
+  const rawMax=Math.max(...values,1), rawMin=Math.min(...values,0);
+  // Y축을 보기 좋은 값으로 반올림
+  const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
+  const step=niceStep((rawMax-rawMin)||1);
+  const min=Math.floor(rawMin/step)*step, max=Math.ceil(rawMax/step)*step;
   const range=(max-min)||1;
-  const x=(i)=>pad+(W-pad*2)*(values.length<=1?0.5:i/(values.length-1));
-  const y=(v)=>H-pad-(H-pad*2-topPad)*((v-min)/range);
-  const path=values.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const dots=values.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}"/>`).join('');
-  const step=Math.max(1,Math.ceil(labels.length/8));
-  const labelEls=labels.map((lb,i)=>(i%step===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-8}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
-  // 값 라벨: 점이 너무 많으면(15개 초과) 겹치니 일정 간격으로만 표시
-  let valueEls='';
-  if(valueFmt){
-    const vStep=values.length>15 ? Math.ceil(values.length/12) : 1;
-    valueEls=values.map((v,i)=>{
-      if(i%vStep!==0 && i!==values.length-1) return '';
-      return `<text x="${x(i).toFixed(1)}" y="${(y(v)-8).toFixed(1)}" font-size="10" font-weight="600" fill="${color}" text-anchor="middle" font-family="var(--mono)">${valueFmt(v)}</text>`;
-    }).join('');
+  const x=(i)=>padL+(W-padL-padR)*(values.length<=1?0.5:i/(values.length-1));
+  const y=(v)=>H-padB-(H-padB-padT)*((v-min)/range);
+
+  // 가로 눈금선 + Y축 숫자
+  let grid='', yAxis='';
+  for(let v=min; v<=max+0.0001; v+=step){
+    const yy=y(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
+    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
   }
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;"><path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>${dots}${valueEls}${labelEls}</svg>`;
+
+  // 평균선(점선): 어느 날이 평균보다 위/아래인지 한눈에
+  const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
+  const avgY = y(avg).toFixed(1);
+  const avgLine = values.length>1 ? `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="${W-padR-2}" y="${(Number(avgY)-6).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
+
+  const path=values.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const area=values.length>1 ? path+` L${x(values.length-1).toFixed(1)},${H-padB} L${x(0).toFixed(1)},${H-padB} Z` : '';
+  const dots=values.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}"><title>${labels[i]} · ${valueFmt?valueFmt(v):fmt(v)}</title></circle>`).join('');
+  const lstep=Math.max(1,Math.ceil(labels.length/9));
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
+    ${grid}${yAxis}
+    ${area?`<path d="${area}" fill="${color}" opacity="0.10"/>`:''}
+    ${avgLine}
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>
+    ${dots}${labelEls}
+  </svg>`;
+}
+
+// 세로 막대그래프 (일별 건수 등 이산적인 값에 적합)
+function verticalBarChart(labels, values, color, valueFmt){
+  const W=920,H=200,padL=58,padR=16,padB=30,padT=18;
+  const rawMax=Math.max(...values,1);
+  const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
+  const step=niceStep(rawMax||1);
+  const max=Math.ceil(rawMax/step)*step || 1;
+  const innerW=W-padL-padR;
+  const bw=Math.max(2, Math.min(28, innerW/values.length*0.62));
+  const x=(i)=>padL+innerW*(values.length<=1?0.5:(i+0.5)/values.length);
+  const y=(v)=>H-padB-(H-padB-padT)*(v/max);
+
+  let grid='', yAxis='';
+  for(let v=0; v<=max+0.0001; v+=step){
+    const yy=y(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
+    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
+  }
+  const bars=values.map((v,i)=>{
+    const h=Math.max(0,(H-padB)-y(v));
+    return `<rect x="${(x(i)-bw/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}"><title>${labels[i]} · ${valueFmt?valueFmt(v):fmt(v)}</title></rect>`;
+  }).join('');
+  const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
+  const avgY = y(avg).toFixed(1);
+  const avgLine = values.length>1 ? `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="${W-padR-2}" y="${(Number(avgY)-6).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
+  const lstep=Math.max(1,Math.ceil(labels.length/9));
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}${bars}${avgLine}${labelEls}</svg>`;
+}
+
+function won(v){ return fmt(v)+'원'; }
+let REVENUE_CACHE=null;
+
+// ===== 최상단 핵심 그래프: 매출 / 방문 / 구매 (최근 30일) =====
+async function loadHeroCharts(){
+  const wrap=document.getElementById('heroWrap');
+  if(!wrap) return;
+  const HERO_DAYS=30;
+  try{
+    const y=addDays(new Date(),-1);
+    const ae=iso(y), as=iso(addDays(y,-(HERO_DAYS-1)));
+
+    // GA4 일별(세션·구매) + cafe24 일별 매출을 함께 가져옴
+    let gaDaily=[], revDaily=[];
+    try{
+      let url=WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`;
+      if($('exclLpoint').checked) url+='&excl=lpoint,lotte,l.point';
+      if($('exclBots').checked) url+='&autoExclLowEngagement=1';
+      const r=await fetch(url,{cache:'no-store'});
+      const dd=await r.json();
+      gaDaily=dd.daily||[];
+    }catch(e){ /* GA4 실패해도 매출은 보여줌 */ }
+    try{
+      if(!REVENUE_CACHE){
+        const rr=await fetch('./revenue-daily.json',{cache:'no-store'});
+        REVENUE_CACHE=await rr.json();
+      }
+      revDaily=(REVENUE_CACHE.daily||[]).filter(d=>d.date>=as && d.date<=ae).sort((a,b)=>a.date.localeCompare(b.date));
+    }catch(e){ /* 매출 실패해도 GA4는 보여줌 */ }
+
+    const cards=[];
+    if(revDaily.length>1){
+      const labels=revDaily.map(r=>r.date.slice(5).replace('-','/'));
+      const vals=revDaily.map(r=>r.net);
+      const total=vals.reduce((a,b)=>a+b,0);
+      cards.push({title:'매출총액', total:won(total), color:'#0E7C6E',
+        svg: miniLineChart(labels, vals, '#0E7C6E', v=>Math.round(v/10000)+'만')});
+    }
+    if(gaDaily.length>1){
+      const labels=gaDaily.map(r=>r.date.slice(4,6)+'/'+r.date.slice(6,8));
+      const sess=gaDaily.map(r=>r.sessions||0);
+      cards.push({title:'방문(세션)', total:fmt(sess.reduce((a,b)=>a+b,0)), color:'#2B7DB8',
+        svg: miniLineChart(labels, sess, '#2B7DB8', v=>fmt(Math.round(v)))});
+      const purch=gaDaily.map(r=>r.purchase||0);
+      cards.push({title:'구매 건수', total:fmt(purch.reduce((a,b)=>a+b,0)), color:'#7A3FC8',
+        svg: verticalBarChart(labels, purch, '#7A3FC8', v=>fmt(Math.round(v)))});
+    }
+
+    if(!cards.length){ wrap.innerHTML='<div class="state">핵심 지표 데이터를 불러오지 못했습니다</div>'; return; }
+    wrap.innerHTML = cards.map(c=>
+      `<div class="funnel" style="margin-bottom:14px;">
+        <div class="mini-head"><span class="mini-dot" style="background:${c.color}"></span>${c.title}
+          <span class="mini-total">${c.total}</span></div>
+        ${c.svg}
+      </div>`).join('');
+  }catch(e){
+    wrap.innerHTML='<div class="state">핵심 지표를 불러오지 못했습니다</div>';
+  }
 }
 
 async function loadGrowthMetrics(){
@@ -714,7 +836,7 @@ async function loadUserSegments(){
   }catch(e){ wrap.innerHTML='<div class="state">유저 세그먼트를 불러오지 못했습니다</div>'; }
 }
 
-let TREND_DAYS=30;
+let TREND_DAYS=7;
 async function loadTrend(){
   const wrap=document.getElementById('chartWrap');
   wrap.innerHTML='<div class="state"><div class="spinner"></div>추이 불러오는 중…</div>';
@@ -739,7 +861,7 @@ const SERIES=[
 ];
 function drawChart(daily){
   const wrap=document.getElementById('chartWrap');
-  wrap.innerHTML='<div class="chart-grid" id="chartGrid"></div>';
+  wrap.innerHTML='<div class="chart-grid" id="chartGrid"></div><div id="dowWrap" style="margin-top:16px;"></div>';
   const grid=document.getElementById('chartGrid');
   grid.innerHTML=SERIES.map(s=>{
     const total=daily.reduce((a,d)=>a+(d[s.key]||0),0);
@@ -747,34 +869,78 @@ function drawChart(daily){
       <span class="mini-total">${fmt(total)}</span></div><div id="mini-${s.key}"></div></div>`;
   }).join('');
   SERIES.forEach(s=>renderMini(s,daily));
+  drawDayOfWeek(daily);
+}
+
+// 요일별 평균: 이커머스는 요일 효과가 커서, 어느 요일이 강한지 보면 프로모션 요일 정할 때 씀
+const DOW_NAMES=['일','월','화','수','목','금','토'];
+function drawDayOfWeek(daily){
+  const box=document.getElementById('dowWrap'); if(!box) return;
+  if(!daily || daily.length<7){ box.innerHTML=''; return; }
+  const buckets=DOW_NAMES.map(()=>({sessions:0, purchase:0, n:0}));
+  daily.forEach(d=>{
+    // date는 'YYYYMMDD' 형식
+    const y=Number(d.date.slice(0,4)), m=Number(d.date.slice(4,6)), dd=Number(d.date.slice(6,8));
+    const dow=new Date(Date.UTC(y, m-1, dd)).getUTCDay();
+    buckets[dow].sessions += (d.sessions||0);
+    buckets[dow].purchase += (d.purchase||0);
+    buckets[dow].n++;
+  });
+  const avgSessions=buckets.map(b=>b.n?Math.round(b.sessions/b.n):0);
+  const avgPurchase=buckets.map(b=>b.n?Number((b.purchase/b.n).toFixed(1)):0);
+  const hasData=avgSessions.some(v=>v>0);
+  if(!hasData){ box.innerHTML=''; return; }
+  let h='<div class="section-title" style="margin-top:4px;">요일별 평균</div>';
+  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">같은 요일들의 평균값 · 어느 요일이 강한지 보면 프로모션·발송 요일 정할 때 참고돼요.</p>';
+  h+='<div class="chart-grid">';
+  h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#0E7C6E"></span>요일별 평균 세션</div>'
+    + verticalBarChart(DOW_NAMES, avgSessions, '#0E7C6E', v=>fmt(Math.round(v))) + '</div>';
+  h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#7A3FC8"></span>요일별 평균 구매</div>'
+    + verticalBarChart(DOW_NAMES, avgPurchase, '#7A3FC8', v=>String(Math.round(v*10)/10)) + '</div>';
+  h+='</div>';
+  box.innerHTML=h;
 }
 function renderMini(s,daily){
   const box=document.getElementById('mini-'+s.key); if(!box) return;
-  const W=260,H=90,pad=8;
+  const W=460,H=220,padL=52,padR=14,padB=28,padT=18;
   const vals=daily.map(d=>d[s.key]||0);
-  const max=Math.max(...vals,1);
-  const x=(i)=>pad+(W-pad*2)*(daily.length<=1?0.5:i/(daily.length-1));
-  const y=(v)=>H-pad-(H-pad*2)*(v/max);
-  const first=daily[0].date.slice(4,6)+'/'+daily[0].date.slice(6,8);
-  const last=daily[daily.length-1].date.slice(4,6)+'/'+daily[daily.length-1].date.slice(6,8);
+  const rawMax=Math.max(...vals,1);
+  const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
+  const step=niceStep(rawMax);
+  const max=Math.ceil(rawMax/step)*step||1;
+  const x=(i)=>padL+(W-padL-padR)*(daily.length<=1?0.5:i/(daily.length-1));
+  const y=(v)=>H-padB-(H-padB-padT)*(v/max);
+  const dt=(d)=>d.date.slice(4,6)+'/'+d.date.slice(6,8);
+
+  let grid='', yAxis='';
+  for(let v=0; v<=max+0.0001; v+=step){
+    const yy=y(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
+    yAxis+=`<text x="${padL-6}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">${fmt(v)}</text>`;
+  }
 
   if(daily.length===1){
-    // 데이터가 하루뿐이면 선 대신 점 하나로 표시
-    const cx=x(0), cy=y(vals[0]);
-    box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;">
-      <circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}"/>
-      <text x="${pad}" y="${H-2}" font-size="9" fill="#66768A" font-family="var(--mono)">${first}</text>
+    box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}
+      <circle cx="${x(0).toFixed(1)}" cy="${y(vals[0]).toFixed(1)}" r="4" fill="${s.color}"><title>${dt(daily[0])} · ${fmt(vals[0])}</title></circle>
+      <text x="${x(0).toFixed(1)}" y="${H-9}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${dt(daily[0])}</text>
     </svg>`;
     return;
   }
 
-  let path=daily.map((d,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(d[s.key]||0).toFixed(1)}`).join(' ');
-  let area=path+` L${x(daily.length-1).toFixed(1)},${H-pad} L${x(0).toFixed(1)},${H-pad} Z`;
-  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;">
-    <path d="${area}" fill="${s.color}" opacity="0.12"/>
-    <path d="${path}" fill="none" stroke="${s.color}" stroke-width="2"/>
-    <text x="${pad}" y="${H-2}" font-size="9" fill="#66768A" font-family="var(--mono)">${first}</text>
-    <text x="${W-pad}" y="${H-2}" font-size="9" fill="#66768A" font-family="var(--mono)" text-anchor="end">${last}</text>
+  const path=daily.map((d,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(d[s.key]||0).toFixed(1)}`).join(' ');
+  const area=path+` L${x(daily.length-1).toFixed(1)},${H-padB} L${x(0).toFixed(1)},${H-padB} Z`;
+  const dots=daily.map((d,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(d[s.key]||0).toFixed(1)}" r="3.5" fill="${s.color}"><title>${dt(d)} · ${fmt(d[s.key]||0)}</title></circle>`).join('');
+  const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
+  const avgY = y(avg).toFixed(1);
+  const avgLine = `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="${W-padR-2}" y="${(Number(avgY)-6).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">평균 ${fmt(Math.round(avg))}</text>`;
+  const lstep=Math.max(1,Math.ceil(daily.length/7));
+  const labelEls=daily.map((d,i)=>(i%lstep===0||i===daily.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-9}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${dt(d)}</text>`:'').join('');
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}
+    <path d="${area}" fill="${s.color}" opacity="0.10"/>
+    ${avgLine}
+    <path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>
+    ${dots}${labelEls}
   </svg>`;
 }
 
@@ -1073,8 +1239,6 @@ async function loadCountryDetail(){
   }catch(e){ wrap.innerHTML='<div class="state">불러오지 못했습니다</div>'; }
 }
 
-function won(v){ return fmt(v)+'원'; }
-let REVENUE_CACHE=null;
 async function loadRevenue(){
   showLoading();
   try{
@@ -1103,7 +1267,8 @@ async function loadRevenue(){
     const after=sumRange(as,ae);
     const before = $('cmp').checked ? sumRange($('cs').value,$('ce').value) : after;
     const periodBeforeStr = $('cmp').checked ? `${$('cs').value} ~ ${$('ce').value}` : '';
-    renderRevenue({periodBefore:periodBeforeStr, periodAfter:`${as} ~ ${ae}`, revenue:{before,after}});
+    const dailyRows = daily.filter(d=>inRange(d.date,as,ae)).sort((x,y)=>x.date.localeCompare(y.date));
+    renderRevenue({periodBefore:periodBeforeStr, periodAfter:`${as} ~ ${ae}`, revenue:{before,after}, dailyRows});
   }catch(e){
     showErr('매출 데이터를 불러오지 못했습니다.<br><span style="font-size:12px;">레포에 revenue-daily.json 파일이 있는지 확인해주세요.</span>');
   }
@@ -1121,6 +1286,19 @@ function renderRevenue(d){
   h+='<div class="kpis">'+rows.map(r=>{const x=delta(r.b,r.a);
     return `<div class="kpi"><div class="k-label">${r.label}</div><div class="k-now">${won(r.a)}</div>
     <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+won(r.b):''}</div></div>`;}).join('')+'</div>';
+  // 일별 매출 추이 (선택 기간)
+  const dr = d.dailyRows || [];
+  if(dr.length>1){
+    const labels = dr.map(r=>r.date.slice(5).replace('-','/'));
+    h+='<h2 class="sec">일별 매출 추이</h2>';
+    h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">선택한 기간의 매출총액 흐름 · 점에 마우스를 올리면 그날 값이 나와요.</p>';
+    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.net), '#0E7C6E', v=>Math.round(v/10000)+'만')+'</div>';
+    h+='<h2 class="sec">일별 주문 건수</h2>';
+    h+='<div class="funnel">'+verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v)))+'</div>';
+    h+='<h2 class="sec">일별 객단가 추이</h2>';
+    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0), '#C8993F', v=>Math.round(v/10000)+'만')+'</div>';
+  }
+
   h+='<h2 class="sec">판매 TOP 5 (선택 기간)</h2>';
   if(a.topItems.length){
     const maxAmt=Math.max(...a.topItems.map(it=>it.amt),1);
