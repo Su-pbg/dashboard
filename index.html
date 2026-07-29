@@ -24,24 +24,28 @@
   .tab .soon{font-size:10px;color:var(--muted);background:var(--paper);border:1px solid var(--hair);border-radius:5px;padding:1px 5px;margin-left:5px;}
   .controls{display:flex;flex-direction:column;gap:14px;background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:16px 18px;margin-bottom:24px;}
   .ctrl-row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
-  .ctrl-row-split{justify-content:space-between;align-items:center;padding-top:2px;border-top:1px solid var(--hair);}
+  .ctrl-row-split{justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1px solid var(--hair);min-height:38px;}
   .excl-group{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
   .btn-group{display:flex;gap:8px;align-items:center;}
   .ctrl{display:flex;flex-direction:column;gap:5px;}
   .ctrl label{font-size:11px;color:var(--muted);font-weight:600;}
   .ctrl .pair{display:flex;gap:6px;align-items:center;}
-  #cmpMode{font-family:var(--sans);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink);}
-  input[type=date]{font-family:var(--mono);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:7px 10px;color:var(--ink);background:var(--surface);}
+  .ctrl .pair>span{font-size:13px;color:var(--muted);line-height:36px;}
+  #cmpMode{font-family:var(--sans);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:0 10px;height:36px;background:var(--surface);color:var(--ink);cursor:pointer;}
+  input[type=date]{font-family:var(--mono);font-size:13px;border:1px solid var(--hair);border-radius:8px;padding:0 10px;height:36px;color:var(--ink);background:var(--surface);}
+  .ctrl-row>label.excl{padding-bottom:9px;}
   .seg{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;}
   .seg.b{background:var(--paper);color:var(--muted);}
   .preset-btns{display:flex;gap:6px;flex-wrap:wrap;}
+  .ctrl-row-top{padding-top:14px;margin-top:2px;border-top:1px solid var(--hair);}
   .preset-btns button{font-size:12px;font-weight:600;color:var(--ink);background:var(--paper);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;cursor:pointer;}
   .preset-btns button:hover{border-color:var(--accent);color:var(--accent);}
   .preset-btns button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-  .go{background:var(--accent);color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .go{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:9px;padding:0 20px;height:38px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);}
   .go:hover{opacity:.9;}
   .go-ghost{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
-  .excl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;}
+  .excl{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink);white-space:nowrap;cursor:pointer;}
+  .excl input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
   .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;}
   .spinner{width:26px;height:26px;border:3px solid var(--hair);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -122,15 +126,17 @@
     .tab{padding:9px 11px;font-size:13px;white-space:nowrap;flex-shrink:0;}
     .controls{gap:12px;padding:14px;}
     .ctrl-row{flex-direction:column;align-items:stretch;gap:12px;}
-    .ctrl-row-split{flex-direction:column;align-items:stretch;}
-    .excl-group{flex-direction:column;gap:10px;align-items:flex-start;}
+    .ctrl-row-split{flex-direction:column;align-items:stretch;gap:12px;padding-top:12px;min-height:0;}
+    .ctrl-row-top{padding-top:12px;}
+    .ctrl-row>label.excl{padding-bottom:0;}
+    .excl-group{flex-direction:column;gap:12px;align-items:flex-start;}
     .btn-group{flex-direction:column;width:100%;}
     .ctrl{width:100%;}
     .ctrl .pair{width:100%;}
     .ctrl .pair input[type=date]{flex:1;min-width:0;width:auto;}
     #cmpMode{width:100%;}
     label.excl{width:100%;}
-    .go{width:100%;text-align:center;}
+    .go{width:100%;}
     .preset-btns{width:100%;}
     .preset-btns button{flex:1;min-width:64px;text-align:center;}
     .kpis{grid-template-columns:repeat(2,1fr);gap:8px;}
@@ -197,7 +203,7 @@
         <button class="go go-ghost" id="refreshBtn" title="캐시 무시하고 데이터 새로 받아오기">↻ 새로고침</button>
       </div>
     </div>
-    <div class="ctrl-row"><div class="ctrl" style="width:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div></div>
+    <div class="ctrl-row ctrl-row-top"><div class="ctrl" style="width:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div></div>
   </div>
 
   <div id="content"><div class="state"><div class="spinner"></div>데이터 불러오는 중…</div></div>
