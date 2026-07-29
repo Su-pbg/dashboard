@@ -698,8 +698,28 @@ function sectionTable(rows, id){
       <th style="text-align:right;cursor:pointer;" onclick="sortSection('${id}','order')">구좌 순서 ${sortArrow(id,'order')}</th>
       <th style="text-align:right;cursor:pointer;" onclick="sortSection('${id}','sessions')">유입 세션 ${sortArrow(id,'sessions')}</th>
       <th style="text-align:right;">비중</th><th style="text-align:right;">체류시간</th></tr>`+
-    sorted.map(r=>`<tr><td>${r.name}</td><td class="num">${r.order}번째</td><td class="num">${fmt(r.after.sessions)}</td>
-      <td class="num">${(r.after.sessions/tot*100).toFixed(1)}%</td><td class="num">${fmtDwell(r.after.dwell)}</td></tr>`).join('')+'</table></div>';
+    sorted.map((r,i)=>{
+      const hasProducts = r.topProducts && r.topProducts.length>0;
+      const rowId=`${id}-${i}`;
+      const nameCell = hasProducts
+        ? `<span style="cursor:pointer;text-decoration:underline dotted;" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="font-size:11px;color:var(--muted);">(상품 ${r.topProducts.length}개 · 펼치기)</span></span>`
+        : r.name;
+      let html = `<tr><td>${nameCell}</td><td class="num">${r.order}번째</td><td class="num">${fmt(r.after.sessions)}</td>
+      <td class="num">${(r.after.sessions/tot*100).toFixed(1)}%</td><td class="num">${fmtDwell(r.after.dwell)}</td></tr>`;
+      if(hasProducts){
+        html += `<tr id="prod-${rowId}" style="display:none;"><td colspan="5" style="padding:0;">
+          <table class="slot" style="margin:6px 0 10px;">
+            <tr><th>상품명</th><th style="text-align:right;">상품번호</th><th style="text-align:right;">유입 세션</th><th style="text-align:right;">체류시간</th></tr>
+            ${r.topProducts.map(p=>`<tr><td>${p.name||'(이름 조회 실패)'}</td><td class="num">${p.pno}</td><td class="num">${fmt(p.sessions)}</td><td class="num">${fmtDwell(p.dwell)}</td></tr>`).join('')}
+          </table></td></tr>`;
+      }
+      return html;
+    }).join('')+'</table></div>';
+}
+function toggleSlotProducts(rowId){
+  const el=document.getElementById('prod-'+rowId);
+  if(!el) return;
+  el.style.display = el.style.display==='none' ? '' : 'none';
 }
 
 // 목적지(상품/카테고리) 이동 순위 표
@@ -712,23 +732,25 @@ function slotTable(list){
     list.map((x,i)=>`<tr><td class="num">${i+1}</td><td>${destLabel(x)}</td><td class="num">${fmt(x.sessions)}</td><td class="num">${tot?(x.sessions/tot*100).toFixed(1):0}%</td></tr>`).join('')+'</table>';
 }
 
+let PRODUCT_SUBTAB = localStorage.getItem('pbg_product_subtab') || 'art';
+let LAST_PERF_DATA = null;
+
 function renderProductTab(dPerf, dSlots){
+  LAST_PERF_DATA = {dPerf, dSlots};
   let h=`<div class="period-label">기준 기간 &nbsp; <b>${dPerf.periodAfter}</b> &nbsp;<span style="color:var(--muted)">· 구좌는 수시로 바뀌어 선택 기간 성과만 표시</span></div>`;
   h+=`<p style="font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.6;">
     <b>구좌 순서</b> = 메인 화면에 배치된 위치(몇 번째 칸인지). &nbsp;
     <b>유입 세션</b> = 그 구좌를 눌러서 실제로 넘어간 방문 수. 위치는 고정, 그 자리에 걸린 상품은 바뀔 수 있어요.</p>`;
 
-  h+='<h2 class="sec">구좌 성과 (섹션별)</h2>';
-  ['art','life'].forEach(tab=>{
-    const rows=(dPerf.slotperf[tab]||[]);
-    const order=[]; const groups={};
-    rows.forEach(r=>{ const sec=r.section||'기타'; if(!groups[sec]){groups[sec]=[];order.push(sec);} groups[sec].push(r); });
-    h+=`<div class="section-title" style="font-size:15px;margin-top:22px;">${tab.toUpperCase()} 메인</div>`;
-    order.forEach(sec=>{
-      const badge = sec==='글로벌네비' ? ' <span class="badge">(공통 메뉴)</span>':'';
-      h+=`<div class="section-title">${sec}${badge}</div>`+sectionTable(groups[sec]);
-    });
-  });
+  // 공통(글로벌 네비) — art/life 둘 다 동일하므로 한 번만
+  const commonRows = (dPerf.slotperf['art']||[]).filter(r=>r.section==='글로벌네비');
+  h+='<h2 class="sec">공통 (글로벌 네비)</h2>';
+  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">art·life 어디서 봐도 같은 상단 메뉴라 한 번만 표시해요.</p>';
+  h+=sectionTable(commonRows);
+
+  h+='<h2 class="sec">구좌 성과</h2>';
+  h+='<div class="preset-btns" id="productSubtabBtns" style="margin-bottom:16px;"></div>';
+  h+='<div id="productSubtabWrap"></div>';
 
   h+='<h2 class="sec">목적지별 이동 순위 (상위 30)</h2>';
   h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인(art·life)에서 클릭해 넘어간 목적지(상품·카테고리)를 유입 세션 많은 순으로.</p>';
@@ -737,6 +759,29 @@ function renderProductTab(dPerf, dSlots){
     h+=`<div class="slot-cols"><div>${slotTable(s.before)}</div><div>${slotTable(s.after)}</div></div>`;});
 
   $('content').innerHTML=h;
+
+  $('productSubtabBtns').innerHTML=['art','life'].map(t=>
+    `<button data-t="${t}" class="${t===PRODUCT_SUBTAB?'active':''}">${t.toUpperCase()}</button>`).join('');
+  $('productSubtabBtns').addEventListener('click',(e)=>{
+    const t=e.target.dataset.t; if(!t) return;
+    PRODUCT_SUBTAB=t; localStorage.setItem('pbg_product_subtab',t);
+    document.querySelectorAll('#productSubtabBtns button').forEach(b=>b.classList.toggle('active', b.dataset.t===t));
+    renderProductSubtab();
+  });
+  renderProductSubtab();
+}
+
+function renderProductSubtab(){
+  if(!LAST_PERF_DATA) return;
+  const tab=PRODUCT_SUBTAB;
+  const rows=(LAST_PERF_DATA.dPerf.slotperf[tab]||[]).filter(r=>r.section!=='글로벌네비');
+  const order=[]; const groups={};
+  rows.forEach(r=>{ const sec=r.section||'기타'; if(!groups[sec]){groups[sec]=[];order.push(sec);} groups[sec].push(r); });
+  let h='';
+  order.forEach(sec=>{
+    h+=`<div class="section-title">${sec}</div>`+sectionTable(groups[sec]);
+  });
+  document.getElementById('productSubtabWrap').innerHTML=h;
 }
 
 function rankTable(rows,label){
