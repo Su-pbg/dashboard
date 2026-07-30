@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  PBG Product Dashboard
+  변경 이력은 같은 폴더의 CHANGELOG.md 를 참고하세요.
+  (수정할 때 CHANGELOG.md 에도 무엇을/왜 바꿨는지 함께 남겨주세요)
+-->
 <html lang="ko">
 <head>
 <meta name="robots" content="noindex, nofollow, noarchive">
@@ -37,7 +42,6 @@
   .ctrl.is-off label{color:var(--ghost);}
   .ctrl.is-off .pair>span{color:var(--ghost);}
   input[type=date]:disabled,select:disabled{background:var(--paper);color:var(--ghost);border-color:var(--hair);cursor:not-allowed;}
-  .seg{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;}
   .seg.b{background:var(--paper);color:var(--muted);}
   .preset-btns{display:flex;gap:5px;flex-wrap:wrap;}
   .ctrl-row-top{padding-top:10px;border-top:1px solid var(--hair);}
@@ -68,6 +72,8 @@
   .card-gap{margin-bottom:14px;}
   .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
   .stage{margin-bottom:16px;}.stage:last-child{margin-bottom:0;}
+  .stage-drop{font-size:12px;color:var(--muted);margin-top:6px;padding-left:32px;}
+  .stage-drop b{color:var(--down);font-family:var(--mono);}
   .stage-top{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;}
   .stage-name{font-weight:600;}.stage-conv{font-family:var(--mono);font-size:12px;color:var(--muted);}
   .stage-conv b{color:var(--accent);}.stage-conv .w{color:var(--down);}
@@ -82,6 +88,12 @@
   .up-txt{color:var(--up);font-weight:700;} .down-txt{color:var(--down);font-weight:700;}
   .slotbar-meta{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:16px;}
   .slotbar-track{background:var(--paper);border-radius:6px;height:20px;overflow:hidden;position:relative;}
+  .slotbar-track.sm{height:13px;border-radius:5px;flex:1;min-width:0;}
+  .slotbar-row.tall{height:auto;min-height:56px;padding:10px 0;}
+  .slotbar-dual{display:flex;flex-direction:column;gap:5px;min-width:0;}
+  .slotbar-mini{display:flex;align-items:center;gap:7px;min-width:0;}
+  .slotbar-tag{font-size:10px;color:var(--muted);width:22px;flex-shrink:0;}
+  .slotbar-mini-val{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:58px;text-align:right;flex-shrink:0;}
   .slotbar-fill{height:100%;border-radius:6px;transition:width .6s ease;}
   .slotbar-val{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;white-space:nowrap;min-width:64px;line-height:20px;}
   .slotbar-sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:16px;}
@@ -106,11 +118,6 @@
   .m-vals{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:right;}.m-vals b{color:var(--ink);}
   .m-delta{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;min-width:52px;}
   .m-delta.good{color:var(--up);}.m-delta.bad{color:var(--down);}
-  table.slot{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--hair);border-radius:12px;overflow:hidden;margin-bottom:8px;}
-  table.slot th,table.slot td{text-align:left;padding:10px 14px;font-size:13px;border-bottom:1px solid var(--hair);}
-  table.slot th{background:var(--paper);color:var(--muted);font-weight:600;font-size:12px;}
-  table.slot td.num{font-family:var(--mono);text-align:right;}
-  table.slot a{color:var(--accent);text-decoration:none;word-break:break-all;}
   .slot-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .soon-box{background:var(--surface);border:1px dashed var(--hair);border-radius:14px;padding:24px 18px;text-align:center;color:var(--muted);}
   .soon-box b{color:var(--ink);}
@@ -167,8 +174,6 @@
     .slotbar-row>div:last-child{grid-area:val;display:flex;justify-content:space-between;align-items:baseline;}
     .slotbar-val{min-width:0;}
     .section-block{padding:14px;}
-    table.slot{font-size:12px;}
-    table.slot th,table.slot td{padding:8px 8px;}
   }
   #authGate{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:9999;}
   .authBox{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:36px 32px;width:320px;text-align:center;}
@@ -463,29 +468,30 @@ async function trafficRangeSum(s0,e0){
   return { uv: rows.reduce((s,x)=>s+(x.uv||0),0), pv: rows.reduce((s,x)=>s+(x.pv||0),0), hasData: rows.length>0 };
 }
 
-async function revenueRangeNet(s0,e0){
-  if(!REVENUE_CACHE){
-    const r=await fetch('./revenue-daily.json',{cache:'no-store'});
-    REVENUE_CACHE=await r.json();
+// 매출 파일을 한 번만 읽어오는 공통 함수 (동시에 여러 곳에서 불려도 요청은 1번만 나감)
+let REVENUE_LOADING=null;
+async function ensureRevenue(){
+  if(REVENUE_CACHE) return REVENUE_CACHE;
+  if(!REVENUE_LOADING){
+    REVENUE_LOADING = fetch('./revenue-daily.json',{cache:'no-store'})
+      .then(r=>r.json())
+      .then(j=>{ REVENUE_CACHE=j; REVENUE_LOADING=null; return j; })
+      .catch(e=>{ REVENUE_LOADING=null; throw e; });
   }
-  const daily=REVENUE_CACHE.daily||[];
-  return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+x.net,0);
+  return REVENUE_LOADING;
 }
-async function revenueRangeCount(s0,e0){
-  if(!REVENUE_CACHE){
-    const r=await fetch('./revenue-daily.json',{cache:'no-store'});
-    REVENUE_CACHE=await r.json();
+// 기간 합계를 한 번의 순회로 모두 계산 (예전엔 net/count/newMembers를 각각 따로 훑었음)
+async function revenueRangeSum(s0,e0){
+  const j=await ensureRevenue();
+  const daily=j.daily||[];
+  let net=0,count=0,newMembers=0,gmv=0,refund=0,days=0;
+  for(const x of daily){
+    if(x.date>=s0 && x.date<=e0){
+      net+=x.net||0; count+=x.count||0; newMembers+=x.newMembers||0;
+      gmv+=x.gmv||0; refund+=x.refund||0; days++;
+    }
   }
-  const daily=REVENUE_CACHE.daily||[];
-  return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+(x.count||0),0);
-}
-async function revenueRangeNewMembers(s0,e0){
-  if(!REVENUE_CACHE){
-    const r=await fetch('./revenue-daily.json',{cache:'no-store'});
-    REVENUE_CACHE=await r.json();
-  }
-  const daily=REVENUE_CACHE.daily||[];
-  return daily.filter(x=>x.date>=s0 && x.date<=e0).reduce((s,x)=>s+(x.newMembers||0),0);
+  return {net,count,newMembers,gmv,refund,days};
 }
 
 async function renderOverview(d){
@@ -544,14 +550,16 @@ async function renderOverview(d){
   // 객단가(AOV) = 매출총액 ÷ 주문건수 (cafe24 실데이터 기준)
   try{
     const asDate=$('s').value, aeDate=$('e').value;
-    const netAfter=await revenueRangeNet(asDate,aeDate);
-    const countAfter=await revenueRangeCount(asDate,aeDate);
-    const aovAfter = countAfter ? Math.round(netAfter/countAfter) : null;
+    const cmpOnAov=$('cmp').checked;
+    // 선택 기간과 비교 기간을 동시에 계산 (예전엔 하나씩 기다려서 느렸음)
+    const [sumA, sumB] = await Promise.all([
+      revenueRangeSum(asDate,aeDate),
+      cmpOnAov ? revenueRangeSum($('cs').value,$('ce').value) : Promise.resolve(null),
+    ]);
+    const aovAfter = sumA.count ? Math.round(sumA.net/sumA.count) : null;
     let aovBefore=aovAfter;
-    if($('cmp').checked){
-      const netBefore=await revenueRangeNet($('cs').value,$('ce').value);
-      const countBefore=await revenueRangeCount($('cs').value,$('ce').value);
-      aovBefore = countBefore ? Math.round(netBefore/countBefore) : aovAfter;
+    if(cmpOnAov && sumB){
+      aovBefore = sumB.count ? Math.round(sumB.net/sumB.count) : aovAfter;
     }
     if(aovAfter!=null){
       const extraItems=[{label:'객단가', before:aovBefore, after:aovAfter, unit:'won'}];
@@ -562,12 +570,17 @@ async function renderOverview(d){
   // 신규 가입자 수 + 가입 완료율 (cafe24 회원 데이터 + GA4 신규방문자)
   try{
     const asDate=$('s').value, aeDate=$('e').value;
-    const newMembersAfter=await revenueRangeNewMembers(asDate,aeDate);
+    const cmpOnSignup=$('cmp').checked;
+    const [smA, smB] = await Promise.all([
+      revenueRangeSum(asDate,aeDate),
+      cmpOnSignup ? revenueRangeSum($('cs').value,$('ce').value) : Promise.resolve(null),
+    ]);
+    const newMembersAfter=smA.newMembers;
     const newVisitorsAfter=(byGroup('acquisition').find(k=>k.label==='신규 방문자')||{}).after||0;
     const signupRateAfter = newVisitorsAfter ? (newMembersAfter/newVisitorsAfter*100) : 0;
     let newMembersBefore=newMembersAfter, signupRateBefore=signupRateAfter;
-    if($('cmp').checked){
-      newMembersBefore=await revenueRangeNewMembers($('cs').value,$('ce').value);
+    if(cmpOnSignup && smB){
+      newMembersBefore=smB.newMembers;
       const newVisitorsBefore=(byGroup('acquisition').find(k=>k.label==='신규 방문자')||{}).before||0;
       signupRateBefore = newVisitorsBefore ? (newMembersBefore/newVisitorsBefore*100) : 0;
     }
@@ -595,10 +608,8 @@ async function renderOverview(d){
   }catch(e){ /* 실패해도 무시, GA4 카드는 그대로 둠 */ }
 
   // ⑥ 성장 지표: 매출 MoM/YoY + 월별 매출·MAU·객단가 추이 + 리텐션 곡선(Day0~30)
-  try{ await loadGrowthMetrics(); }catch(e){ /* 실패해도 나머지 대시보드는 그대로 둠 */ }
-
-  // ⑦ 유저 세그먼트: 신규/재방문, 디바이스, 구매금액대별 행동 비교
-  try{ await loadUserSegments(); }catch(e){ /* 실패해도 나머지 대시보드는 그대로 둠 */ }
+  // ⑥⑦은 서로 무관하니 동시에 불러온다 (예전엔 하나 끝나고 다음을 시작해서 느렸음)
+  await Promise.allSettled([ loadGrowthMetrics(), loadUserSegments() ]);
 }
 
 function monthKey(dateStr){ return dateStr.slice(0,7); } // 'YYYY-MM-DD' -> 'YYYY-MM'
@@ -747,7 +758,7 @@ function dualLineChart(labels, seriesA, seriesB, valueFmt){
 }
 
 function miniLineChart(labels, values, color, valueFmt){
-  const W=920,H=220,padL=58,padR=104,padB=30,padT=22;
+  const W=920,H=240,padL=58,padR=104,padB=30,padT=28;  // compareLineChart와 동일하게 통일
   const rawMax=Math.max(...values,1), rawMin=Math.min(...values,0);
   const step=niceStepOf((rawMax-rawMin)||1);
   const min=Math.floor(rawMin/step)*step, max=Math.ceil(rawMax/step)*step;
@@ -791,7 +802,7 @@ function miniLineChart(labels, values, color, valueFmt){
 // 세로 막대그래프 · prevValues를 주면 비교 기간을 나란히(그룹) 막대로 함께 그림
 function verticalBarChart(labels, values, color, valueFmt, prevValues, seriesName){
   const hasPrev = prevValues && prevValues.length>0;
-  const W=920,H=220,padL=58,padR=104,padB=30,padT=hasPrev?28:18;
+  const W=920,H=240,padL=58,padR=104,padB=30,padT=28;  // compareLineChart와 동일하게 통일
   const allVals = hasPrev ? values.concat(prevValues) : values;
   const rawMax=Math.max(...allVals,1);
   const step=niceStepOf(rawMax||1);
@@ -887,11 +898,7 @@ async function loadHeroCharts(){
     // 매출: 캐시에서 두 기간 잘라 씀
     let revCur=[], revPrev=[];
     try{
-      if(!REVENUE_CACHE){
-        const rr=await fetch('./revenue-daily.json',{cache:'no-store'});
-        REVENUE_CACHE=await rr.json();
-      }
-      const all=REVENUE_CACHE.daily||[];
+      const all=(await ensureRevenue()).daily||[];
       const cut=(s0,e0)=>all.filter(d=>d.date>=s0 && d.date<=e0).sort((a,b)=>a.date.localeCompare(b.date));
       revCur=cut(as,ae);
       if(cmpOn) revPrev=cut(cs,ce);
@@ -943,11 +950,7 @@ async function loadGrowthMetrics(){
 
   // 1) 매출 MoM/YoY + 월별 매출 막대그래프 (cafe24 revenue-daily.json 기준)
   try{
-    if(!REVENUE_CACHE){
-      const r=await fetch('./revenue-daily.json',{cache:'no-store'});
-      REVENUE_CACHE=await r.json();
-    }
-    const monthly=aggregateMonthlyRevenue(REVENUE_CACHE.daily||[]);
+    const monthly=aggregateMonthlyRevenue((await ensureRevenue()).daily||[]);
     if(monthly.length>=2){
       const last=monthly[monthly.length-1], prev=monthly[monthly.length-2];
       const mom=growthPct(prev.net,last.net);
@@ -1172,27 +1175,72 @@ function renderFunnel(d){
   const cmpOn = $('cmp').checked;
   let h=periodLabel(d);
   h+='<h2 class="sec">구매 전환 퍼널</h2>';
-  h+='<p class="sec-desc">각 단계 통과율 · 상품조회는 한 방문에서 여러 상품을 보므로 방문보다 클 수 있어요(그래서 100%를 넘습니다).</p>';
+  h+='<p class="sec-desc">각 단계 통과율과 <b>이탈 인원</b>을 같이 봐요 · 비율이 낮아도 인원이 적으면 개선 효과가 작고, 비율이 높아도 인원이 많으면 기회가 큽니다.<br>상품조회는 한 방문에서 여러 상품을 보므로 방문보다 클 수 있어요(그래서 100%를 넘습니다).</p>';
+
+  // 단계별 이탈 계산 (앞 단계보다 줄어든 만큼이 이탈)
+  const stages = d.funnel.map((s,i)=>{
+    const p = d.funnel[i-1];
+    const passA = p ? (s.after/p.after*100) : 100;
+    const passB = (p && p.before) ? (s.before/p.before*100) : 100;
+    const dropA = p ? Math.max(0, p.after - s.after) : 0;      // 이탈 인원
+    const dropB = p ? Math.max(0, p.before - s.before) : 0;
+    const dropRateA = (p && p.after) ? dropA/p.after*100 : 0;  // 이탈률
+    const dropRateB = (p && p.before) ? dropB/p.before*100 : 0;
+    return {...s, prev:p, passA, passB, dropA, dropB, dropRateA, dropRateB};
+  });
+
   h+='<div class="funnel">';
-  // 바 길이 기준: 비교까지 포함한 전체 최댓값으로 잡아야 값이 밖으로 밀려 안 보이는 일이 없음
   const maxVal = Math.max(...d.funnel.map(s=>Math.max(s.after, cmpOn?s.before:0)), 1);
-  h+=d.funnel.map((s,i)=>{const p=d.funnel[i-1];
-    const cA=p?(s.after/p.after*100):100;
-    const cB=p&&p.before?(s.before/p.before*100):100;
-    const dd=p?cA-cB:0, cls=dd<0?'w':'';
-    const conv = p
+  h+=stages.map(st=>{
+    const dd = st.prev ? st.passA - st.passB : 0;
+    const cls = dd<0?'w':'';
+    const conv = st.prev
       ? (cmpOn
-          ? `<span class="stage-conv">통과율 ${cB.toFixed(1)}% → <b class="${cls}">${cA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`
-          : `<span class="stage-conv">통과율 <b>${cA.toFixed(1)}%</b></span>`)
+          ? `<span class="stage-conv">통과율 ${st.passB.toFixed(1)}% → <b class="${cls}">${st.passA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`
+          : `<span class="stage-conv">통과율 <b>${st.passA.toFixed(1)}%</b></span>`)
       : `<span class="stage-conv">유입 100%</span>`;
-    // 숫자는 바 안이 아니라 바 오른쪽 고정 칸에 둬서 항상 보이게 함
     const row=(tag,val,cls2)=>`<div class="bar-row"><span class="bar-tag">${tag}</span>
       <div class="bar-track"><div class="bar-fill ${cls2}" style="width:${Math.min(Math.max(val/maxVal*100,2),100)}%"></div></div>
       <span class="bar-val">${fmt(val)}</span></div>`;
-    return `<div class="stage"><div class="stage-top"><span class="stage-name">${s.name}</span>${conv}</div><div class="bars">
-      ${cmpOn?row('비교',s.before,'b'):''}
-      ${row(cmpOn?'선택':'', s.after, 'a')}
-    </div></div>`;}).join('')+'</div>';
+    // 이탈 정보 (첫 단계는 이탈 개념이 없음)
+    let dropHtml='';
+    if(st.prev && st.dropA>0){
+      const dv = cmpOn ? (st.dropRateA - st.dropRateB) : null;
+      dropHtml = `<div class="stage-drop">이 단계에서 <b>${fmt(st.dropA)}</b> 이탈 · 이탈률 ${st.dropRateA.toFixed(1)}%`
+        + (cmpOn ? ` <span class="${dv>0?'down-txt':'up-txt'}">(비교 ${st.dropRateB.toFixed(1)}% → ${dv>=0?'+':''}${dv.toFixed(1)}%p)</span>` : '')
+        + `</div>`;
+    }
+    return `<div class="stage"><div class="stage-top"><span class="stage-name">${st.name}</span>${conv}</div><div class="bars">
+      ${cmpOn?row('비교',st.before,'b'):''}
+      ${row(cmpOn?'선택':'', st.after, 'a')}
+    </div>${dropHtml}</div>`;
+  }).join('')+'</div>';
+
+  // ===== 개선 기회 순위: 이탈 인원이 많은 단계부터 =====
+  const drops = stages.filter(st=>st.prev && st.dropA>0).sort((a,b)=>b.dropA-a.dropA);
+  if(drops.length){
+    h+='<h2 class="sec">개선 기회 순위</h2>';
+    h+='<p class="sec-desc">이탈 <b>인원</b>이 많은 단계부터 · 비율이 아니라 인원 기준이라 실제로 손해가 큰 곳이 위로 옵니다. 「10%만 살리면」은 그 단계 이탈자의 10%를 되돌렸을 때 늘어나는 인원이에요.</p>';
+    const maxDrop=Math.max(...drops.map(x=>x.dropA),1);
+    h+='<div class="section-block">'+drops.map((st,i)=>{
+      const w=Math.max(st.dropA/maxDrop*100,3);
+      const gain=Math.round(st.dropA*0.1);
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${i+1}. ${st.prev.name} → ${st.name}</span>
+          <div class="slotbar-meta">이탈률 ${st.dropRateA.toFixed(1)}% · 10%만 살리면 +${fmt(gain)}</div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#C85A3F;"></div></div>
+        <div><div class="slotbar-val">${fmt(st.dropA)}</div><div class="slotbar-sub">이탈</div></div>
+      </div>`;
+    }).join('')+'</div>';
+  }
+
+  h+='<h2 class="sec">세그먼트별 퍼널</h2>';
+  h+='<p class="sec-desc">전체 퍼널 하나만 보면 병목을 못 찾아요 · 신규/재방문·디바이스·유입채널로 쪼개서 「어느 조합에서 유독 많이 빠지나」를 봅니다. 세션→구매 전환율(CVR) 순으로 정렬돼요.</p>';
+  h+='<div id="segFunnelWrap"><div class="funnel"><div class="state"><div class="spinner"></div>세그먼트 퍼널 불러오는 중…</div></div></div>';
+
+  h+='<h2 class="sec">장바구니 분석 · 구매 경로</h2>';
+  h+='<p class="sec-desc">담아놓고 안 산 사람이 얼마나 되는지, 그리고 장바구니를 거치는 경로와 바로구매 경로가 각각 얼마나 되는지 봅니다.</p>';
+  h+='<div id="cartWrap"><div class="funnel"><div class="state"><div class="spinner"></div>장바구니 지표 불러오는 중…</div></div></div>';
 
   h+='<h2 class="sec">페이지별 트래픽</h2><div class="pages">'+d.pages.map(pg=>{
     const rows=pg.metrics.map(m=>{
@@ -1211,8 +1259,128 @@ function renderFunnel(d){
   h+='<div id="utmWrap"><div class="funnel"><div class="state"><div class="spinner"></div>UTM 지표 불러오는 중…</div></div></div>';
 
   $('content').innerHTML=h;
+  loadSegmentFunnel();
+  loadCartAnalysis();
   loadScrollDepth();
   loadUtmPerformance();
+}
+
+// 장바구니 분석 + 구매 경로
+async function loadCartAnalysis(){
+  const wrap=$('cartWrap');
+  if(!wrap) return;
+  try{
+    const r=await fetch(WORKER+'/?'+q()+'&tab=cart',{cache:'no-store'});
+    const dd=await r.json();
+    if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
+    if(!dd.cartAnalysis){ wrap.innerHTML='<div class="funnel"><div class="state">장바구니 데이터가 없습니다</div></div>'; return; }
+    const c=dd.cartAnalysis.cart, p=dd.cartAnalysis.path;
+    const pb=dd.cartAnalysisBefore;
+    const cmpOn=$('cmp').checked && pb;
+    const cb=pb?pb.cart:null, ppb=pb?pb.path:null;
+
+    // KPI 카드
+    const kpi=(label,val,sub,prevVal,lower,unit)=>{
+      let cmpHtml='';
+      if(cmpOn && prevVal!=null){
+        const dv=delta(prevVal,typeof val==='number'?val:0,lower);
+        const pv = unit==='percent' ? prevVal.toFixed(1)+'%' : fmt(Math.round(prevVal));
+        cmpHtml=`<div class="delta ${dv.good?'good':'bad'}">${dv.up?'▲':'▼'} ${dv.text}</div><div class="k-was">비교: ${pv}</div>`;
+      }
+      const shown = unit==='percent' ? (typeof val==='number'? val.toFixed(1)+'%' : val) : fmt(Math.round(val));
+      return `<div class="kpi"><div class="k-label">${label}</div><div class="k-now">${shown}</div>
+        ${cmpHtml}<div class="slotbar-meta" style="margin-top:6px;">${sub}</div></div>`;
+    };
+
+    let h='<div class="kpis">';
+    h+=kpi('장바구니 담은 세션', c.addSessions, `담기 이벤트 ${fmt(c.addEvents)}회`, cb?cb.addSessions:null, false);
+    h+=kpi('장바구니 이탈', c.abandonSessions, `담았지만 구매 안 함`, cb?cb.abandonSessions:null, true);
+    h+=kpi('장바구니 이탈률', c.abandonRate, `담은 세션 중 미구매 비율`, cb?cb.abandonRate:null, true, 'percent');
+    h+=kpi('담기→구매 전환율', c.convRate, `담은 세션 중 구매 도달`, cb?cb.convRate:null, false, 'percent');
+    h+=kpi('스스로 뺀 비율', c.removeRate, `담기 ${fmt(c.addEvents)}회 중 ${fmt(c.removeEvents)}회 제거`, cb?cb.removeRate:null, true, 'percent');
+    h+='</div>';
+
+    // 구매 경로
+    h+='<div class="section-title">구매 경로 (추정)</div>';
+    h+='<p class="sec-desc">장바구니 페이지와 주문서 페이지의 세션 수로 추정해요 · 두 경로의 정확한 교집합은 GA4 표준 리포트로 구할 수 없어서 <b>추정치</b>입니다.</p>';
+    const pathRows=[
+      {name:'장바구니 페이지 방문', v:p.basketSessions, color:'#2B7DB8', meta:`조회수 ${fmt(p.basketViews)}`},
+      {name:'주문서 페이지 도달', v:p.orderSessions, color:'#0E7C6E', meta:`조회수 ${fmt(p.orderViews)}`},
+      {name:'바로구매 추정', v:p.directEstimate, color:'#C8993F', meta:`주문서 중 ${p.directShare.toFixed(1)}% — 장바구니 안 거침`},
+      {name:'구매 완료', v:c.purchaseSessions, color:'#7A3FC8', meta:`주문서→구매 ${p.orderToBuyRate.toFixed(1)}%`},
+    ];
+    const maxP=Math.max(...pathRows.map(x=>x.v),1);
+    h+='<div class="section-block">'+pathRows.map(x=>{
+      const w=Math.max(x.v/maxP*100,3);
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${x.name}</span><div class="slotbar-meta">${x.meta}</div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${x.color};"></div></div>
+        <div><div class="slotbar-val">${fmt(x.v)}</div><div class="slotbar-sub">세션</div></div>
+      </div>`;
+    }).join('')+'</div>';
+
+    // 주문서 이탈 강조
+    if(p.orderDropSessions>0){
+      h+=`<div class="section-block" style="border-color:var(--down);">
+        <div class="section-block-head"><span class="section-dot" style="background:var(--down);"></span><span class="section-block-title">주문서까지 갔는데 이탈</span>
+        <span class="section-block-total">${fmt(p.orderDropSessions)} 세션</span></div>
+        <p class="sec-desc" style="margin:0;">주문서를 열었다는 건 구매 의사가 확실한 단계예요 · 여기 이탈률이 높으면 결제수단·배송비·회원가입 요구 같은 <b>마지막 장벽</b>을 점검해야 합니다.</p></div>`;
+    }
+    wrap.innerHTML=h;
+  }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">장바구니 지표를 불러오지 못했습니다</div></div>'; }
+}
+
+// 세그먼트별 퍼널: 어느 조합에서 많이 빠지는지
+async function loadSegmentFunnel(){
+  const wrap=$('segFunnelWrap');
+  if(!wrap) return;
+  try{
+    const r=await fetch(WORKER+'/?'+q()+'&tab=segfunnel',{cache:'no-store'});
+    const dd=await r.json();
+    if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
+    if(!dd.segfunnel){ wrap.innerHTML='<div class="funnel"><div class="state">세그먼트 퍼널 데이터가 없습니다</div></div>'; return; }
+    const cur=dd.segfunnel, prev=dd.segfunnelBefore;
+    const cmpOn=$('cmp').checked && prev;
+
+    const block=(title, rows, prevRows, color)=>{
+      if(!rows || !rows.length) return `<div class="section-block"><div class="section-block-head"><span class="section-block-title">${title}</span></div><div class="state">데이터 없음</div></div>`;
+      const sorted=[...rows].sort((a,b)=>b.cvr-a.cvr);
+      const maxCvr=Math.max(...sorted.map(x=>x.cvr),0.01);
+      const prevMap={}; if(cmpOn && prevRows) prevRows.forEach(p=>prevMap[p.label]=p);
+      let out=`<div class="section-block"><div class="section-block-head"><span class="section-dot" style="background:${color};"></span><span class="section-block-title">${title}</span><span class="section-block-total">세션→구매 전환율 순</span></div>`;
+      out+=sorted.map(x=>{
+        const w=Math.max(x.cvr/maxCvr*100,3);
+        // 가장 많이 빠지는 단계 찾기 (통과율이 가장 낮은 구간)
+        const steps=[
+          {n:'방문→조회', v:x.viewRate},
+          {n:'조회→장바구니', v:x.cartRate},
+          {n:'장바구니→구매', v:x.buyRate},
+        ].filter(z=>isFinite(z.v));
+        const worst=steps.length? steps.reduce((a,b)=>a.v<b.v?a:b) : null;
+        let cmpHtml='';
+        if(cmpOn){
+          const p=prevMap[x.label];
+          const pv=p?p.cvr:0;
+          const dp=x.cvr-pv;
+          cmpHtml=`<div class="slotbar-meta">비교 CVR ${pv.toFixed(2)}% <span class="${dp>=0?'up-txt':'down-txt'}">${dp>=0?'▲':'▼'} ${Math.abs(dp).toFixed(2)}%p</span></div>`;
+        }
+        return `<div class="slotbar-row">
+          <div><span class="slotbar-name" style="cursor:default;">${x.label}</span>
+            <div class="slotbar-meta">세션 ${fmt(x.sessions)} · 구매 ${fmt(x.purchase)}${worst?` · 최대 병목 <b style="color:var(--down);">${worst.n} ${worst.v.toFixed(1)}%</b>`:''}</div>${cmpHtml}</div>
+          <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
+          <div><div class="slotbar-val">${x.cvr.toFixed(2)}%</div><div class="slotbar-sub">CVR</div></div>
+        </div>`;
+      }).join('');
+      out+='</div>';
+      return out;
+    };
+
+    let h='';
+    h+=block('신규 vs 재방문', cur.byNewReturning, prev?prev.byNewReturning:null, '#0E7C6E');
+    h+=block('디바이스별', cur.byDevice, prev?prev.byDevice:null, '#2B7DB8');
+    h+=block('유입 채널별', cur.bySource, prev?prev.bySource:null, '#7A3FC8');
+    wrap.innerHTML=h;
+  }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">세그먼트 퍼널을 불러오지 못했습니다</div></div>'; }
 }
 
 async function loadUtmPerformance(){
@@ -1344,7 +1512,9 @@ function sectionTable(rows, id){
   SECTION_SORT[id]=st;
   const val=(r)=> st.key==='order' ? r.order : r.after.sessions;
   const sorted=[...rows].sort((a,b)=> st.dir==='asc' ? (val(a)-val(b)) : (val(b)-val(a)));
-  const maxSessions=Math.max(...sorted.map(r=>r.after.sessions),1);
+  const cmpOn = $('cmp').checked;
+  // 비교 막대와 같은 기준으로 길이를 재려면 최댓값에 비교값도 포함해야 함
+  const maxSessions=Math.max(...sorted.map(r=>Math.max(r.after.sessions, (cmpOn&&r.before)?r.before.sessions:0)),1);
   const tot=sorted.reduce((s,x)=>s+x.after.sessions,0)||1;
   const color = sectionColor(sorted[0]?.section);
 
@@ -1362,14 +1532,26 @@ function sectionTable(rows, id){
     const nameHtml = hasProducts
       ? `<span class="slotbar-name" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="color:var(--accent);font-size:11px;">▾ ${label} ${r.topProducts.length}개</span></span>`
       : `<span class="slotbar-name" style="cursor:default;">${r.name}</span>`;
+    const showCmp = cmpOn && r.before;
     let metaExtra='';
-    if($('cmp').checked && r.before){
+    if(showCmp){
       const dv=delta(r.before.sessions, r.after.sessions);
-      metaExtra=` · 비교 ${fmt(r.before.sessions)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>`;
+      metaExtra=` · <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>`;
     }
-    html += `<div class="slotbar-row">
+    // 비교가 켜지면 선택/비교 막대를 위아래로 나란히 (퍼널과 같은 방식)
+    const barHtml = showCmp
+      ? `<div class="slotbar-dual">
+          <div class="slotbar-mini"><span class="slotbar-tag">선택</span>
+            <div class="slotbar-track sm"><div class="slotbar-fill" style="width:${widthPct}%;background:${color};"></div></div>
+            <span class="slotbar-mini-val">${fmt(r.after.sessions)}</span></div>
+          <div class="slotbar-mini"><span class="slotbar-tag">비교</span>
+            <div class="slotbar-track sm"><div class="slotbar-fill" style="width:${Math.max(r.before.sessions/maxSessions*100, r.before.sessions>0?4:0)}%;background:#98A4B4;"></div></div>
+            <span class="slotbar-mini-val">${fmt(r.before.sessions)}</span></div>
+        </div>`
+      : `<div class="slotbar-track"><div class="slotbar-fill" style="width:${widthPct}%;background:${color};"></div></div>`;
+    html += `<div class="slotbar-row${showCmp?' tall':''}">
       <div>${nameHtml}<div class="slotbar-meta">${r.order}번째 · ${(r.after.sessions/tot*100).toFixed(1)}%${metaExtra}</div></div>
-      <div class="slotbar-track"><div class="slotbar-fill" style="width:${widthPct}%;background:${color};"></div></div>
+      ${barHtml}
       <div><div class="slotbar-val">${fmt(r.after.sessions)}</div><div class="slotbar-sub">${fmtDwell(r.after.dwell)}</div></div>
     </div>`;
     if(hasProducts){
@@ -1592,11 +1774,7 @@ async function loadCountryDetail(){
 async function loadRevenue(){
   showLoading();
   try{
-    if(!REVENUE_CACHE){
-      const r=await fetch('./revenue-daily.json',{cache:'no-store'});
-      REVENUE_CACHE=await r.json();
-    }
-    const daily=REVENUE_CACHE.daily||[];
+    const daily=(await ensureRevenue()).daily||[];
     const inRange=(d,s0,e0)=>d>=s0 && d<=e0;
     const sumRange=(s0,e0)=>{
       const rows=daily.filter(d=>inRange(d.date,s0,e0));
