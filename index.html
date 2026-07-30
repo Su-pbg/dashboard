@@ -366,10 +366,15 @@ $('ce').addEventListener('change',()=>{ if($('cmp').checked) load(); });
 $('exclLpoint').addEventListener('change',load);
 $('exclBots').addEventListener('change',load);
 $('go').addEventListener('click',load);
-$('refreshBtn').addEventListener('click',()=>{ REVENUE_CACHE=null; load(); });
+$('refreshBtn').addEventListener('click',async()=>{
+  REVENUE_CACHE=null;
+  NOCACHE=true;              // 이번 조회는 서버 캐시를 무시하고 새로 받아옴
+  try{ await load(); } finally { NOCACHE=false; }
+});
 
 // Worker 접근 열쇠. Cloudflare Worker의 DASHBOARD_KEY 시크릿과 같은 값이어야 함.
 const WORKER_KEY = 'pbg-secret-key-2026';
+let NOCACHE=false;  // '새로고침' 눌렀을 때만 true → 서버 캐시 무시
 
 function q(extra){
   const cmp=$('cmp').checked;
@@ -379,6 +384,7 @@ function q(extra){
   if(cmp)s+='&cmp=1';
   if($('exclLpoint').checked)s+='&excl=lpoint,lotte,l.point';
   if($('exclBots').checked)s+='&autoExclLowEngagement=1';
+  if(NOCACHE)s+='&nocache=1';
   if(extra)s+='&'+extra;
   return s;
 }
@@ -841,7 +847,8 @@ async function loadHeroCharts(){
     const cs=$('cs').value, ce=$('ce').value;
 
     const exclQS = ($('exclLpoint').checked ? '&excl=lpoint,lotte,l.point' : '')
-                 + ($('exclBots').checked ? '&autoExclLowEngagement=1' : '');
+                 + ($('exclBots').checked ? '&autoExclLowEngagement=1' : '')
+                 + (NOCACHE ? '&nocache=1' : '');
     const fetchGA=async(s0,e0)=>{
       try{
         const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
@@ -1054,7 +1061,8 @@ async function loadTrend(){
   const wrap=document.getElementById('chartWrap');
   wrap.innerHTML='<div class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div>';
   const exclQS = ($('exclLpoint').checked ? '&excl=lpoint,lotte,l.point' : '')
-               + ($('exclBots').checked ? '&autoExclLowEngagement=1' : '');
+               + ($('exclBots').checked ? '&autoExclLowEngagement=1' : '')
+               + (NOCACHE ? '&nocache=1' : '');
   const fetchDaily=async(s0,e0)=>{
     try{
       const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
