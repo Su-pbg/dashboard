@@ -81,7 +81,31 @@
   .bars{display:grid;gap:4px;}
   .bar-row{display:flex;align-items:center;gap:10px;}.bar-tag{width:22px;font-size:11px;color:var(--muted);text-align:right;}
   .bar-track{flex:1;background:var(--paper);border-radius:6px;height:24px;overflow:hidden;}
-  .slotbar-row{display:grid;grid-template-columns:1fr 3fr auto;gap:12px;align-items:center;height:56px;border-bottom:1px solid var(--hair);box-sizing:border-box;}
+  .slotbar-row{display:grid;grid-template-columns:1.5fr 2.5fr auto;gap:12px;align-items:center;min-height:56px;border-bottom:1px solid var(--hair);box-sizing:border-box;padding:6px 0;}
+  /* 행 상세 토글: 좁은 칸에 글자를 밀어넣어 잘리게 하는 대신 접어둔다.
+     .slotbar-item 으로 감싸고, 안에 요약행(.slotbar-row) + 상세(.row-detail)를 둔다. */
+  .slotbar-item{border-bottom:1px solid var(--hair);}
+  .slotbar-item>.slotbar-row{border-bottom:none;}
+  /* 이름은 ellipsis로 잘려도 되지만 토글 버튼은 절대 잘리면 안 되므로 형제로 분리 */
+  .slotbar-head{display:flex;align-items:center;min-width:0;}
+  .slotbar-head>.slotbar-name{flex:1 1 auto;min-width:0;}
+  .slotbar-head>.row-toggle{flex:0 0 auto;}
+  .row-toggle{font-size:10px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--hair);border-radius:999px;padding:1px 7px;margin-left:6px;cursor:pointer;vertical-align:middle;line-height:1.5;font-family:var(--sans);}
+  .row-toggle:hover{border-color:var(--accent);color:var(--accent);}
+  .row-toggle .chev{display:inline-block;transition:transform .15s;}
+  .slotbar-item.open .row-toggle .chev{transform:rotate(180deg);}
+  .row-detail{display:none;padding:0 0 10px 0;}
+  .slotbar-item.open .row-detail{display:block;}
+  .row-detail .slotbar-meta{white-space:normal;overflow:visible;text-overflow:clip;}
+  /* 쿠폰명별 내역 (할인 종류별 > 쿠폰 행을 펼쳤을 때) */
+  .cp-list{display:flex;flex-direction:column;gap:6px;padding:4px 0 2px 12px;border-left:2px solid var(--hair);}
+  .cp-row{display:grid;grid-template-columns:1.5fr 2.5fr auto;gap:12px;align-items:center;}
+  .cp-name{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cp-pct{font-size:10px;color:var(--muted);}
+  .cp-track{height:6px;background:var(--paper);border-radius:3px;overflow:hidden;}
+  .cp-fill{height:100%;background:#D8843F;opacity:.75;border-radius:3px;}
+  .cp-val{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap;}
+  .cp-cnt{display:block;font-size:10px;color:var(--muted);font-family:var(--sans);}
   .slotbar-row:last-child{border-bottom:0;}
   .slotbar-row>div:first-child{min-width:0;overflow:hidden;}
   .slotbar-name{font-size:13px;font-weight:600;cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px;}
@@ -486,6 +510,24 @@ function bucketNoteOf(mode){
   if(mode==='week') return '<span class="badge">주별 합계</span>';
   if(mode==='month') return '<span class="badge">월별 합계</span>';
   return '';
+}
+
+// ===== 행 상세 토글 =====
+// 좁은 칸에 정보를 다 밀어넣으면 ellipsis로 잘려서 결국 못 읽는다.
+// 요약 한 줄만 남기고 나머지는 접어두고, 펼치면 줄바꿈까지 허용해서 전문을 보여준다.
+// 사용법: rowToggleBtn() 를 이름 옆에, 상세 HTML은 rowItem()으로 감싼다.
+function rowToggleBtn(){
+  return `<button class="row-toggle" onclick="toggleRowDetail(this)" aria-expanded="false">자세히 <span class="chev">▾</span></button>`;
+}
+function rowItem(summaryHtml, detailHtml){
+  if(!detailHtml) return summaryHtml;      // 상세가 없으면 감싸지 않음
+  return `<div class="slotbar-item">${summaryHtml}<div class="row-detail">${detailHtml}</div></div>`;
+}
+function toggleRowDetail(btn){
+  const item=btn.closest('.slotbar-item');
+  if(!item) return;
+  const open=item.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open?'true':'false');
 }
 function periodLabel(d){
   if($('cmp').checked) return `<div class="period-label"><b>${cmpModeLabel()}</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
@@ -1301,7 +1343,11 @@ function renderFunnel(d){
       ? (cmpOn
           ? `<span class="stage-conv">통과율 ${st.passB.toFixed(1)}% → <b class="${cls}">${st.passA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`
           : `<span class="stage-conv">통과율 <b>${st.passA.toFixed(1)}%</b></span>`)
-      : `<span class="stage-conv">유입 100%</span>`;
+      // 첫 단계는 통과율이 항상 100%라 정보가 없음 → 비교가 켜져 있으면 증감률을 대신 보여준다
+      : (cmpOn && st.before
+          ? (()=>{ const dv=(st.after-st.before)/st.before*100, up=dv>=0;
+              return `<span class="stage-conv"><span class="${up?'up-txt':'down-txt'}">${up?'▲':'▼'} ${Math.abs(dv).toFixed(1)}%</span></span>`; })()
+          : '');
     const row=(tag,val,cls2)=>`<div class="bar-row"><span class="bar-tag">${tag}</span>
       <div class="bar-track"><div class="bar-fill ${cls2}" style="width:${Math.min(Math.max(val/maxVal*100,2),100)}%"></div></div>
       <span class="bar-val">${fmt(val)}</span></div>`;
@@ -1342,7 +1388,7 @@ function renderFunnel(d){
   h+='<div id="segFunnelWrap"><div class="funnel"><div class="state"><div class="spinner"></div>세그먼트 퍼널 불러오는 중…</div></div></div>';
 
   h+='<h2 class="sec">장바구니 분석 · 구매 경로</h2>';
-  h+='<p class="sec-desc">담아놓고 안 산 사람이 얼마나 되는지, 그리고 장바구니를 거치는 경로와 바로구매 경로가 각각 얼마나 되는지 봅니다.</p>';
+  h+='<p class="sec-desc">담아놓고 안 산 사람이 얼마나 되는지, 그리고 장바구니→주문서→구매 각 단계에서 얼마나 빠지는지 봅니다. (이 몰은 장바구니가 필수 경로입니다)</p>';
   h+='<div id="cartWrap"><div class="funnel"><div class="state"><div class="spinner"></div>장바구니 지표 불러오는 중…</div></div></div>';
 
   h+='<h2 class="sec">페이지별 트래픽</h2><div class="pages">'+d.pages.map(pg=>{
@@ -1404,22 +1450,30 @@ async function loadCartAnalysis(){
     h+='</div>';
 
     // 구매 경로
-    h+='<div class="section-title">구매 경로 (추정)</div>';
-    h+='<p class="sec-desc">장바구니 페이지와 주문서 페이지의 세션 수로 추정해요 · 두 경로의 정확한 교집합은 GA4 표준 리포트로 구할 수 없어서 <b>추정치</b>입니다.</p>';
+    // [중요] 이 몰은 장바구니를 반드시 거쳐야 구매가 됩니다. 따라서 예전에 여기 있던
+    // '바로구매 추정'(= 주문서 세션 − 장바구니 세션)은 존재할 수 없는 경로였습니다.
+    // 그 차이값의 실제 의미는 ① 어제 담고 오늘 결제(세션 이월) ② 상세→주문서로 바로 넘어가
+    // 장바구니 페이지뷰가 안 찍힌 경우 ③ GA4 페이지뷰 누락 — 즉 추적 이슈 지표입니다.
+    h+='<div class="section-title">구매 경로</div>';
+    h+='<p class="sec-desc">이 몰은 <b>장바구니를 반드시 거쳐야</b> 구매가 됩니다 · 아래 숫자는 장바구니·주문서 페이지의 세션 수예요. GA4 표준 리포트로는 두 페이지의 교집합을 구할 수 없어 마지막 행은 <b>추적 점검용</b> 참고치입니다.</p>';
     const pathRows=[
       {name:'장바구니 페이지 방문', v:p.basketSessions, color:'#2B7DB8', meta:`조회수 ${fmt(p.basketViews)}`},
       {name:'주문서 페이지 도달', v:p.orderSessions, color:'#0E7C6E', meta:`조회수 ${fmt(p.orderViews)}`},
-      {name:'바로구매 추정', v:p.directEstimate, color:'#C8993F', meta:`주문서 중 ${p.directShare.toFixed(1)}% — 장바구니 안 거침`},
       {name:'구매 완료', v:c.purchaseSessions, color:'#7A3FC8', meta:`주문서→구매 ${p.orderToBuyRate.toFixed(1)}%`},
+      {name:'장바구니 페이지 미기록', v:p.directEstimate, color:'#C8993F',
+       meta:`주문서 세션 중 ${p.directShare.toFixed(1)}%`,
+       detail:'장바구니를 안 거친 구매가 아닙니다 (이 몰은 장바구니가 필수). 다음 중 하나입니다 — ① 세션 이월: 어제 담아두고 오늘 결제 (가장 흔함) ② 상품 상세에서 담고 주문서로 바로 넘어가 장바구니 페이지뷰가 안 찍힘 ③ GA4 페이지뷰 누락. 즉 구매 경로 지표가 아니라 추적 점검용 참고치입니다.'},
     ];
     const maxP=Math.max(...pathRows.map(x=>x.v),1);
     h+='<div class="section-block">'+pathRows.map(x=>{
       const w=Math.max(x.v/maxP*100,3);
-      return `<div class="slotbar-row">
-        <div><span class="slotbar-name" style="cursor:default;">${x.name}</span><div class="slotbar-meta">${x.meta}</div></div>
+      const detail=x.detail? `<div class="slotbar-meta">${x.detail}</div>` : '';
+      const summary=`<div class="slotbar-row">
+        <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${x.name}</span>${detail?rowToggleBtn():''}</div><div class="slotbar-meta">${x.meta}</div></div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${x.color};"></div></div>
         <div><div class="slotbar-val">${fmt(x.v)}</div><div class="slotbar-sub">세션</div></div>
       </div>`;
+      return rowItem(summary, detail);
     }).join('')+'</div>';
 
     // 주문서 이탈 강조
@@ -1467,12 +1521,15 @@ async function loadSegmentFunnel(){
           const dp=x.cvr-pv;
           cmpHtml=`<div class="slotbar-meta">비교 CVR ${pv.toFixed(2)}% <span class="${dp>=0?'up-txt':'down-txt'}">${dp>=0?'▲':'▼'} ${Math.abs(dp).toFixed(2)}%p</span></div>`;
         }
-        return `<div class="slotbar-row">
-          <div><span class="slotbar-name" style="cursor:default;">${x.label}</span>
-            <div class="slotbar-meta">세션 ${fmt(x.sessions)} · 구매 ${fmt(x.purchase)}${worst?` · 최대 병목 <b style="color:var(--down);">${worst.n} ${worst.v.toFixed(1)}%</b>`:''}</div>${cmpHtml}</div>
+        // 병목·비교는 접어둔다 (요약 줄에 다 넣으면 잘려서 못 읽음)
+        const detail=(worst?`<div class="slotbar-meta">병목 <b style="color:var(--down);">${worst.n} ${worst.v.toFixed(1)}%</b> · 단계별 통과율 ${steps.map(z=>`${z.n} ${z.v.toFixed(1)}%`).join(' / ')}</div>`:'')+cmpHtml;
+        const summary=`<div class="slotbar-row">
+          <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${x.label}</span>${detail?rowToggleBtn():''}</div>
+            <div class="slotbar-meta">세션 ${fmt(x.sessions)} · 구매 ${fmt(x.purchase)}</div></div>
           <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
           <div><div class="slotbar-val">${x.cvr.toFixed(2)}%</div><div class="slotbar-sub">CVR</div></div>
         </div>`;
+        return rowItem(summary, detail);
       }).join('');
       out+='</div>';
       return out;
@@ -1892,12 +1949,17 @@ async function loadRevenue(){
       });
       agg.aov = agg.count? Math.round(agg.net/agg.count):0;
       // 할인 종류별 / 카테고리별 합산 (파이프라인이 discounts·categories를 넣어준 경우)
-      agg.discounts = {}; agg.categories = {};
+      agg.discounts = {}; agg.categories = {}; agg.coupons = {};
       rows.forEach(r=>{
         Object.entries(r.discounts||{}).forEach(([k,v])=>{ agg.discounts[k]=(agg.discounts[k]||0)+v; });
         (r.categories||[]).forEach(c=>{
           if(!agg.categories[c.name]) agg.categories[c.name]={name:c.name, amt:0, qty:0, orders:0};
           agg.categories[c.name].amt+=c.amt; agg.categories[c.name].qty+=c.qty; agg.categories[c.name].orders+=(c.orders||0);
+        });
+        // 쿠폰명별 (파이프라인이 coupons 를 넣어준 경우)
+        (r.coupons||[]).forEach(c=>{
+          if(!agg.coupons[c.name]) agg.coupons[c.name]={name:c.name, amt:0, count:0, percent:c.percent||''};
+          agg.coupons[c.name].amt+=c.amt; agg.coupons[c.name].count+=(c.count||0);
         });
       });
       agg.topItems = Object.values(agg.items).sort((a,b)=>b.amt-a.amt).slice(0,5);
@@ -1953,8 +2015,11 @@ function renderRevenue(d){
   const dcur=a.discounts||{}, dprev=b.discounts||{};
   const dKeys=Object.keys(dcur).sort((x,y)=>dcur[y]-dcur[x]);
   if(dKeys.length){
-    h+='<p class="sec-desc">쿠폰·회원등급·적립금 등 종류별 할인액 · 종류 합계는 총 할인액과 일치하도록 맞춰져 있어요(못 분류된 금액은 「기타」).</p>';
+    h+='<p class="sec-desc">쿠폰·회원등급·적립금·상품 추가할인 등 종류별 할인액 · 종류 합계는 총 할인액과 일치하도록 맞춰져 있어요(못 분류된 금액은 「기타」) · 쿠폰 행을 펼치면 쿠폰명별 내역이 나옵니다.</p>';
     const maxD=Math.max(...dKeys.map(k=>dcur[k]),1);
+    // 쿠폰 행에는 쿠폰명별 내역을 접어서 붙인다 (파이프라인이 coupons 를 채운 경우)
+    const cpList=Object.values(a.coupons||{}).sort((x,y)=>y.amt-x.amt);
+    const cpPrev=b.coupons||{};
     h+='<div class="section-block">'+dKeys.map(k=>{
       const w=Math.max(dcur[k]/maxD*100,3);
       let cmpHtml='';
@@ -1963,14 +2028,30 @@ function renderRevenue(d){
         cmpHtml=`<div class="slotbar-meta">비교 ${won(pv)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span></div>`;
       }
       const share=discA? (dcur[k]/discA*100).toFixed(1) : '0.0';
-      return `<div class="slotbar-row">
-        <div><span class="slotbar-name" style="cursor:default;">${k}</span><div class="slotbar-meta">전체 할인 중 ${share}%</div>${cmpHtml}</div>
+      // '쿠폰'으로 시작하는 행(쿠폰 / 쿠폰(배송비))에만 쿠폰명별 상세를 붙임
+      let detail='';
+      if(k.startsWith('쿠폰') && cpList.length){
+        const maxC=Math.max(...cpList.map(c=>c.amt),1);
+        detail='<div class="cp-list">'+cpList.map(c=>{
+          const cw=Math.max(c.amt/maxC*100,3);
+          const pv=cpPrev[c.name]?cpPrev[c.name].amt:0;
+          const cmp=cmpOn? ` · 비교 ${won(pv)}` : '';
+          return `<div class="cp-row">
+            <div class="cp-name">${c.name}${c.percent?` <span class="cp-pct">${c.percent}</span>`:''}</div>
+            <div class="cp-track"><div class="cp-fill" style="width:${cw}%;"></div></div>
+            <div class="cp-val">${won(c.amt)}<span class="cp-cnt">${fmt(c.count)}건${cmp}</span></div>
+          </div>`;
+        }).join('')+'</div>';
+      }
+      const summary=`<div class="slotbar-row">
+        <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${k}</span>${detail?rowToggleBtn():''}</div><div class="slotbar-meta">전체 할인 중 ${share}%${detail?` · 쿠폰 ${cpList.length}종`:''}</div>${cmpHtml}</div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#D8843F;"></div></div>
         <div><div class="slotbar-val">${won(dcur[k])}</div><div class="slotbar-sub">할인액</div></div>
       </div>`;
+      return rowItem(summary, detail);
     }).join('')+'</div>';
   } else {
-    h+='<div class="section-block"><div class="state">할인 종류별 데이터가 아직 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본으로 갱신되면 이 자리에 쿠폰·회원등급·적립금 등으로 나뉘어 표시됩니다.</span></div></div>';
+    h+='<div class="section-block"><div class="state">할인 종류별 데이터가 아직 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본이 돌아간 날짜부터 쿠폰·회원등급·적립금·상품 추가할인 등으로 나뉘어 표시됩니다.</span></div></div>';
   }
 
   // ===== 카테고리별 =====
@@ -1995,7 +2076,7 @@ function renderRevenue(d){
       </div>`;
     }).join('')+'</div>';
   } else {
-    h+='<div class="section-block"><div class="state">카테고리별 데이터가 아직 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본이 상품→카테고리 매핑을 채우면 이 자리에 표시됩니다.</span></div></div>';
+    h+='<div class="section-block"><div class="state">카테고리별 데이터가 아직 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본이 상품 단건 조회로 카테고리를 채우면 이 자리에 표시됩니다. (상품이 여러 카테고리에 속하면 가장 상위 하나로 집계)</span></div></div>';
   }
 
   h+='<h2 class="sec">판매 TOP 5 (선택 기간)</h2>';
