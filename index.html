@@ -619,18 +619,21 @@ function tipAttr(tips){
   return "data-tip='" + JSON.stringify(tips).replace(/'/g,'&#39;').replace(/</g,'&lt;') + "'";
 }
 // 평균선 라벨: 배경 있는 알약 모양으로 잘 보이게
-// 평균 라벨: 차트 오른쪽 끝에 붙임 (요청)
+// 평균 라벨: 격자(데이터) 영역 '바깥' 오른쪽 여백에 그려서 선·점에 가려지지 않게 함
 function avgPill(x, y, text, W, padR){
-  const w = text.length*7.2 + 14;
-  const px = W - padR - w - 2;
-  return `<g><rect x="${px.toFixed(1)}" y="${(y-19).toFixed(1)}" width="${w.toFixed(1)}" height="17" rx="8.5" fill="#66768A" opacity="0.92"/>
-    <text x="${(px+w/2).toFixed(1)}" y="${(y-7).toFixed(1)}" font-size="11" font-weight="600" fill="#fff" text-anchor="middle" font-family="var(--mono)">${text}</text></g>`;
+  const px = W - padR + 6;          // 격자 오른쪽 끝보다 더 오른쪽 = 그래프 밖
+  const w  = text.length*7.2 + 12;
+  const cy = Math.max(12, Math.min(y, 999));  // 위로 잘리지 않게
+  return `<g>
+    <rect x="${px.toFixed(1)}" y="${(cy-8.5).toFixed(1)}" width="${w.toFixed(1)}" height="17" rx="8.5" fill="#66768A" opacity="0.95"/>
+    <text x="${(px+w/2).toFixed(1)}" y="${(cy+3.5).toFixed(1)}" font-size="11" font-weight="600" fill="#fff" text-anchor="middle" font-family="var(--mono)">${text}</text>
+  </g>`;
 }
 function niceStepOf(r){const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;}
 
 // ===== 비교선 지원 선그래프: 현재 기간(실선) + 비교 기간(점선) =====
 function compareLineChart(labels, curValues, prevValues, color, valueFmt, seriesName, prevLabels){
-  const W=920,H=240,padL=58,padR=16,padB=30,padT=28;
+  const W=920,H=240,padL=58,padR=104,padB=30,padT=28;  // padR: 평균 라벨을 그래프 밖에 두기 위한 여백
   const hasPrev = prevValues && prevValues.length>1;
   const allVals = hasPrev ? curValues.concat(prevValues) : curValues;
   const rawMax=Math.max(...allVals,1), rawMin=Math.min(...allVals,0);
@@ -744,7 +747,7 @@ function dualLineChart(labels, seriesA, seriesB, valueFmt){
 }
 
 function miniLineChart(labels, values, color, valueFmt){
-  const W=920,H=220,padL=58,padR=16,padB=30,padT=22;
+  const W=920,H=220,padL=58,padR=104,padB=30,padT=22;
   const rawMax=Math.max(...values,1), rawMin=Math.min(...values,0);
   const step=niceStepOf((rawMax-rawMin)||1);
   const min=Math.floor(rawMin/step)*step, max=Math.ceil(rawMax/step)*step;
@@ -785,15 +788,20 @@ function miniLineChart(labels, values, color, valueFmt){
   </svg>`;
 }
 
-// 세로 막대그래프 (일별 건수 등 이산적인 값에 적합)
-function verticalBarChart(labels, values, color, valueFmt){
-  const W=920,H=220,padL=58,padR=16,padB=30,padT=18;
-  const rawMax=Math.max(...values,1);
+// 세로 막대그래프 · prevValues를 주면 비교 기간을 나란히(그룹) 막대로 함께 그림
+function verticalBarChart(labels, values, color, valueFmt, prevValues, seriesName){
+  const hasPrev = prevValues && prevValues.length>0;
+  const W=920,H=220,padL=58,padR=104,padB=30,padT=hasPrev?28:18;
+  const allVals = hasPrev ? values.concat(prevValues) : values;
+  const rawMax=Math.max(...allVals,1);
   const step=niceStepOf(rawMax||1);
   const max=Math.ceil(rawMax/step)*step || 1;
   const innerW=W-padL-padR;
-  const bw=Math.max(2, Math.min(28, innerW/values.length*0.62));
-  const x=(i)=>padL+innerW*(values.length<=1?0.5:(i+0.5)/values.length);
+  const n=Math.max(values.length, hasPrev?prevValues.length:0);
+  const slot=innerW/Math.max(1,n);
+  // 비교가 있으면 한 칸을 둘로 나눠 나란히
+  const bw=Math.max(2, Math.min(hasPrev?14:28, slot*(hasPrev?0.34:0.62)));
+  const cx=(i)=>padL+slot*(i+0.5);
   const y=(v)=>H-padB-(H-padB-padT)*(v/max);
 
   let grid='', yAxis='';
@@ -802,25 +810,40 @@ function verticalBarChart(labels, values, color, valueFmt){
     grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
     yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
   }
-  const bars=values.map((v,i)=>{
-    const h=Math.max(0,(H-padB)-y(v));
-    return `<rect x="${(x(i)-bw/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}"/>`;
+
+  const barsFor=(vals, offset, fill, op)=>vals.map((v,i)=>{
+    const hh=Math.max(0,(H-padB)-y(v));
+    return `<rect x="${(cx(i)+offset-bw/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" rx="2" fill="${fill}"${op?` opacity="${op}"`:''}/>`;
   }).join('');
+  const prevBars = hasPrev ? barsFor(prevValues, -bw*0.6, '#98A4B4', '0.85') : '';
+  const curBars  = barsFor(values, hasPrev? bw*0.6 : 0, color);
+
+  // 현재 기간 평균선
   const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
   const avgY = y(avg);
   const avgLine = values.length>1
     ? `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W-padR}" y2="${avgY.toFixed(1)}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>`
       + avgPill(padL+6, avgY, '평균 '+(valueFmt?valueFmt(avg):fmt(Math.round(avg))), W, padR)
     : '';
-  const lstep=Math.max(1,Math.ceil(labels.length/9));
-  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
 
-  const tips=labels.map((lb,i)=>({label:lb, rows:[{n:'값', v:(valueFmt?valueFmt(values[i]):fmt(values[i])), c:color}]}));
-  const bandW=innerW/Math.max(1,values.length);
-  const hits=labels.map((lb,i)=>`<rect class="chart-hit" data-i="${i}" x="${(x(i)-bandW/2).toFixed(1)}" y="${padT}" width="${bandW.toFixed(1)}" height="${(H-padB-padT).toFixed(1)}" fill="transparent"/>`).join('');
+  const lstep=Math.max(1,Math.ceil(labels.length/9));
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${cx(i).toFixed(1)}" y="${H-10}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+
+  const legend = hasPrev ? `<g font-size="11" font-family="var(--sans)">
+    <rect x="${padL}" y="${padT-20}" width="10" height="10" rx="2" fill="${color}"/>
+    <text x="${padL+15}" y="${padT-11}" fill="#172230">선택 기간</text>
+    <rect x="${padL+92}" y="${padT-20}" width="10" height="10" rx="2" fill="#98A4B4"/>
+    <text x="${padL+107}" y="${padT-11}" fill="#66768A">비교 기간</text></g>` : '';
+
+  const tips=labels.map((lb,i)=>{
+    const rows=[{n:seriesName||'선택', v:(valueFmt?valueFmt(values[i]):fmt(values[i])), c:color}];
+    if(hasPrev && prevValues[i]!=null) rows.push({n:'비교', v:(valueFmt?valueFmt(prevValues[i]):fmt(prevValues[i])), c:'#98A4B4'});
+    return {label:lb, rows};
+  });
+  const hits=labels.map((lb,i)=>`<rect class="chart-hit" data-i="${i}" x="${(cx(i)-slot/2).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${(H-padB-padT).toFixed(1)}" fill="transparent"/>`).join('');
 
   return `<svg class="chart-svg" ${tipAttr(tips)} viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
-    ${grid}${yAxis}${bars}${avgLine}${labelEls}
+    ${grid}${yAxis}${legend}${prevBars}${curBars}${avgLine}${labelEls}
     <line class="chart-cursor" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#172230" stroke-width="1" opacity="0"/>
     ${hits}
   </svg>`;
@@ -896,7 +919,7 @@ async function loadHeroCharts(){
       const purch=gaCur.map(r=>r.purchase||0);
       const purchPrev=gaPrev.length? gaPrev.map(r=>r.purchase||0) : null;
       cards.push({title:'구매 건수', total:fmt(purch.reduce((a,b)=>a+b,0))+'건', color:'#7A3FC8',
-        svg: compareLineChart(labels, purch, purchPrev, '#7A3FC8', v=>fmt(Math.round(v)), '구매', prevLabels)});
+        svg: verticalBarChart(labels, purch, '#7A3FC8', v=>fmt(Math.round(v)), purchPrev, '구매 건수')});
     }
 
     if(!cards.length){
@@ -1106,16 +1129,14 @@ function drawChart(daily, dailyPrev){
   });
   h+='<div id="dowWrap"></div>';
   wrap.innerHTML=h;
-  drawDayOfWeek(daily);
+  drawDayOfWeek(daily, dailyPrev);
 }
 
 // 요일별 평균: 이커머스는 요일 효과가 커서, 어느 요일이 강한지 보면 프로모션 요일 정할 때 씀
 const DOW_NAMES=['일','월','화','수','목','금','토'];
-function drawDayOfWeek(daily){
-  const box=document.getElementById('dowWrap'); if(!box) return;
-  if(!daily || daily.length<7){ box.innerHTML=''; return; }
+function dowAverages(daily){
   const buckets=DOW_NAMES.map(()=>({sessions:0, purchase:0, n:0}));
-  daily.forEach(d=>{
+  (daily||[]).forEach(d=>{
     // date는 'YYYYMMDD' 형식
     const y=Number(d.date.slice(0,4)), m=Number(d.date.slice(4,6)), dd=Number(d.date.slice(6,8));
     const dow=new Date(Date.UTC(y, m-1, dd)).getUTCDay();
@@ -1123,64 +1144,30 @@ function drawDayOfWeek(daily){
     buckets[dow].purchase += (d.purchase||0);
     buckets[dow].n++;
   });
-  const avgSessions=buckets.map(b=>b.n?Math.round(b.sessions/b.n):0);
-  const avgPurchase=buckets.map(b=>b.n?Number((b.purchase/b.n).toFixed(1)):0);
+  return {
+    sessions: buckets.map(b=>b.n?Math.round(b.sessions/b.n):0),
+    purchase: buckets.map(b=>b.n?Number((b.purchase/b.n).toFixed(1)):0),
+  };
+}
+function drawDayOfWeek(daily, dailyPrev){
+  const box=document.getElementById('dowWrap'); if(!box) return;
+  if(!daily || daily.length<7){ box.innerHTML=''; return; }
+  const cur=dowAverages(daily);
+  const cmpOn=$('cmp').checked && dailyPrev && dailyPrev.length>=7;
+  const prev=cmpOn? dowAverages(dailyPrev) : null;
+  const avgSessions=cur.sessions, avgPurchase=cur.purchase;
   const hasData=avgSessions.some(v=>v>0);
   if(!hasData){ box.innerHTML=''; return; }
   let h='<div class="section-title">요일별 평균</div>';
   h+='<p class="sec-desc">같은 요일들의 평균값 · 어느 요일이 강한지 보면 프로모션·발송 요일 정할 때 참고돼요.</p>';
   h+='<div class="chart-grid">';
   h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#0E7C6E"></span>요일별 평균 세션</div>'
-    + verticalBarChart(DOW_NAMES, avgSessions, '#0E7C6E', v=>fmt(Math.round(v))) + '</div>';
+    + verticalBarChart(DOW_NAMES, avgSessions, '#0E7C6E', v=>fmt(Math.round(v)), prev?prev.sessions:null, '평균 세션') + '</div>';
   h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#7A3FC8"></span>요일별 평균 구매</div>'
-    + verticalBarChart(DOW_NAMES, avgPurchase, '#7A3FC8', v=>String(Math.round(v*10)/10)) + '</div>';
+    + verticalBarChart(DOW_NAMES, avgPurchase, '#7A3FC8', v=>String(Math.round(v*10)/10), prev?prev.purchase:null, '평균 구매') + '</div>';
   h+='</div>';
   box.innerHTML=h;
 }
-function renderMini(s,daily){
-  const box=document.getElementById('mini-'+s.key); if(!box) return;
-  const W=460,H=220,padL=52,padR=14,padB=28,padT=18;
-  const vals=daily.map(d=>d[s.key]||0);
-  const rawMax=Math.max(...vals,1);
-  const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
-  const step=niceStep(rawMax);
-  const max=Math.ceil(rawMax/step)*step||1;
-  const x=(i)=>padL+(W-padL-padR)*(daily.length<=1?0.5:i/(daily.length-1));
-  const y=(v)=>H-padB-(H-padB-padT)*(v/max);
-  const dt=(d)=>d.date.slice(4,6)+'/'+d.date.slice(6,8);
-
-  let grid='', yAxis='';
-  for(let v=0; v<=max+0.0001; v+=step){
-    const yy=y(v).toFixed(1);
-    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
-    yAxis+=`<text x="${padL-6}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">${fmt(v)}</text>`;
-  }
-
-  if(daily.length===1){
-    box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}
-      <circle cx="${x(0).toFixed(1)}" cy="${y(vals[0]).toFixed(1)}" r="4" fill="${s.color}"><title>${dt(daily[0])} · ${fmt(vals[0])}</title></circle>
-      <text x="${x(0).toFixed(1)}" y="${H-9}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${dt(daily[0])}</text>
-    </svg>`;
-    return;
-  }
-
-  const path=daily.map((d,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(d[s.key]||0).toFixed(1)}`).join(' ');
-  const area=path+` L${x(daily.length-1).toFixed(1)},${H-padB} L${x(0).toFixed(1)},${H-padB} Z`;
-  const dots=daily.map((d,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(d[s.key]||0).toFixed(1)}" r="3.5" fill="${s.color}"><title>${dt(d)} · ${fmt(d[s.key]||0)}</title></circle>`).join('');
-  const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
-  const avgY = y(avg).toFixed(1);
-  const avgLine = `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${padL+6}" y="${(Number(avgY)-7).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="start" font-family="var(--mono)">평균 ${fmt(Math.round(avg))}</text>`;
-  const lstep=Math.max(1,Math.ceil(daily.length/7));
-  const labelEls=daily.map((d,i)=>(i%lstep===0||i===daily.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-9}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${dt(d)}</text>`:'').join('');
-  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}
-    <path d="${area}" fill="${s.color}" opacity="0.10"/>
-    ${avgLine}
-    <path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>
-    ${dots}${labelEls}
-  </svg>`;
-}
-
 function renderFunnel(d){
   const cmpOn = $('cmp').checked;
   let h=periodLabel(d);
@@ -1623,6 +1610,15 @@ async function loadRevenue(){
         });
       });
       agg.aov = agg.count? Math.round(agg.net/agg.count):0;
+      // 할인 종류별 / 카테고리별 합산 (파이프라인이 discounts·categories를 넣어준 경우)
+      agg.discounts = {}; agg.categories = {};
+      rows.forEach(r=>{
+        Object.entries(r.discounts||{}).forEach(([k,v])=>{ agg.discounts[k]=(agg.discounts[k]||0)+v; });
+        (r.categories||[]).forEach(c=>{
+          if(!agg.categories[c.name]) agg.categories[c.name]={name:c.name, amt:0, qty:0, orders:0};
+          agg.categories[c.name].amt+=c.amt; agg.categories[c.name].qty+=c.qty; agg.categories[c.name].orders+=(c.orders||0);
+        });
+      });
       agg.topItems = Object.values(agg.items).sort((a,b)=>b.amt-a.amt).slice(0,5);
       return agg;
     };
@@ -1636,6 +1632,110 @@ async function loadRevenue(){
     showErr('매출 데이터를 불러오지 못했습니다.<br><span style="font-size:12px;">레포에 revenue-daily.json 파일이 있는지 확인해주세요.</span>');
   }
 }
+function renderRevenue(d){
+  const cmpOn=$('cmp').checked;
+  const b=d.revenue.before, a=d.revenue.after;
+  let h = cmpOn
+    ? `<div class="period-label"><b>비교</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`
+    : `<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
+
+  // 정가(GMV) → 할인 → 환불 → 실매출(net) 흐름으로 봄
+  // cafe24 기준: 최초결제액 = net + refund 이므로, 할인액 = gmv - (net + refund)
+  const discB = Math.max(0, b.gmv - (b.net + b.refund));
+  const discA = Math.max(0, a.gmv - (a.net + a.refund));
+  const rows=[
+    {label:'정가 주문액(GMV)', b:b.gmv, a:a.gmv},
+    {label:'할인액',  b:discB, a:discA, lower:true},
+    {label:'할인율',  b:b.gmv?discB/b.gmv*100:0, a:a.gmv?discA/a.gmv*100:0, unit:'percent', lower:true},
+    {label:'환불액',  b:b.refund, a:a.refund, lower:true},
+    {label:'환불율',  b:b.gmv?b.refund/b.gmv*100:0, a:a.gmv?a.refund/a.gmv*100:0, unit:'percent', lower:true},
+    {label:'실매출(net)', b:b.net, a:a.net},
+    {label:'주문 건수', b:b.count, a:a.count, unit:'count'},
+    {label:'객단가',   b:b.aov, a:a.aov},
+  ];
+  const fmtVal=(v,unit)=> unit==='percent' ? v.toFixed(2)+'%' : (unit==='count' ? fmt(v)+'건' : won(Math.round(v)));
+  h+='<h2 class="sec">매출 요약</h2>';
+  h+='<p class="sec-desc">정가 주문액에서 할인·환불이 빠진 게 실매출이에요 · 할인·환불은 낮을수록 좋은 지표라 증감 색이 반대로 표시됩니다.</p>';
+  h+='<div class="kpis">'+rows.map(r=>{
+    const x=delta(r.b,r.a,r.lower);
+    return `<div class="kpi"><div class="k-label">${r.label}</div><div class="k-now">${fmtVal(r.a,r.unit)}</div>`
+      + (cmpOn ? `<div class="delta ${x.good?'good':'bad'}">${x.up?'▲':'▼'} ${x.text}</div><div class="k-was">비교: ${fmtVal(r.b,r.unit)}</div>` : '')
+      + `</div>`;
+  }).join('')+'</div>';
+
+  h+='<h2 class="sec">매출 추이</h2>';
+  h+='<p class="sec-desc">위에서 고른 기간의 흐름 · 비교를 켜면 비교 기간이 점선으로 함께 나와요. 그래프에 마우스를 올리면 그날 수치가 보입니다.</p>';
+  h+='<div id="revTrendWrap"><div class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div></div>';
+
+  // ===== 할인 종류별 =====
+  h+='<h2 class="sec">할인 종류별</h2>';
+  const dcur=a.discounts||{}, dprev=b.discounts||{};
+  const dKeys=Object.keys(dcur).sort((x,y)=>dcur[y]-dcur[x]);
+  if(dKeys.length){
+    h+='<p class="sec-desc">쿠폰·회원등급·적립금 등 종류별 할인액 · 종류 합계는 총 할인액과 일치하도록 맞춰져 있어요(못 분류된 금액은 「기타」).</p>';
+    const maxD=Math.max(...dKeys.map(k=>dcur[k]),1);
+    h+='<div class="section-block">'+dKeys.map(k=>{
+      const w=Math.max(dcur[k]/maxD*100,3);
+      let cmpHtml='';
+      if(cmpOn){
+        const pv=dprev[k]||0; const dv=delta(pv,dcur[k],true);
+        cmpHtml=`<div class="slotbar-meta">비교 ${won(pv)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span></div>`;
+      }
+      const share=discA? (dcur[k]/discA*100).toFixed(1) : '0.0';
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${k}</span><div class="slotbar-meta">전체 할인 중 ${share}%</div>${cmpHtml}</div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#D8843F;"></div></div>
+        <div><div class="slotbar-val">${won(dcur[k])}</div><div class="slotbar-sub">할인액</div></div>
+      </div>`;
+    }).join('')+'</div>';
+  } else {
+    h+='<div class="section-block"><div class="state">할인 종류별 데이터가 아직 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본으로 갱신되면 이 자리에 쿠폰·회원등급·적립금 등으로 나뉘어 표시됩니다.</span></div></div>';
+  }
+
+  // ===== 카테고리별 =====
+  h+='<h2 class="sec">카테고리별 거래액 · 건수</h2>';
+  const cats=Object.values(a.categories||{}).sort((x,y)=>y.amt-x.amt).slice(0,12);
+  const catsPrev=a.categories? (b.categories||{}) : {};
+  if(cats.length){
+    h+='<p class="sec-desc">어떤 카테고리에서 돈이 나오는지 · 거래액과 건수를 같이 봐야 「비싼 게 조금」인지 「싼 게 많이」인지 구분돼요.</p>';
+    const maxC=Math.max(...cats.map(c=>c.amt),1);
+    h+='<div class="section-block">'+cats.map(c=>{
+      const w=Math.max(c.amt/maxC*100,3);
+      let cmpHtml='';
+      if(cmpOn){
+        const p=catsPrev[c.name]; const pv=p?p.amt:0; const dv=delta(pv,c.amt);
+        cmpHtml=`<div class="slotbar-meta">비교 ${won(pv)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span></div>`;
+      }
+      const unit = c.qty? Math.round(c.amt/c.qty) : 0;
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${c.name}</span><div class="slotbar-meta">${fmt(c.qty)}개 판매 · 개당 ${won(unit)}</div>${cmpHtml}</div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#2B7DB8;"></div></div>
+        <div><div class="slotbar-val">${won(c.amt)}</div><div class="slotbar-sub">거래액</div></div>
+      </div>`;
+    }).join('')+'</div>';
+  } else {
+    h+='<div class="section-block"><div class="state">카테고리별 데이터가 아직 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본이 상품→카테고리 매핑을 채우면 이 자리에 표시됩니다.</span></div></div>';
+  }
+
+  h+='<h2 class="sec">판매 TOP 5 (선택 기간)</h2>';
+  if(a.topItems && a.topItems.length){
+    const maxAmt=Math.max(...a.topItems.map(it=>it.amt),1);
+    h+='<div class="section-block">'+a.topItems.map(it=>{
+      const w=Math.max(it.amt/maxAmt*100,4);
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${it.name}</span></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#0E7C6E;"></div></div>
+        <div><div class="slotbar-val">${won(it.amt)}</div><div class="slotbar-sub">${it.qty}개</div></div>
+      </div>`;
+    }).join('')+'</div>';
+  } else {
+    h+='<div class="section-block"><div class="state">데이터 없음</div></div>';
+  }
+
+  $('content').innerHTML=h;
+  drawRevenueTrend();
+}
+
 // 매출 추이: 상단에서 고른 기간을 그대로 사용, 비교 켜면 비교 기간도 점선으로
 function drawRevenueTrend(){
   const wrap=$('revTrendWrap');
@@ -1677,19 +1777,25 @@ function drawRevenueTrend(){
   h+=card('매출총액','#0E7C6E', won(sumNet),
       compareLineChart(labels, dr.map(r=>r.net), pick(dp.map(r=>r.net)), '#0E7C6E', v=>wonAxis(v), '매출총액', prevLabels));
   h+=card('주문 건수','#2B7DB8', fmt(sumCnt)+'건',
-      cmpOn && dp.length
-        ? compareLineChart(labels, dr.map(r=>r.count), dp.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v)), '주문', prevLabels)
-        : verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v))));
+      verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v)),
+        cmpOn&&dp.length? dp.map(r=>r.count):null, '주문 건수'));
   h+=card('객단가','#C8993F', won(sumCnt? Math.round(sumNet/sumCnt) : 0),
       compareLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0),
         pick(dp.map(r=>r.count?Math.round(r.net/r.count):0)), '#C8993F', v=>wonAxis(v), '객단가', prevLabels));
   h+=card('환불액','#C85A3F', won(totalRef),
-      cmpOn && dp.length
-        ? compareLineChart(labels, refunds, refundsPrev, '#C85A3F', v=>wonAxis(v), '환불액', prevLabels)
-        : verticalBarChart(labels, refunds, '#C85A3F', v=>wonAxis(v)));
+      compareLineChart(labels, refunds, cmpOn&&dp.length? refundsPrev:null, '#C85A3F', v=>wonAxis(v), '환불액', prevLabels));
   h+=card('환불율','#C85A9E', (totalGmv?(totalRef/totalGmv*100).toFixed(2):0)+'%',
       compareLineChart(labels, dr.map(r=>r.gmv?Number((r.refund/r.gmv*100).toFixed(2)):0),
         pick(dp.map(r=>r.gmv?Number((r.refund/r.gmv*100).toFixed(2)):0)), '#C85A9E', v=>v.toFixed(1)+'%', '환불율', prevLabels));
+  // 할인: 금액과 비율을 같이 (할인액 = 정가 - (실매출 + 환불))
+  const disc=dr.map(r=>Math.max(0,(r.gmv||0)-((r.net||0)+(r.refund||0))));
+  const discPrev=dp.length? dp.map(r=>Math.max(0,(r.gmv||0)-((r.net||0)+(r.refund||0)))) : null;
+  const totalDisc=disc.reduce((x,z)=>x+z,0);
+  h+=card('할인액','#D8843F', won(totalDisc),
+      compareLineChart(labels, disc, cmpOn&&dp.length? discPrev:null, '#D8843F', v=>wonAxis(v), '할인액', prevLabels));
+  h+=card('할인율','#B5651D', (totalGmv?(totalDisc/totalGmv*100).toFixed(2):0)+'%',
+      compareLineChart(labels, dr.map(r=>r.gmv?Number((Math.max(0,r.gmv-(r.net+r.refund))/r.gmv*100).toFixed(2)):0),
+        pick(dp.map(r=>r.gmv?Number((Math.max(0,r.gmv-(r.net+r.refund))/r.gmv*100).toFixed(2)):0)), '#B5651D', v=>v.toFixed(1)+'%', '할인율', prevLabels));
 
   wrap.innerHTML=h;
 }
