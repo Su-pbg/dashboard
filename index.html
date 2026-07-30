@@ -79,6 +79,7 @@
   .slotbar-row>div:first-child{min-width:0;overflow:hidden;}
   .slotbar-name{font-size:13px;font-weight:600;cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px;}
   .slotbar-name:hover{color:var(--accent);}
+  .up-txt{color:var(--up);font-weight:700;} .down-txt{color:var(--down);font-weight:700;}
   .slotbar-meta{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:16px;}
   .slotbar-track{background:var(--paper);border-radius:6px;height:20px;overflow:hidden;position:relative;}
   .slotbar-fill{height:100%;border-radius:6px;transition:width .6s ease;}
@@ -94,7 +95,8 @@
   .prod-mini-track{width:120px;background:var(--paper);border-radius:5px;height:12px;overflow:hidden;}
   .prod-mini-fill{height:100%;border-radius:5px;}
   .prod-mini-val{font-family:var(--mono);color:var(--muted);min-width:70px;text-align:right;}
-  .bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:9px;color:#fff;font-family:var(--mono);font-size:12px;min-width:56px;transition:width .8s ease;}
+  .bar-fill{height:100%;border-radius:6px;transition:width .8s ease;}
+  .bar-val{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink);min-width:72px;text-align:right;flex-shrink:0;}
   .bar-fill.b{background:var(--ghost);color:var(--ink);}.bar-fill.a{background:var(--accent);}
   .pages{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
   .page{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
@@ -115,6 +117,13 @@
   .section-title{font-size:14px;font-weight:700;margin:20px 0 10px;color:var(--ink);}
   .section-title .badge{font-size:11px;color:var(--muted);font-weight:400;}
   
+  .chart-hit{cursor:crosshair;}
+  #chartTip{position:fixed;z-index:9999;background:#172230;color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;pointer-events:none;opacity:0;transition:opacity .1s;box-shadow:0 6px 20px rgba(0,0,0,.22);white-space:nowrap;}
+  #chartTip .tip-label{font-family:var(--mono);font-size:11px;color:#B8C2CF;margin-bottom:4px;}
+  #chartTip .tip-row{display:flex;align-items:center;gap:6px;}
+  #chartTip .tip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  #chartTip .tip-name{color:#B8C2CF;}
+  #chartTip .tip-val{font-family:var(--mono);font-weight:700;margin-left:auto;padding-left:10px;}
   .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px;margin-bottom:14px;}
   .mini-chart{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
   .mini-head{font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:8px;}
@@ -199,7 +208,7 @@
     <div class="ctrl-row ctrl-row-split">
       <div class="excl-group">
         <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
-        <label class="excl"><input type="checkbox" id="exclBots"> 저품질 트래픽 자동 제외</label>
+        <label class="excl"><input type="checkbox" id="exclBots" checked> 저품질 트래픽 제외 (cherry picker)</label>
       </div>
       <div class="btn-group">
         <button class="go" id="go">조회</button>
@@ -213,6 +222,48 @@
 </div>
 
 <script>
+// ===== 차트 툴팁 (마우스 올리면 실제 수치 표시) =====
+(function(){
+  let tipEl=null;
+  function ensureTip(){
+    if(tipEl) return tipEl;
+    tipEl=document.createElement('div');
+    tipEl.id='chartTip';
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+  document.addEventListener('mousemove', (e)=>{
+    const hit = e.target.closest ? e.target.closest('.chart-hit') : null;
+    if(!hit){ if(tipEl) tipEl.style.opacity='0'; return; }
+    const svg = hit.ownerSVGElement || hit.closest('svg');
+    if(!svg) return;
+    let tips;
+    try{ tips = JSON.parse(svg.getAttribute('data-tip')||'[]'); }catch(err){ return; }
+    const i = Number(hit.getAttribute('data-i'));
+    const t = tips[i];
+    if(!t) return;
+    const el = ensureTip();
+    el.innerHTML = `<div class="tip-label">${t.label}</div>` +
+      t.rows.map(r=>`<div class="tip-row"><span class="tip-dot" style="background:${r.c}"></span><span class="tip-name">${r.n}</span><span class="tip-val">${r.v}</span></div>`).join('');
+    el.style.opacity='1';
+    // 화면 밖으로 나가지 않게 위치 보정
+    const pad=14;
+    const w=el.offsetWidth, h=el.offsetHeight;
+    let left=e.clientX+pad, top=e.clientY-h-pad;
+    if(left+w>window.innerWidth-8) left=e.clientX-w-pad;
+    if(top<8) top=e.clientY+pad;
+    el.style.left=left+'px'; el.style.top=top+'px';
+    // 세로 커서선 이동
+    const cursor = svg.querySelector('.chart-cursor');
+    if(cursor){
+      const cx = Number(hit.getAttribute('x')) + Number(hit.getAttribute('width'))/2;
+      cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx);
+      cursor.setAttribute('opacity','0.25');
+    }
+  });
+  document.addEventListener('mouseleave', ()=>{ if(tipEl) tipEl.style.opacity='0'; });
+})();
+
 const WORKER="https://proud-sea-35f9.sugim-386.workers.dev";
 const $=(id)=>document.getElementById(id);
 const nf=new Intl.NumberFormat('ko-KR');
@@ -325,6 +376,7 @@ function q(extra){
   const as=$('s').value, ae=$('e').value;
   const bs=cmp?$('cs').value:as, be=cmp?$('ce').value:ae;
   let s=`bs=${bs}&be=${be}&as=${as}&ae=${ae}&key=${encodeURIComponent(WORKER_KEY)}`;
+  if(cmp)s+='&cmp=1';
   if($('exclLpoint').checked)s+='&excl=lpoint,lotte,l.point';
   if($('exclBots').checked)s+='&autoExclLowEngagement=1';
   if(extra)s+='&'+extra;
@@ -436,7 +488,7 @@ async function renderOverview(d){
 
   // ===== 최상단: 한눈에 보기 (핵심 지표 3개를 그래프로 먼저) =====
   h+='<h2 class="sec" style="margin-top:0;">한눈에 보기</h2>';
-  h+='<p class="sec-desc">최근 30일 핵심 흐름 · 위 기간 선택과 무관하게 항상 최근 30일이에요.</p>';
+  h+='<p class="sec-desc">위에서 고른 기간의 핵심 흐름 · 비교를 켜면 비교 기간이 점선으로 함께 표시돼요. 그래프에 마우스를 올리면 그날 수치가 나옵니다.</p>';
   h+='<div id="heroWrap"><div class="state"><div class="spinner"></div>핵심 지표 불러오는 중…</div></div>';
 
   h+='<h2 class="sec">① 획득 (Acquisition)</h2>'+kpiHTML(byGroup('acquisition'));
@@ -564,43 +616,174 @@ function aggregateMonthlyRevenue(daily){
 }
 function growthPct(prev,cur){ return prev? ((cur-prev)/prev*100) : null; }
 
+// ===== 차트 공통 =====
+// 툴팁 데이터를 svg 속성에 심어두고, 아래 전역 리스너가 마우스 위치에 따라 띄움
+function tipAttr(tips){
+  return "data-tip='" + JSON.stringify(tips).replace(/'/g,'&#39;').replace(/</g,'&lt;') + "'";
+}
+// 평균선 라벨: 배경 있는 알약 모양으로 잘 보이게
+function avgPill(x, y, text, W, padR){
+  const w = text.length*7.2 + 14;
+  const px = Math.min(x, W-padR-w);
+  return `<g><rect x="${px.toFixed(1)}" y="${(y-19).toFixed(1)}" width="${w.toFixed(1)}" height="17" rx="8.5" fill="#66768A" opacity="0.92"/>
+    <text x="${(px+w/2).toFixed(1)}" y="${(y-7).toFixed(1)}" font-size="11" font-weight="600" fill="#fff" text-anchor="middle" font-family="var(--mono)">${text}</text></g>`;
+}
+function niceStepOf(r){const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;}
+
+// ===== 비교선 지원 선그래프: 현재 기간(실선) + 비교 기간(점선) =====
+function compareLineChart(labels, curValues, prevValues, color, valueFmt, seriesName, prevLabels){
+  const W=920,H=240,padL=58,padR=16,padB=30,padT=28;
+  const hasPrev = prevValues && prevValues.length>1;
+  const allVals = hasPrev ? curValues.concat(prevValues) : curValues;
+  const rawMax=Math.max(...allVals,1), rawMin=Math.min(...allVals,0);
+  const step=niceStepOf((rawMax-rawMin)||1);
+  const min=Math.floor(rawMin/step)*step, max=Math.ceil(rawMax/step)*step;
+  const range=(max-min)||1;
+  const n=Math.max(curValues.length, hasPrev?prevValues.length:0);
+  const x=(i)=>padL+(W-padL-padR)*(n<=1?0.5:i/(n-1));
+  const y=(v)=>H-padB-(H-padB-padT)*((v-min)/range);
+
+  let grid='', yAxis='';
+  for(let v=min; v<=max+0.0001; v+=step){
+    const yy=y(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
+    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
+  }
+
+  const avg = curValues.length ? curValues.reduce((a,b)=>a+b,0)/curValues.length : 0;
+  const avgY = y(avg);
+  const avgLine = curValues.length>1
+    ? `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W-padR}" y2="${avgY.toFixed(1)}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>`
+      + avgPill(padL+6, avgY, '평균 '+(valueFmt?valueFmt(avg):fmt(Math.round(avg))), W, padR)
+    : '';
+
+  const mkPath=(vals)=>vals.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const curPath=mkPath(curValues);
+  const area=curValues.length>1 ? curPath+` L${x(curValues.length-1).toFixed(1)},${H-padB} L${x(0).toFixed(1)},${H-padB} Z` : '';
+  const prevPath = hasPrev ? `<path d="${mkPath(prevValues)}" fill="none" stroke="#98A4B4" stroke-width="2" stroke-dasharray="6 4"/>` : '';
+  const dots=curValues.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}"/>`).join('');
+
+  const lstep=Math.max(1,Math.ceil(labels.length/9));
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+
+  const legend = hasPrev ? `<g font-size="11" font-family="var(--sans)">
+    <line x1="${padL}" y1="${padT-16}" x2="${padL+18}" y2="${padT-16}" stroke="${color}" stroke-width="2.5"/>
+    <text x="${padL+24}" y="${padT-12}" fill="#172230">선택 기간</text>
+    <line x1="${padL+96}" y1="${padT-16}" x2="${padL+114}" y2="${padT-16}" stroke="#98A4B4" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="${padL+120}" y="${padT-12}" fill="#66768A">비교 기간</text></g>` : '';
+
+  // 마우스 감지 영역 + 툴팁 데이터
+  const tips=labels.map((lb,i)=>{
+    const rows=[{n:'선택', v:(valueFmt?valueFmt(curValues[i]):fmt(curValues[i])), c:color}];
+    if(hasPrev && prevValues[i]!=null) rows.push({n:'비교', v:(valueFmt?valueFmt(prevValues[i]):fmt(prevValues[i])), c:'#98A4B4'});
+    return {label:(prevLabels&&prevLabels[i])? `${lb}  (비교: ${prevLabels[i]})` : lb, rows};
+  });
+  const bandW=(W-padL-padR)/Math.max(1,n);
+  const hits=labels.map((lb,i)=>`<rect class="chart-hit" data-i="${i}" x="${(x(i)-bandW/2).toFixed(1)}" y="${padT}" width="${bandW.toFixed(1)}" height="${(H-padB-padT).toFixed(1)}" fill="transparent"/>`).join('');
+
+  return `<svg class="chart-svg" ${tipAttr(tips)} viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
+    ${grid}${yAxis}${legend}
+    ${area?`<path d="${area}" fill="${color}" opacity="0.10"/>`:''}
+    ${avgLine}${prevPath}
+    <path d="${curPath}" fill="none" stroke="${color}" stroke-width="2.5"/>
+    ${dots}${labelEls}
+    <line class="chart-cursor" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#172230" stroke-width="1" opacity="0"/>
+    ${hits}
+  </svg>`;
+}
+
+// 두 지표를 한 차트에 겹쳐 그리기 (예: 매출액 vs 환불액)
+// 스케일 차이가 크면 오른쪽에 별도 축을 써서 둘 다 흐름이 보이게 함
+function dualLineChart(labels, seriesA, seriesB, valueFmt){
+  const W=920,H=240,padL=58,padR=64,padB=30,padT=28;
+  const scaleOf=(vals)=>{const rawMax=Math.max(...vals,1);const step=niceStepOf(rawMax||1);return {step,max:Math.ceil(rawMax/step)*step||1};};
+  const sa=scaleOf(seriesA.values), sb=scaleOf(seriesB.values);
+  const separate = sa.max > sb.max*4;
+  const x=(i)=>padL+(W-padL-padR)*(labels.length<=1?0.5:i/(labels.length-1));
+  const yA=(v)=>H-padB-(H-padB-padT)*(v/sa.max);
+  const yB=(v)=>H-padB-(H-padB-padT)*(v/(separate?sb.max:sa.max));
+
+  let grid='', yAxisL='', yAxisR='';
+  for(let v=0; v<=sa.max+0.0001; v+=sa.step){
+    const yy=yA(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
+    yAxisL+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="${seriesA.color}" text-anchor="end" font-family="var(--mono)">${valueFmt(v)}</text>`;
+  }
+  if(separate){
+    for(let v=0; v<=sb.max+0.0001; v+=sb.step){
+      const yy=yB(v).toFixed(1);
+      yAxisR+=`<text x="${W-padR+8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="${seriesB.color}" text-anchor="start" font-family="var(--mono)">${valueFmt(v)}</text>`;
+    }
+  }
+  const mk=(vals,yf,color)=>{
+    const path=vals.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${yf(v).toFixed(1)}`).join(' ');
+    const dots=vals.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${yf(v).toFixed(1)}" r="3" fill="${color}"/>`).join('');
+    return `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>${dots}`;
+  };
+  const lstep=Math.max(1,Math.ceil(labels.length/9));
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+  const legend=`<g font-size="11" font-family="var(--sans)">
+    <circle cx="${padL+6}" cy="${padT-16}" r="4" fill="${seriesA.color}"/>
+    <text x="${padL+16}" y="${padT-12}" fill="#172230">${seriesA.name}</text>
+    <circle cx="${padL+120}" cy="${padT-16}" r="4" fill="${seriesB.color}"/>
+    <text x="${padL+130}" y="${padT-12}" fill="#172230">${seriesB.name}${separate?' (오른쪽 축)':''}</text></g>`;
+
+  const tips=labels.map((lb,i)=>({label:lb, rows:[
+    {n:seriesA.name, v:valueFmt(seriesA.values[i]), c:seriesA.color},
+    {n:seriesB.name, v:valueFmt(seriesB.values[i]), c:seriesB.color},
+  ]}));
+  const bandW=(W-padL-padR)/Math.max(1,labels.length);
+  const hits=labels.map((lb,i)=>`<rect class="chart-hit" data-i="${i}" x="${(x(i)-bandW/2).toFixed(1)}" y="${padT}" width="${bandW.toFixed(1)}" height="${(H-padB-padT).toFixed(1)}" fill="transparent"/>`).join('');
+
+  return `<svg class="chart-svg" ${tipAttr(tips)} viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
+    ${grid}${yAxisL}${yAxisR}${legend}
+    ${mk(seriesA.values, yA, seriesA.color)}
+    ${mk(seriesB.values, yB, seriesB.color)}
+    ${labelEls}
+    <line class="chart-cursor" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#172230" stroke-width="1" opacity="0"/>
+    ${hits}
+  </svg>`;
+}
+
 function miniLineChart(labels, values, color, valueFmt){
   const W=920,H=220,padL=58,padR=16,padB=30,padT=22;
   const rawMax=Math.max(...values,1), rawMin=Math.min(...values,0);
-  // Y축을 보기 좋은 값으로 반올림
-  const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
-  const step=niceStep((rawMax-rawMin)||1);
+  const step=niceStepOf((rawMax-rawMin)||1);
   const min=Math.floor(rawMin/step)*step, max=Math.ceil(rawMax/step)*step;
   const range=(max-min)||1;
   const x=(i)=>padL+(W-padL-padR)*(values.length<=1?0.5:i/(values.length-1));
   const y=(v)=>H-padB-(H-padB-padT)*((v-min)/range);
 
-  // 가로 눈금선 + Y축 숫자
   let grid='', yAxis='';
   for(let v=min; v<=max+0.0001; v+=step){
     const yy=y(v).toFixed(1);
     grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
-    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
+    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
   }
-
-  // 평균선(점선): 어느 날이 평균보다 위/아래인지 한눈에
   const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
-  const avgY = y(avg).toFixed(1);
-  const avgLine = values.length>1 ? `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${padL+6}" y="${(Number(avgY)-7).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="start" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
-
+  const avgY = y(avg);
+  const avgLine = values.length>1
+    ? `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W-padR}" y2="${avgY.toFixed(1)}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>`
+      + avgPill(padL+6, avgY, '평균 '+(valueFmt?valueFmt(avg):fmt(Math.round(avg))), W, padR)
+    : '';
   const path=values.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const area=values.length>1 ? path+` L${x(values.length-1).toFixed(1)},${H-padB} L${x(0).toFixed(1)},${H-padB} Z` : '';
-  const dots=values.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}"><title>${labels[i]} · ${valueFmt?valueFmt(v):fmt(v)}</title></circle>`).join('');
+  const dots=values.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}"/>`).join('');
   const lstep=Math.max(1,Math.ceil(labels.length/9));
-  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
 
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
+  const tips=labels.map((lb,i)=>({label:lb, rows:[{n:'값', v:(valueFmt?valueFmt(values[i]):fmt(values[i])), c:color}]}));
+  const bandW=(W-padL-padR)/Math.max(1,values.length);
+  const hits=labels.map((lb,i)=>`<rect class="chart-hit" data-i="${i}" x="${(x(i)-bandW/2).toFixed(1)}" y="${padT}" width="${bandW.toFixed(1)}" height="${(H-padB-padT).toFixed(1)}" fill="transparent"/>`).join('');
+
+  return `<svg class="chart-svg" ${tipAttr(tips)} viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
     ${grid}${yAxis}
     ${area?`<path d="${area}" fill="${color}" opacity="0.10"/>`:''}
     ${avgLine}
     <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>
     ${dots}${labelEls}
+    <line class="chart-cursor" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#172230" stroke-width="1" opacity="0"/>
+    ${hits}
   </svg>`;
 }
 
@@ -608,8 +791,7 @@ function miniLineChart(labels, values, color, valueFmt){
 function verticalBarChart(labels, values, color, valueFmt){
   const W=920,H=220,padL=58,padR=16,padB=30,padT=18;
   const rawMax=Math.max(...values,1);
-  const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
-  const step=niceStep(rawMax||1);
+  const step=niceStepOf(rawMax||1);
   const max=Math.ceil(rawMax/step)*step || 1;
   const innerW=W-padL-padR;
   const bw=Math.max(2, Math.min(28, innerW/values.length*0.62));
@@ -620,19 +802,30 @@ function verticalBarChart(labels, values, color, valueFmt){
   for(let v=0; v<=max+0.0001; v+=step){
     const yy=y(v).toFixed(1);
     grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#E4E9F0" stroke-width="1"/>`;
-    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
+    yAxis+=`<text x="${padL-8}" y="${(Number(yy)+3.5).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">${valueFmt?valueFmt(v):fmt(v)}</text>`;
   }
   const bars=values.map((v,i)=>{
     const h=Math.max(0,(H-padB)-y(v));
-    return `<rect x="${(x(i)-bw/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}"><title>${labels[i]} · ${valueFmt?valueFmt(v):fmt(v)}</title></rect>`;
+    return `<rect x="${(x(i)-bw/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}"/>`;
   }).join('');
   const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
-  const avgY = y(avg).toFixed(1);
-  const avgLine = values.length>1 ? `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${padL+6}" y="${(Number(avgY)-7).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="start" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
+  const avgY = y(avg);
+  const avgLine = values.length>1
+    ? `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W-padR}" y2="${avgY.toFixed(1)}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>`
+      + avgPill(padL+6, avgY, '평균 '+(valueFmt?valueFmt(avg):fmt(Math.round(avg))), W, padR)
+    : '';
   const lstep=Math.max(1,Math.ceil(labels.length/9));
-  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}${bars}${avgLine}${labelEls}</svg>`;
+  const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
+
+  const tips=labels.map((lb,i)=>({label:lb, rows:[{n:'값', v:(valueFmt?valueFmt(values[i]):fmt(values[i])), c:color}]}));
+  const bandW=innerW/Math.max(1,values.length);
+  const hits=labels.map((lb,i)=>`<rect class="chart-hit" data-i="${i}" x="${(x(i)-bandW/2).toFixed(1)}" y="${padT}" width="${bandW.toFixed(1)}" height="${(H-padB-padT).toFixed(1)}" fill="transparent"/>`).join('');
+
+  return `<svg class="chart-svg" ${tipAttr(tips)} viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">
+    ${grid}${yAxis}${bars}${avgLine}${labelEls}
+    <line class="chart-cursor" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#172230" stroke-width="1" opacity="0"/>
+    ${hits}
+  </svg>`;
 }
 
 function won(v){ return fmt(v)+'원'; }
@@ -649,48 +842,68 @@ let REVENUE_CACHE=null;
 async function loadHeroCharts(){
   const wrap=document.getElementById('heroWrap');
   if(!wrap) return;
-  const HERO_DAYS=30;
   try{
-    const y=addDays(new Date(),-1);
-    const ae=iso(y), as=iso(addDays(y,-(HERO_DAYS-1)));
+    // 상단에서 고른 기간을 그대로 사용 + 비교 켜져 있으면 비교 기간도 같이
+    const as=$('s').value, ae=$('e').value;
+    const cmpOn=$('cmp').checked;
+    const cs=$('cs').value, ce=$('ce').value;
 
-    // GA4 일별(세션·구매) + cafe24 일별 매출을 함께 가져옴
-    let gaDaily=[], revDaily=[];
-    try{
-      let url=WORKER+`/?bs=${as}&be=${ae}&as=${as}&ae=${ae}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`;
-      if($('exclLpoint').checked) url+='&excl=lpoint,lotte,l.point';
-      if($('exclBots').checked) url+='&autoExclLowEngagement=1';
-      const r=await fetch(url,{cache:'no-store'});
-      const dd=await r.json();
-      gaDaily=dd.daily||[];
-    }catch(e){ /* GA4 실패해도 매출은 보여줌 */ }
+    const exclQS = ($('exclLpoint').checked ? '&excl=lpoint,lotte,l.point' : '')
+                 + ($('exclBots').checked ? '&autoExclLowEngagement=1' : '');
+    const fetchGA=async(s0,e0)=>{
+      try{
+        const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
+        const r=await fetch(url,{cache:'no-store'});
+        const dd=await r.json();
+        return dd.daily||[];
+      }catch(e){ return []; }
+    };
+
+    // GA4: 선택 기간(+비교 기간)
+    const [gaCur, gaPrev] = await Promise.all([ fetchGA(as,ae), cmpOn? fetchGA(cs,ce) : Promise.resolve([]) ]);
+
+    // 매출: 캐시에서 두 기간 잘라 씀
+    let revCur=[], revPrev=[];
     try{
       if(!REVENUE_CACHE){
         const rr=await fetch('./revenue-daily.json',{cache:'no-store'});
         REVENUE_CACHE=await rr.json();
       }
-      revDaily=(REVENUE_CACHE.daily||[]).filter(d=>d.date>=as && d.date<=ae).sort((a,b)=>a.date.localeCompare(b.date));
+      const all=REVENUE_CACHE.daily||[];
+      const cut=(s0,e0)=>all.filter(d=>d.date>=s0 && d.date<=e0).sort((a,b)=>a.date.localeCompare(b.date));
+      revCur=cut(as,ae);
+      if(cmpOn) revPrev=cut(cs,ce);
     }catch(e){ /* 매출 실패해도 GA4는 보여줌 */ }
 
     const cards=[];
-    if(revDaily.length>1){
-      const labels=revDaily.map(r=>r.date.slice(5).replace('-','/'));
-      const vals=revDaily.map(r=>r.net);
-      const total=vals.reduce((a,b)=>a+b,0);
-      cards.push({title:'매출총액', total:won(total), color:'#0E7C6E',
-        svg: miniLineChart(labels, vals, '#0E7C6E', v=>wonAxis(v))});
+    const mdLabel=(d)=>d.slice(5).replace('-','/');          // 'YYYY-MM-DD' → 'MM/DD'
+    const gaLabel=(d)=>d.slice(4,6)+'/'+d.slice(6,8);         // 'YYYYMMDD' → 'MM/DD'
+
+    if(revCur.length>1){
+      const labels=revCur.map(r=>mdLabel(r.date));
+      const prevLabels=revPrev.length? revPrev.map(r=>mdLabel(r.date)) : null;
+      const cur=revCur.map(r=>r.net);
+      const prev=revPrev.length? revPrev.map(r=>r.net) : null;
+      cards.push({title:'매출총액', total:won(cur.reduce((a,b)=>a+b,0)), color:'#0E7C6E',
+        svg: compareLineChart(labels, cur, prev, '#0E7C6E', v=>wonAxis(v), '매출총액', prevLabels)});
     }
-    if(gaDaily.length>1){
-      const labels=gaDaily.map(r=>r.date.slice(4,6)+'/'+r.date.slice(6,8));
-      const sess=gaDaily.map(r=>r.sessions||0);
+    if(gaCur.length>1){
+      const labels=gaCur.map(r=>gaLabel(r.date));
+      const prevLabels=gaPrev.length? gaPrev.map(r=>gaLabel(r.date)) : null;
+      const sess=gaCur.map(r=>r.sessions||0);
+      const sessPrev=gaPrev.length? gaPrev.map(r=>r.sessions||0) : null;
       cards.push({title:'방문(세션)', total:fmt(sess.reduce((a,b)=>a+b,0)), color:'#2B7DB8',
-        svg: miniLineChart(labels, sess, '#2B7DB8', v=>fmt(Math.round(v)))});
-      const purch=gaDaily.map(r=>r.purchase||0);
-      cards.push({title:'구매 건수', total:fmt(purch.reduce((a,b)=>a+b,0)), color:'#7A3FC8',
-        svg: verticalBarChart(labels, purch, '#7A3FC8', v=>fmt(Math.round(v)))});
+        svg: compareLineChart(labels, sess, sessPrev, '#2B7DB8', v=>fmt(Math.round(v)), '세션', prevLabels)});
+      const purch=gaCur.map(r=>r.purchase||0);
+      const purchPrev=gaPrev.length? gaPrev.map(r=>r.purchase||0) : null;
+      cards.push({title:'구매 건수', total:fmt(purch.reduce((a,b)=>a+b,0))+'건', color:'#7A3FC8',
+        svg: compareLineChart(labels, purch, purchPrev, '#7A3FC8', v=>fmt(Math.round(v)), '구매', prevLabels)});
     }
 
-    if(!cards.length){ wrap.innerHTML='<div class="state">핵심 지표 데이터를 불러오지 못했습니다</div>'; return; }
+    if(!cards.length){
+      wrap.innerHTML='<div class="funnel"><div class="state">선택한 기간이 하루라 추이가 그려지지 않아요. 기간을 2일 이상으로 넓혀보세요.</div></div>';
+      return;
+    }
     wrap.innerHTML = cards.map(c=>
       `<div class="funnel card-gap">
         <div class="mini-head"><span class="mini-dot" style="background:${c.color}"></span>${c.title}
@@ -698,7 +911,7 @@ async function loadHeroCharts(){
         ${c.svg}
       </div>`).join('');
   }catch(e){
-    wrap.innerHTML='<div class="state">핵심 지표를 불러오지 못했습니다</div>';
+    wrap.innerHTML='<div class="funnel"><div class="state">핵심 지표를 불러오지 못했습니다</div></div>';
   }
 }
 
@@ -780,14 +993,23 @@ async function loadGrowthMetrics(){
   document.getElementById('growthWrap').innerHTML = h;
 }
 
-function segBarBlock(title, rows, color){
+function segBarBlock(title, rows, color, prevRows){
   if(!rows || !rows.length) return `<div class="section-block"><div class="section-block-head"><span class="section-block-title">${title}</span></div><div class="state">데이터 없음</div></div>`;
+  const cmpOn=$('cmp').checked && prevRows && prevRows.length;
+  const prevMap={}; if(cmpOn) prevRows.forEach(p=>prevMap[p.label]=p);
   const maxV=Math.max(...rows.map(r=>r.sessions),1);
   let h=`<div class="section-block"><div class="section-block-head"><span class="section-dot" style="background:${color};"></span><span class="section-block-title">${title}</span></div>`;
   h+=rows.map(r=>{
     const w=Math.max(r.sessions/maxV*100,4);
+    let cmpHtml='';
+    if(cmpOn){
+      const p=prevMap[r.label];
+      const pv=p?p.sessions:0;
+      const dv=delta(pv, r.sessions);
+      cmpHtml=`<div class="slotbar-meta">비교 ${fmt(pv)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>${p?` · 전환 ${p.convRate.toFixed(2)}% → <b>${r.convRate.toFixed(2)}%</b>`:''}</div>`;
+    }
     return `<div class="slotbar-row">
-      <div><span class="slotbar-name" style="cursor:default;">${r.label}</span><div class="slotbar-meta">참여율 ${r.engagementRate.toFixed(1)}% · 평균 ${fmtDwell(r.avgDuration)} · 구매전환 ${r.convRate.toFixed(2)}%</div></div>
+      <div><span class="slotbar-name" style="cursor:default;">${r.label}</span><div class="slotbar-meta">참여율 ${r.engagementRate.toFixed(1)}% · 평균 ${fmtDwell(r.avgDuration)} · 구매전환 ${r.convRate.toFixed(2)}%</div>${cmpHtml}</div>
       <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
       <div><div class="slotbar-val">${fmt(r.sessions)}</div><div class="slotbar-sub">세션</div></div>
     </div>`;
@@ -805,17 +1027,25 @@ async function loadUserSegments(){
     if(!dd.segments){ wrap.innerHTML='<div class="state">세그먼트 데이터 없음</div>'; return; }
     const seg=dd.segments;
     let h='';
-    h+=segBarBlock('신규 vs 재방문', seg.byNewReturning, '#0E7C6E');
-    h+=segBarBlock('디바이스별', seg.byDevice, '#2B7DB8');
+    const sb=dd.segmentsBefore;
+    h+=segBarBlock('신규 vs 재방문', seg.byNewReturning, '#0E7C6E', sb?sb.byNewReturning:null);
+    h+=segBarBlock('디바이스별', seg.byDevice, '#2B7DB8', sb?sb.byDevice:null);
 
     const amt=(seg.byAmount||[]).filter(a=>a.count>0);
     if(amt.length){
       const maxC=Math.max(...amt.map(a=>a.count),1);
       h+=`<div class="section-block"><div class="section-block-head"><span class="section-dot" style="background:#C8993F;"></span><span class="section-block-title">구매금액대별</span></div>`;
+      const prevAmtMap={}; if(sb && sb.byAmount) sb.byAmount.forEach(p=>prevAmtMap[p.label]=p);
       h+=amt.map(a=>{
         const w=Math.max(a.count/maxC*100,4);
+        let cmpHtml='';
+        if($('cmp').checked && sb && sb.byAmount){
+          const p=prevAmtMap[a.label]; const pv=p?p.count:0;
+          const dv=delta(pv, a.count);
+          cmpHtml=`<div class="slotbar-meta">비교 ${pv}건 <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span></div>`;
+        }
         return `<div class="slotbar-row">
-          <div><span class="slotbar-name" style="cursor:default;">${a.label}</span></div>
+          <div><span class="slotbar-name" style="cursor:default;">${a.label}</span>${cmpHtml}</div>
           <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#C8993F;"></div></div>
           <div><div class="slotbar-val">${a.count}건</div><div class="slotbar-sub">${won(a.revenue)}</div></div>
         </div>`;
@@ -937,22 +1167,134 @@ function renderMini(s,daily){
 }
 
 function renderFunnel(d){
+  const cmpOn = $('cmp').checked;
   let h=periodLabel(d);
-  h+='<h2 class="sec">구매 전환 퍼널</h2><div class="funnel">';
-  const tB=d.funnel[0].before,tA=d.funnel[0].after;
+  h+='<h2 class="sec">구매 전환 퍼널</h2>';
+  h+='<p class="sec-desc">각 단계 통과율 · 상품조회는 한 방문에서 여러 상품을 보므로 방문보다 클 수 있어요(그래서 100%를 넘습니다).</p>';
+  h+='<div class="funnel">';
+  // 바 길이 기준: 비교까지 포함한 전체 최댓값으로 잡아야 값이 밖으로 밀려 안 보이는 일이 없음
+  const maxVal = Math.max(...d.funnel.map(s=>Math.max(s.after, cmpOn?s.before:0)), 1);
   h+=d.funnel.map((s,i)=>{const p=d.funnel[i-1];
-    const cB=p?(s.before/p.before*100):100,cA=p?(s.after/p.after*100):100,dd=p?cA-cB:0,cls=dd<0?'w':'';
-    const conv=p?`<span class="stage-conv">통과율 ${cB.toFixed(1)}% → <b class="${cls}">${cA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`:`<span class="stage-conv">유입 100%</span>`;
+    const cA=p?(s.after/p.after*100):100;
+    const cB=p&&p.before?(s.before/p.before*100):100;
+    const dd=p?cA-cB:0, cls=dd<0?'w':'';
+    const conv = p
+      ? (cmpOn
+          ? `<span class="stage-conv">통과율 ${cB.toFixed(1)}% → <b class="${cls}">${cA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`
+          : `<span class="stage-conv">통과율 <b>${cA.toFixed(1)}%</b></span>`)
+      : `<span class="stage-conv">유입 100%</span>`;
+    // 숫자는 바 안이 아니라 바 오른쪽 고정 칸에 둬서 항상 보이게 함
+    const row=(tag,val,cls2)=>`<div class="bar-row"><span class="bar-tag">${tag}</span>
+      <div class="bar-track"><div class="bar-fill ${cls2}" style="width:${Math.min(Math.max(val/maxVal*100,2),100)}%"></div></div>
+      <span class="bar-val">${fmt(val)}</span></div>`;
     return `<div class="stage"><div class="stage-top"><span class="stage-name">${s.name}</span>${conv}</div><div class="bars">
-      <div class="bar-row"><span class="bar-tag">전</span><div class="bar-track"><div class="bar-fill b" style="width:${Math.max(s.before/tB*100,7)}%">${fmt(s.before)}</div></div></div>
-      <div class="bar-row"><span class="bar-tag">후</span><div class="bar-track"><div class="bar-fill a" style="width:${Math.max(s.after/tA*100,7)}%">${fmt(s.after)}</div></div></div>
+      ${cmpOn?row('비교',s.before,'b'):''}
+      ${row(cmpOn?'선택':'', s.after, 'a')}
     </div></div>`;}).join('')+'</div>';
+
   h+='<h2 class="sec">페이지별 트래픽</h2><div class="pages">'+d.pages.map(pg=>{
-    const rows=pg.metrics.map(m=>{const x=delta(m.before,m.after);
+    const rows=pg.metrics.map(m=>{
+      if(!cmpOn) return `<div class="m-row"><span class="m-label">${m.label}</span><span class="m-vals"><b>${fmt(m.after)}</b></span></div>`;
+      const x=delta(m.before,m.after);
       return `<div class="m-row"><span class="m-label">${m.label}</span><span class="m-vals">${fmt(m.before)} → <b>${fmt(m.after)}</b></span>
       <span class="m-delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</span></div>`;}).join('');
     return `<div class="page"><div class="page-name">${pg.name}</div>${rows}</div>`;}).join('')+'</div>';
+
+  h+='<h2 class="sec">스크롤 도달률</h2>';
+  h+='<p class="sec-desc">페이지를 90% 지점까지 내려본 비율(GA4 scroll 이벤트 ÷ 조회수) · 콘텐츠를 끝까지 보는지 판단하는 지표예요.</p>';
+  h+='<div id="scrollWrap"><div class="funnel"><div class="state"><div class="spinner"></div>스크롤 지표 불러오는 중…</div></div></div>';
+
+  h+='<h2 class="sec">UTM 캠페인 성과</h2>';
+  h+='<p class="sec-desc">utm_campaign이 붙은 유입만 집계해요 · 캠페인별 유입·구매·전환율·세션당 매출을 봅니다. (자연유입·직접유입은 캠페인명이 없어 제외)</p>';
+  h+='<div id="utmWrap"><div class="funnel"><div class="state"><div class="spinner"></div>UTM 지표 불러오는 중…</div></div></div>';
+
   $('content').innerHTML=h;
+  loadScrollDepth();
+  loadUtmPerformance();
+}
+
+async function loadUtmPerformance(){
+  const wrap=$('utmWrap');
+  if(!wrap) return;
+  try{
+    const r=await fetch(WORKER+'/?'+q()+'&tab=utm',{cache:'no-store'});
+    const dd=await r.json();
+    if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
+    if(!dd.utm){ wrap.innerHTML='<div class="funnel"><div class="state">UTM 데이터가 없습니다</div></div>'; return; }
+    const cur=dd.utm, prev=dd.utmBefore;
+    const cmpOn=$('cmp').checked && prev;
+
+    const block=(title, rows, prevRows, color)=>{
+      if(!rows || !rows.length) return `<div class="section-block"><div class="section-block-head"><span class="section-dot" style="background:${color};"></span><span class="section-block-title">${title}</span></div><div class="state">데이터 없음</div></div>`;
+      const maxV=Math.max(...rows.map(x=>x.sessions),1);
+      const prevMap={}; if(cmpOn && prevRows) prevRows.forEach(p=>prevMap[p.name]=p);
+      const tot=rows.reduce((a,b)=>a+b.sessions,0)||1;
+      let out=`<div class="section-block"><div class="section-block-head"><span class="section-dot" style="background:${color};"></span><span class="section-block-title">${title}</span><span class="section-block-total">세션 ${fmt(tot)}</span></div>`;
+      out+=rows.map(x=>{
+        const w=Math.max(x.sessions/maxV*100,3);
+        const detail = cur.hasRevenue
+          ? `구매 ${fmt(x.purchases)}건 · 전환 ${x.convRate.toFixed(2)}% · 세션당 ${won(Math.round(x.revPerSession))}`
+          : `구매·매출 지표 없음`;
+        let cmpHtml='';
+        if(cmpOn){
+          const p=prevMap[x.name]; const pv=p?p.sessions:0;
+          const dv=delta(pv, x.sessions);
+          cmpHtml=`<div class="slotbar-meta">비교 ${fmt(pv)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>${p&&cur.hasRevenue?` · 전환 ${p.convRate.toFixed(2)}% → <b>${x.convRate.toFixed(2)}%</b>`:''}</div>`;
+        }
+        return `<div class="slotbar-row">
+          <div><span class="slotbar-name" style="cursor:default;">${x.name}</span><div class="slotbar-meta">${detail}</div>${cmpHtml}</div>
+          <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
+          <div><div class="slotbar-val">${fmt(x.sessions)}</div><div class="slotbar-sub">${cur.hasRevenue?won(x.revenue):'세션'}</div></div>
+        </div>`;
+      }).join('');
+      out+='</div>';
+      return out;
+    };
+
+    let h='';
+    if(cur.campaigns && cur.campaigns.length){
+      h+=block('캠페인별 (utm_campaign)', cur.campaigns, prev?prev.campaigns:null, '#7A3FC8');
+    } else {
+      h+='<div class="section-block"><div class="section-block-head"><span class="section-block-title">캠페인별 (utm_campaign)</span></div><div class="state">이 기간에 utm_campaign이 붙은 유입이 없어요. 광고·뉴스레터 링크에 UTM을 붙이면 여기에 성과가 쌓입니다.</div></div>';
+    }
+    h+=block('소스/매체별 (utm_source · utm_medium)', cur.sourceMediums, prev?prev.sourceMediums:null, '#2B7DB8');
+    wrap.innerHTML=h;
+  }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">UTM 지표를 불러오지 못했습니다</div></div>'; }
+}
+
+async function loadScrollDepth(){
+  const wrap=$('scrollWrap');
+  if(!wrap) return;
+  try{
+    const r=await fetch(WORKER+'/?'+q()+'&tab=scroll',{cache:'no-store'});
+    const dd=await r.json();
+    if(dd.error || !dd.scroll){ wrap.innerHTML='<div class="funnel"><div class="state">스크롤 지표를 불러오지 못했습니다</div></div>'; return; }
+    const cur=dd.scroll, prev=dd.scrollBefore;
+    const cmpOn=$('cmp').checked && prev;
+    const rows=cur.byPageGroup||[];
+    if(!rows.length){ wrap.innerHTML='<div class="funnel"><div class="state">스크롤 데이터가 없습니다</div></div>'; return; }
+    const prevMap={}; if(cmpOn) (prev.byPageGroup||[]).forEach(p=>prevMap[p.name]=p);
+
+    let h='<div class="section-block">';
+    h+=`<div class="section-block-head"><span class="section-dot" style="background:#2B7DB8;"></span><span class="section-block-title">페이지 유형별 90% 도달률</span><span class="section-block-total">전체 ${cur.overall.rate.toFixed(1)}%</span></div>`;
+    h+=rows.map(g=>{
+      const w=Math.max(g.rate,2);
+      let cmpHtml='';
+      if(cmpOn){
+        const p=prevMap[g.name];
+        const pr=p?p.rate:0;
+        const dp=g.rate-pr;
+        cmpHtml=`<div class="slotbar-meta">비교 ${pr.toFixed(1)}% <span class="${dp>=0?'up-txt':'down-txt'}">${dp>=0?'▲':'▼'} ${Math.abs(dp).toFixed(1)}%p</span></div>`;
+      }
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${g.name}</span><div class="slotbar-meta">조회 ${fmt(g.views)} · 도달 ${fmt(g.scrolls)}</div>${cmpHtml}</div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.min(w,100)}%;background:#2B7DB8;"></div></div>
+        <div><div class="slotbar-val">${g.rate.toFixed(1)}%</div><div class="slotbar-sub">도달률</div></div>
+      </div>`;
+    }).join('');
+    h+='</div>';
+    wrap.innerHTML=h;
+  }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">스크롤 지표를 불러오지 못했습니다</div></div>'; }
 }
 
 function destLabel(x){
@@ -1018,8 +1360,13 @@ function sectionTable(rows, id){
     const nameHtml = hasProducts
       ? `<span class="slotbar-name" onclick="toggleSlotProducts('${rowId}')">${r.name} <span style="color:var(--accent);font-size:11px;">▾ ${label} ${r.topProducts.length}개</span></span>`
       : `<span class="slotbar-name" style="cursor:default;">${r.name}</span>`;
+    let metaExtra='';
+    if($('cmp').checked && r.before){
+      const dv=delta(r.before.sessions, r.after.sessions);
+      metaExtra=` · 비교 ${fmt(r.before.sessions)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>`;
+    }
     html += `<div class="slotbar-row">
-      <div>${nameHtml}<div class="slotbar-meta">${r.order}번째 · ${(r.after.sessions/tot*100).toFixed(1)}%</div></div>
+      <div>${nameHtml}<div class="slotbar-meta">${r.order}번째 · ${(r.after.sessions/tot*100).toFixed(1)}%${metaExtra}</div></div>
       <div class="slotbar-track"><div class="slotbar-fill" style="width:${widthPct}%;background:${color};"></div></div>
       <div><div class="slotbar-val">${fmt(r.after.sessions)}</div><div class="slotbar-sub">${fmtDwell(r.after.dwell)}</div></div>
     </div>`;
@@ -1157,13 +1504,21 @@ function renderProductSubtab(){
   document.getElementById('productSubtabWrap').innerHTML=h;
 }
 
-function rankTable(rows,label){
-  const tot=rows.reduce((s,x)=>s+x.sessions,0)||1;
+function rankTable(rows,label,prevRows){
+  const cmpOn=$('cmp').checked && prevRows && prevRows.length;
+  const prevMap={}; if(cmpOn) prevRows.forEach(p=>prevMap[p.name]=p);
   const maxV=Math.max(...rows.map(x=>x.sessions),1);
   return '<div class="section-block">'+rows.map(x=>{
     const w=Math.max(x.sessions/maxV*100,4);
+    const p=cmpOn?prevMap[x.name]:null;
+    let cmpHtml='';
+    if(cmpOn){
+      const pv=p?p.sessions:0;
+      const d=delta(pv,x.sessions);
+      cmpHtml=`<div class="slotbar-meta">비교 ${fmt(pv)} <span class="${d.good?'up-txt':'down-txt'}">${d.up?'▲':'▼'} ${d.text}</span></div>`;
+    }
     return `<div class="slotbar-row">
-      <div><span class="slotbar-name" style="cursor:default;">${x.name}</span></div>
+      <div><span class="slotbar-name" style="cursor:default;">${x.name}</span>${cmpHtml}</div>
       <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#0E7C6E;"></div></div>
       <div><div class="slotbar-val">${fmt(x.sessions)}</div><div class="slotbar-sub">${x.share.toFixed(1)}%</div></div>
     </div>`;
@@ -1171,8 +1526,9 @@ function rankTable(rows,label){
 }
 function renderAcquisition(d){
   let h=`<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
-  h+='<h2 class="sec">유입 소스별</h2>'+rankTable(d.acquisition.bySource,'소스 / 매체');
-  h+='<h2 class="sec">디바이스별</h2>'+rankTable(d.acquisition.byDevice,'디바이스');
+  const ab=d.acquisitionBefore;
+  h+='<h2 class="sec">유입 소스별</h2>'+rankTable(d.acquisition.bySource,'소스 / 매체', ab?ab.bySource:null);
+  h+='<h2 class="sec">디바이스별</h2>'+rankTable(d.acquisition.byDevice,'디바이스', ab?ab.byDevice:null);
 
   h+='<h2 class="sec">국가별 유입</h2>';
   h+='<p class="sec-desc">유입은 많은데 체류시간이 비정상적으로 짧으면(수 초 이내) 봇·광고 어뷰징일 가능성이 있어요.</p>';
@@ -1265,6 +1621,7 @@ async function loadRevenue(){
     showErr('매출 데이터를 불러오지 못했습니다.<br><span style="font-size:12px;">레포에 revenue-daily.json 파일이 있는지 확인해주세요.</span>');
   }
 }
+let REV_TREND_DAYS=30;
 function renderRevenue(d){
   let h=periodLabel(d);
   const b=d.revenue.before, a=d.revenue.after;
@@ -1283,36 +1640,12 @@ function renderRevenue(d){
   h+='<div class="kpis">'+rows.map(r=>{const x=delta(r.b,r.a,r.lower);
     return `<div class="kpi"><div class="k-label">${r.label}</div><div class="k-now">${fmtVal(r.a,r.unit)}</div>
     <div class="delta ${x.good?'good':'bad'}">${x.up?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+fmtVal(r.b,r.unit):''}</div></div>`;}).join('')+'</div>';
-  // 일별 매출 추이 (선택 기간)
-  const dr = d.dailyRows || [];
-  if(dr.length>1){
-    const labels = dr.map(r=>r.date.slice(5).replace('-','/'));
-    h+='<h2 class="sec">일별 매출 추이</h2>';
-    h+='<p class="sec-desc">선택한 기간의 매출총액 흐름 · 점에 마우스를 올리면 그날 값이 나와요.</p>';
-    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.net), '#0E7C6E', v=>wonAxis(v))+'</div>';
-    h+='<h2 class="sec">일별 주문 건수</h2>';
-    h+='<div class="funnel">'+verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v)))+'</div>';
-    h+='<h2 class="sec">일별 객단가 추이</h2>';
-    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0), '#C8993F', v=>wonAxis(v))+'</div>';
-
-    // 환불: 금액과 비율을 같이 봐야 의미가 있어서 두 개 같이
-    const refunds = dr.map(r=>r.refund||0);
-    if(refunds.some(v=>v>0)){
-      h+='<h2 class="sec">일별 환불</h2>';
-      h+='<p class="sec-desc">환불액과 환불율(환불액÷거래액)을 같이 봐요 · 금액이 커도 거래액이 크면 비율은 낮을 수 있어요.</p>';
-      h+='<div class="chart-grid">';
-      h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#C85A3F"></span>환불액'
-        + `<span class="mini-total">${won(refunds.reduce((x,y)=>x+y,0))}</span></div>`
-        + verticalBarChart(labels, refunds, '#C85A3F', v=>wonAxis(v)) + '</div>';
-      const refRates = dr.map(r=>r.gmv? Number((r.refund/r.gmv*100).toFixed(2)) : 0);
-      const totalGmv = dr.reduce((x,r)=>x+(r.gmv||0),0);
-      const totalRef = refunds.reduce((x,y)=>x+y,0);
-      h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#C85A9E"></span>환불율'
-        + `<span class="mini-total">${totalGmv?(totalRef/totalGmv*100).toFixed(2):0}%</span></div>`
-        + miniLineChart(labels, refRates, '#C85A9E', v=>v.toFixed(1)+'%') + '</div>';
-      h+='</div>';
-    }
-  }
+  // ===== 추이 그래프: 상단 기간과 무관하게 자체 기간 버튼을 씀 =====
+  // (상단이 '어제'면 하루치라 추이가 안 보이니까 여기는 독립적으로 30일 등을 봄)
+  h+='<h2 class="sec">매출 추이</h2>';
+  h+='<p class="sec-desc">위에서 고른 기간과 무관하게, 최근 며칠간 흐름을 봅니다.</p>';
+  h+='<div class="preset-btns" id="revTrendBtns" style="margin-bottom:14px;"></div>';
+  h+='<div id="revTrendWrap"><div class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div></div>';
 
   h+='<h2 class="sec">판매 TOP 5 (선택 기간)</h2>';
   if(a.topItems.length){
@@ -1329,6 +1662,63 @@ function renderRevenue(d){
     h+='<div class="state">데이터 없음</div>';
   }
   $('content').innerHTML=h;
+
+  // 추이 기간 버튼 (상단 날짜와 독립)
+  const btns=$('revTrendBtns');
+  if(btns){
+    btns.innerHTML=[7,30,90].map(n=>`<button data-days="${n}" class="${n===REV_TREND_DAYS?'active':''}">최근 ${n}일</button>`).join('');
+    btns.addEventListener('click',(e)=>{
+      const n=e.target.dataset.days; if(!n) return;
+      REV_TREND_DAYS=Number(n);
+      document.querySelectorAll('#revTrendBtns button').forEach(b=>b.classList.toggle('active', b.dataset.days===n));
+      drawRevenueTrend();
+    });
+    drawRevenueTrend();
+  }
+}
+
+// 매출 추이 그래프 (상단 기간과 무관하게 REV_TREND_DAYS 기준)
+function drawRevenueTrend(){
+  const wrap=$('revTrendWrap');
+  if(!wrap) return;
+  const all=(REVENUE_CACHE && REVENUE_CACHE.daily) ? REVENUE_CACHE.daily : [];
+  if(!all.length){ wrap.innerHTML='<div class="funnel"><div class="state">매출 데이터가 없습니다</div></div>'; return; }
+  const y=addDays(new Date(),-1);
+  const ae=iso(y), as=iso(addDays(y,-(REV_TREND_DAYS-1)));
+  const dr=all.filter(d=>d.date>=as && d.date<=ae).sort((a,b)=>a.date.localeCompare(b.date));
+  if(dr.length<2){ wrap.innerHTML='<div class="funnel"><div class="state">이 기간에 데이터가 부족합니다</div></div>'; return; }
+
+  const labels=dr.map(r=>r.date.slice(5).replace('-','/'));
+  const refunds=dr.map(r=>r.refund||0);
+  const totalRef=refunds.reduce((x,z)=>x+z,0);
+  const totalGmv=dr.reduce((x,r)=>x+(r.gmv||0),0);
+  let h='';
+
+  // 매출 vs 환불 (겹쳐보기) — 제일 중요하니 맨 위
+  h+='<div class="section-title">매출총액 vs 환불액</div>';
+  h+='<div class="funnel card-gap">'
+    + dualLineChart(labels,
+        {name:'매출총액', values:dr.map(r=>r.net), color:'#0E7C6E'},
+        {name:'환불액',   values:refunds,          color:'#C85A3F'},
+        v=>wonAxis(v))
+    + '</div>';
+
+  // 매출 / 주문건수 / 객단가 / 환불율
+  h+='<div class="chart-grid">';
+  const card=(title,color,total,svg)=>`<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:${color}"></span>${title}<span class="mini-total">${total}</span></div>${svg}</div>`;
+  h+=card('매출총액','#0E7C6E', won(dr.reduce((x,r)=>x+r.net,0)),
+        miniLineChart(labels, dr.map(r=>r.net), '#0E7C6E', v=>wonAxis(v)));
+  h+=card('주문 건수','#2B7DB8', fmt(dr.reduce((x,r)=>x+r.count,0))+'건',
+        verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v))));
+  h+=card('객단가','#C8993F', won(dr.reduce((x,r)=>x+r.count,0) ? Math.round(dr.reduce((x,r)=>x+r.net,0)/dr.reduce((x,r)=>x+r.count,0)) : 0),
+        miniLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0), '#C8993F', v=>wonAxis(v)));
+  h+=card('환불액','#C85A3F', won(totalRef),
+        verticalBarChart(labels, refunds, '#C85A3F', v=>wonAxis(v)));
+  h+=card('환불율','#C85A9E', (totalGmv?(totalRef/totalGmv*100).toFixed(2):0)+'%',
+        miniLineChart(labels, dr.map(r=>r.gmv?Number((r.refund/r.gmv*100).toFixed(2)):0), '#C85A9E', v=>v.toFixed(1)+'%'));
+  h+='</div>';
+
+  wrap.innerHTML=h;
 }
 
 // 비밀번호 게이트: 여기 'PASSWORD_HERE' 값을 원하는 비밀번호로 바꾸세요.
