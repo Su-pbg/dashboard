@@ -49,20 +49,23 @@
   .go-ghost{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
   .excl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);white-space:nowrap;cursor:pointer;}
   .excl input[type=checkbox]{width:14px;height:14px;margin:0;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
-  .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;}
+  .state{padding:28px 18px;text-align:center;color:var(--muted);font-size:13px;}
   .spinner{width:26px;height:26px;border:3px solid var(--hair);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .err{background:var(--down-soft);color:var(--down);border-radius:10px;padding:16px;font-size:13px;}
   .period-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;}
   .period-label b{color:var(--accent);}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:28px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:14px;}
   .kpi{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;display:flex;flex-direction:column;min-height:118px;}
   .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
   .kpi .k-now{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;}
   .kpi .k-was{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;}
   .delta{display:inline-flex;flex-wrap:wrap;align-items:center;gap:3px;font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 7px;border-radius:10px;margin-top:9px;line-height:1.4;}
   .delta.good{color:var(--up);background:var(--up-soft);}.delta.bad{color:var(--down);background:var(--down-soft);}
-  h2.sec{font-size:17px;font-weight:700;margin:32px 0 14px;}
+  h2.sec{font-size:17px;font-weight:700;margin:28px 0 12px;}
+  h2.sec:first-of-type{margin-top:0;}
+  .sec-desc{font-size:12px;color:var(--muted);margin:-6px 0 12px;line-height:1.6;}
+  .card-gap{margin-bottom:14px;}
   .funnel{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
   .stage{margin-bottom:16px;}.stage:last-child{margin-bottom:0;}
   .stage-top{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;}
@@ -81,7 +84,7 @@
   .slotbar-fill{height:100%;border-radius:6px;transition:width .6s ease;}
   .slotbar-val{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;white-space:nowrap;min-width:64px;line-height:20px;}
   .slotbar-sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:16px;}
-  .section-block{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .section-block{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;margin-bottom:14px;}
   .section-block-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
   .section-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
   .section-block-title{font-size:14px;font-weight:700;color:var(--ink);}
@@ -106,13 +109,13 @@
   table.slot th{background:var(--paper);color:var(--muted);font-weight:600;font-size:12px;}
   table.slot td.num{font-family:var(--mono);text-align:right;}
   table.slot a{color:var(--accent);text-decoration:none;word-break:break-all;}
-  .slot-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-  .soon-box{background:var(--surface);border:1px dashed var(--hair);border-radius:14px;padding:50px 20px;text-align:center;color:var(--muted);}
+  .slot-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .soon-box{background:var(--surface);border:1px dashed var(--hair);border-radius:14px;padding:24px 18px;text-align:center;color:var(--muted);}
   .soon-box b{color:var(--ink);}
-  .section-title{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--ink);}
+  .section-title{font-size:14px;font-weight:700;margin:20px 0 10px;color:var(--ink);}
   .section-title .badge{font-size:11px;color:var(--muted);font-weight:400;}
   
-  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px;}
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px;margin-bottom:14px;}
   .mini-chart{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;}
   .mini-head{font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;margin-bottom:8px;}
   .mini-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
@@ -214,7 +217,7 @@ const WORKER="https://proud-sea-35f9.sugim-386.workers.dev";
 const $=(id)=>document.getElementById(id);
 const nf=new Intl.NumberFormat('ko-KR');
 const fmt=(v)=>nf.format(Math.round(v||0));
-const delta=(b,a)=>{const p=b===0?0:((a-b)/b*100);return{text:(p>0?'+':'')+p.toFixed(1)+'%',good:a>=b};};
+const delta=(b,a,lowerIsBetter)=>{const p=b===0?0:((a-b)/b*100);const up=a>=b;return{text:(p>0?'+':'')+p.toFixed(1)+'%',good:lowerIsBetter?!up:up,up};};
 // unit별로 "실제 증감분"과 "비율"을 함께 만든 표시 문자열
 function diffText(before,after,unit){
   const diff=after-before;
@@ -433,14 +436,14 @@ async function renderOverview(d){
 
   // ===== 최상단: 한눈에 보기 (핵심 지표 3개를 그래프로 먼저) =====
   h+='<h2 class="sec" style="margin-top:0;">한눈에 보기</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 14px;">최근 30일 핵심 흐름 · 위 기간 선택과 무관하게 항상 최근 30일이에요.</p>';
+  h+='<p class="sec-desc">최근 30일 핵심 흐름 · 위 기간 선택과 무관하게 항상 최근 30일이에요.</p>';
   h+='<div id="heroWrap"><div class="state"><div class="spinner"></div>핵심 지표 불러오는 중…</div></div>';
 
   h+='<h2 class="sec">① 획득 (Acquisition)</h2>'+kpiHTML(byGroup('acquisition'));
   h+='<div id="cafe24TrafficWrap"></div>';
 
   h+='<h2 class="sec">② 활성화 (Activation)</h2><div id="actWrap">'+kpiHTML(byGroup('activation'))+'</div>';
-  h+='<p style="font-size:12px;color:var(--muted);margin-top:-14px;margin-bottom:24px;">방문 세션 중 상품 상세·장바구니로 이어진 비율 · 신규 가입은 cafe24 회원 데이터 기준</p>';
+  h+='<p class="sec-desc">방문 세션 중 상품 상세·장바구니로 이어진 비율 · 신규 가입은 cafe24 회원 데이터 기준</p>';
 
   h+='<h2 class="sec">③ 유지 (Retention)</h2><div id="auWrap" class="kpis"><div class="state" style="grid-column:1/-1;"><div class="spinner"></div>불러오는 중…</div></div>';
   h+=kpiHTML(byGroup('retention'));
@@ -450,17 +453,17 @@ async function renderOverview(d){
   h+='<h2 class="sec">⑤ 추천 (Referral)</h2><div class="soon-box">아직 측정 안 됨.<br><span style="font-size:12px;">공유·바이럴 이벤트가 GA4에 연결돼 있지 않아요. 공유 버튼 등에 클릭 이벤트를 추가하면 바이럴계수·공유율을 여기에 넣을 수 있어요.</span></div>';
 
   h+='<h2 class="sec">⑥ 성장 지표</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 14px;">월별 성장 추이 · 위 기간 선택과 무관하게 항상 최근 12~13개월 기준.</p>';
+  h+='<p class="sec-desc">월별 성장 추이 · 위 기간 선택과 무관하게 항상 최근 12~13개월 기준.</p>';
   h+='<div id="growthWrap" class="state"><div class="spinner"></div>성장 지표 불러오는 중…</div>';
 
   h+='<h2 class="sec">⑦ 유저 세그먼트</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 14px;">선택한 기간 기준, 어떤 유형의 방문자가 더 활발하고 더 잘 구매하는지.</p>';
+  h+='<p class="sec-desc">선택한 기간 기준, 어떤 유형의 방문자가 더 활발하고 더 잘 구매하는지.</p>';
   h+='<div id="segWrap" class="state"><div class="spinner"></div>세그먼트 불러오는 중…</div>';
 
   h+='<h2 class="sec">일별 추이</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">위에서 고른 기간과 무관하게, 최근 며칠간 흐름을 봅니다.</p>';
+  h+='<p class="sec-desc">위에서 고른 기간과 무관하게, 최근 며칠간 흐름을 봅니다.</p>';
   h+='<div class="preset-btns" id="trendBtns" style="margin-bottom:14px;"></div>';
-  h+='<div id="chartWrap" class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div>';
+  h+='<div id="chartWrap"><div class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div></div>';
   $('content').innerHTML=h;
 
   // 최상단 핵심 그래프를 가장 먼저 로드 (제일 먼저 보이는 영역이니까)
@@ -561,24 +564,6 @@ function aggregateMonthlyRevenue(daily){
 }
 function growthPct(prev,cur){ return prev? ((cur-prev)/prev*100) : null; }
 
-function miniBarChart(labels, values, color, valFmt){
-  const W=920,H=140,pad=28;
-  const max=Math.max(...values,1);
-  const bw=(W-pad*2)/values.length*0.7;
-  const gap=(W-pad*2)/values.length;
-  let bars='';
-  values.forEach((v,i)=>{
-    const x=pad+i*gap+(gap-bw)/2;
-    const h=Math.max((v/max)*(H-pad*2),2);
-    const y=H-pad-h;
-    bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" rx="3"/>`;
-  });
-  const labelEls=labels.map((lb,i)=>{
-    const x=pad+i*gap+gap/2;
-    return `<text x="${x.toFixed(1)}" y="${H-8}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`;
-  }).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;">${bars}${labelEls}</svg>`;
-}
 function miniLineChart(labels, values, color, valueFmt){
   const W=920,H=220,padL=58,padR=16,padB=30,padT=22;
   const rawMax=Math.max(...values,1), rawMin=Math.min(...values,0);
@@ -602,7 +587,7 @@ function miniLineChart(labels, values, color, valueFmt){
   const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
   const avgY = y(avg).toFixed(1);
   const avgLine = values.length>1 ? `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${W-padR-2}" y="${(Number(avgY)-6).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
+    <text x="${padL+6}" y="${(Number(avgY)-7).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="start" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
 
   const path=values.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const area=values.length>1 ? path+` L${x(values.length-1).toFixed(1)},${H-padB} L${x(0).toFixed(1)},${H-padB} Z` : '';
@@ -621,7 +606,7 @@ function miniLineChart(labels, values, color, valueFmt){
 
 // 세로 막대그래프 (일별 건수 등 이산적인 값에 적합)
 function verticalBarChart(labels, values, color, valueFmt){
-  const W=920,H=200,padL=58,padR=16,padB=30,padT=18;
+  const W=920,H=220,padL=58,padR=16,padB=30,padT=18;
   const rawMax=Math.max(...values,1);
   const niceStep=(r)=>{const raw=r/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)||0));const n=raw/mag;return (n<=1?1:n<=2?2:n<=5?5:10)*mag;};
   const step=niceStep(rawMax||1);
@@ -644,13 +629,20 @@ function verticalBarChart(labels, values, color, valueFmt){
   const avg = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
   const avgY = y(avg).toFixed(1);
   const avgLine = values.length>1 ? `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${W-padR-2}" y="${(Number(avgY)-6).toFixed(1)}" font-size="10" fill="#66768A" text-anchor="end" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
+    <text x="${padL+6}" y="${(Number(avgY)-7).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="start" font-family="var(--mono)">평균 ${valueFmt?valueFmt(avg):fmt(Math.round(avg))}</text>` : '';
   const lstep=Math.max(1,Math.ceil(labels.length/9));
   const labelEls=labels.map((lb,i)=>(i%lstep===0||i===labels.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-10}" font-size="10" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${lb}</text>`:'').join('');
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}${bars}${avgLine}${labelEls}</svg>`;
 }
 
 function won(v){ return fmt(v)+'원'; }
+// 금액 축 라벨: 만 단위가 커지면 억으로 (60000만 → 6억)
+function wonAxis(v){
+  const a=Math.abs(v);
+  if(a>=100000000) return (v/100000000).toFixed(1).replace(/\.0$/,'')+'억';
+  if(a>=10000) return Math.round(v/10000)+'만';
+  return fmt(Math.round(v));
+}
 let REVENUE_CACHE=null;
 
 // ===== 최상단 핵심 그래프: 매출 / 방문 / 구매 (최근 30일) =====
@@ -686,7 +678,7 @@ async function loadHeroCharts(){
       const vals=revDaily.map(r=>r.net);
       const total=vals.reduce((a,b)=>a+b,0);
       cards.push({title:'매출총액', total:won(total), color:'#0E7C6E',
-        svg: miniLineChart(labels, vals, '#0E7C6E', v=>Math.round(v/10000)+'만')});
+        svg: miniLineChart(labels, vals, '#0E7C6E', v=>wonAxis(v))});
     }
     if(gaDaily.length>1){
       const labels=gaDaily.map(r=>r.date.slice(4,6)+'/'+r.date.slice(6,8));
@@ -700,7 +692,7 @@ async function loadHeroCharts(){
 
     if(!cards.length){ wrap.innerHTML='<div class="state">핵심 지표 데이터를 불러오지 못했습니다</div>'; return; }
     wrap.innerHTML = cards.map(c=>
-      `<div class="funnel" style="margin-bottom:14px;">
+      `<div class="funnel card-gap">
         <div class="mini-head"><span class="mini-dot" style="background:${c.color}"></span>${c.title}
           <span class="mini-total">${c.total}</span></div>
         ${c.svg}
@@ -736,12 +728,12 @@ async function loadGrowthMetrics(){
       h+='</div>';
 
       const last12=monthly.slice(-12);
-      h+='<div class="section-title" style="margin-top:18px;">월별 매출 추이 (최근 '+last12.length+'개월)</div>';
-      h+='<div class="funnel">'+miniLineChart(last12.map(m=>m.month.slice(5)), last12.map(m=>m.net), '#0E7C6E', v=>Math.round(v/10000)+'만')+'</div>';
+      h+='<div class="section-title">월별 매출 추이 (최근 '+last12.length+'개월)</div>';
+      h+='<div class="funnel">'+miniLineChart(last12.map(m=>m.month.slice(5)), last12.map(m=>m.net), '#0E7C6E', v=>wonAxis(v))+'</div>';
 
       // 객단가(AOV) 추이
       const aovMonthly=last12.map(m=>m.count? Math.round(m.net/m.count):0);
-      h+='<div class="section-title" style="margin-top:18px;">월별 객단가(AOV) 추이</div>';
+      h+='<div class="section-title">월별 객단가(AOV) 추이</div>';
       h+='<div class="funnel">'+miniLineChart(last12.map(m=>m.month.slice(5)), aovMonthly, '#C8993F', v=>fmt(v))+'</div>';
     } else {
       h+='<div class="state">매출 데이터가 아직 충분하지 않습니다 (최소 2개월 필요)</div>';
@@ -757,7 +749,7 @@ async function loadGrowthMetrics(){
       const values=dd.monthly.map(m=>m.activeUsers);
       const lastM=dd.monthly[dd.monthly.length-1], prevM=dd.monthly[dd.monthly.length-2];
       const momMau=prevM? growthPct(prevM.activeUsers,lastM.activeUsers):null;
-      h+='<div class="section-title" style="margin-top:22px;">월별 MAU 추이 <span class="badge">'+(momMau!=null?('전월대비 '+(momMau>=0?'+':'')+momMau.toFixed(1)+'%'):'')+'</span></div>';
+      h+='<div class="section-title">월별 MAU 추이 <span class="badge">'+(momMau!=null?('전월대비 '+(momMau>=0?'+':'')+momMau.toFixed(1)+'%'):'')+'</span></div>';
       h+='<div class="funnel">'+miniLineChart(labels, values, '#2B7DB8', v=>fmt(v))+'</div>';
     }
   }catch(e){ h+='<div class="state">MAU 추이를 불러오지 못했습니다</div>'; }
@@ -772,8 +764,8 @@ async function loadGrowthMetrics(){
       const labels=dd2.points.map(p=>'D'+p.day);
       const values=dd2.points.map(p=>p.retention);
       const d1=dd2.points.find(p=>p.day===1), d7=dd2.points.find(p=>p.day===7), d30=dd2.points.find(p=>p.day===30);
-      h+='<div class="section-title" style="margin-top:22px;">리텐션 곡선 (최근 신규 유입 코호트, Day 0~30)</div>';
-      h+='<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">처음 방문한 사람들 중, N일 후에도 다시 온 비율(%)</p>';
+      h+='<div class="section-title">리텐션 곡선 (최근 신규 유입 코호트, Day 0~30)</div>';
+      h+='<p class="sec-desc">처음 방문한 사람들 중, N일 후에도 다시 온 비율(%)</p>';
       h+='<div class="kpis">';
       h+=`<div class="kpi"><div class="k-label">Day 1 잔존율</div><div class="k-now">${d1?d1.retention.toFixed(1)+'%':'-'}</div></div>`;
       h+=`<div class="kpi"><div class="k-label">Day 7 잔존율</div><div class="k-now">${d7?d7.retention.toFixed(1)+'%':'-'}</div></div>`;
@@ -890,8 +882,8 @@ function drawDayOfWeek(daily){
   const avgPurchase=buckets.map(b=>b.n?Number((b.purchase/b.n).toFixed(1)):0);
   const hasData=avgSessions.some(v=>v>0);
   if(!hasData){ box.innerHTML=''; return; }
-  let h='<div class="section-title" style="margin-top:4px;">요일별 평균</div>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">같은 요일들의 평균값 · 어느 요일이 강한지 보면 프로모션·발송 요일 정할 때 참고돼요.</p>';
+  let h='<div class="section-title">요일별 평균</div>';
+  h+='<p class="sec-desc">같은 요일들의 평균값 · 어느 요일이 강한지 보면 프로모션·발송 요일 정할 때 참고돼요.</p>';
   h+='<div class="chart-grid">';
   h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#0E7C6E"></span>요일별 평균 세션</div>'
     + verticalBarChart(DOW_NAMES, avgSessions, '#0E7C6E', v=>fmt(Math.round(v))) + '</div>';
@@ -933,7 +925,7 @@ function renderMini(s,daily){
   const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
   const avgY = y(avg).toFixed(1);
   const avgLine = `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#66768A" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${W-padR-2}" y="${(Number(avgY)-6).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="end" font-family="var(--mono)">평균 ${fmt(Math.round(avg))}</text>`;
+    <text x="${padL+6}" y="${(Number(avgY)-7).toFixed(1)}" font-size="11" fill="#66768A" text-anchor="start" font-family="var(--mono)">평균 ${fmt(Math.round(avg))}</text>`;
   const lstep=Math.max(1,Math.ceil(daily.length/7));
   const labelEls=daily.map((d,i)=>(i%lstep===0||i===daily.length-1)?`<text x="${x(i).toFixed(1)}" y="${H-9}" font-size="11" fill="#66768A" text-anchor="middle" font-family="var(--mono)">${dt(d)}</text>`:'').join('');
   box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;">${grid}${yAxis}
@@ -1094,7 +1086,7 @@ let LAST_PERF_DATA = null;
 function renderProductTab(dPerf, dSlots){
   LAST_PERF_DATA = {dPerf, dSlots};
   let h=`<div class="period-label">기준 기간 &nbsp; <b>${dPerf.periodAfter}</b> &nbsp;<span style="color:var(--muted)">· 구좌는 수시로 바뀌어 선택 기간 성과만 표시</span></div>`;
-  h+=`<p style="font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.6;">
+  h+=`<p class="sec-desc">
     <b>구좌 순서</b> = 메인 화면에 배치된 위치(몇 번째 칸인지). &nbsp;
     <b>유입 세션</b> = 그 구좌를 눌러서 실제로 넘어간 방문 수. 위치는 고정, 그 자리에 걸린 상품은 바뀔 수 있어요.</p>`;
 
@@ -1107,7 +1099,7 @@ function renderProductTab(dPerf, dSlots){
   const top10 = [...allRows].sort((a,b)=>b.after.sessions-a.after.sessions).slice(0,10);
   const top10Max = Math.max(...top10.map(r=>r.after.sessions),1);
   h+='<h2 class="sec">핵심 구좌 TOP 10 (전체 유입 대비)</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">art·life 전체 구좌를 통틀어, 실제 유입이 가장 많이 몰린 자리들이에요.</p>';
+  h+='<p class="sec-desc">art·life 전체 구좌를 통틀어, 실제 유입이 가장 많이 몰린 자리들이에요.</p>';
   h+='<div class="section-block">'+top10.map((r,i)=>{
     const w=Math.max(r.after.sessions/top10Max*100,4);
     const color=sectionColor(r.section);
@@ -1121,7 +1113,7 @@ function renderProductTab(dPerf, dSlots){
   // 공통(글로벌 네비) — art/life 둘 다 동일하므로 한 번만
   const commonRows = (dPerf.slotperf['art']||[]).filter(r=>r.section==='글로벌네비');
   h+='<h2 class="sec">공통 (글로벌 네비)</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">art·life 어디서 봐도 같은 상단 메뉴라 한 번만 표시해요.</p>';
+  h+='<p class="sec-desc">art·life 어디서 봐도 같은 상단 메뉴라 한 번만 표시해요.</p>';
   h+=`<div class="section-block">
     <div class="section-block-head"><span class="section-dot" style="background:${sectionColor('글로벌네비')};"></span><span class="section-block-title">글로벌 네비</span></div>
     ${sectionTable(commonRows)}</div>`;
@@ -1131,7 +1123,7 @@ function renderProductTab(dPerf, dSlots){
   h+='<div id="productSubtabWrap"></div>';
 
   h+='<h2 class="sec">목적지별 이동 순위 (상위 30)</h2>';
-  h+='<p style="font-size:13px;color:var(--muted);margin:0 0 18px;">각 메인(art·life)에서 클릭해 넘어간 목적지(상품·카테고리)를 유입 세션 많은 순으로.</p>';
+  h+='<p class="sec-desc">각 메인(art·life)에서 클릭해 넘어간 목적지(상품·카테고리)를 유입 세션 많은 순으로.</p>';
   ['art.html','life.html'].forEach(k=>{const s=dSlots.slots[k]||{};
     h+=`<h2 class="sec" style="font-size:15px;">${k} 메인에서의 이동</h2>`;
     h+=`<div class="slot-cols"><div class="section-block">${slotTable(s.before)}</div><div class="section-block">${slotTable(s.after)}</div></div>`;});
@@ -1183,7 +1175,7 @@ function renderAcquisition(d){
   h+='<h2 class="sec">디바이스별</h2>'+rankTable(d.acquisition.byDevice,'디바이스');
 
   h+='<h2 class="sec">국가별 유입</h2>';
-  h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">유입은 많은데 체류시간이 비정상적으로 짧으면(수 초 이내) 봇·광고 어뷰징일 가능성이 있어요.</p>';
+  h+='<p class="sec-desc">유입은 많은데 체류시간이 비정상적으로 짧으면(수 초 이내) 봇·광고 어뷰징일 가능성이 있어요.</p>';
   const countries=d.acquisition.byCountry||[];
   if(countries.length){
     const maxC=Math.max(...countries.map(c=>c.sessions),1);
@@ -1215,7 +1207,7 @@ async function loadCountryDetail(){
     if(dd.error){ wrap.innerHTML='<div class="state">불러오지 못했습니다: '+dd.error+'</div>'; return; }
     const countries=dd.countries||[];
     if(!countries.length){ wrap.innerHTML='<div class="state">데이터 없음</div>'; return; }
-    let html='<p style="font-size:12px;color:var(--muted);margin:0 0 14px;">각 국가에서 실제로 어떤 페이지를 봤는지. 같은 페이지만 반복되거나 direct(리퍼러 없음)로 몰려있으면 봇·스크래퍼 의심.</p>';
+    let html='<p class="sec-desc">각 국가에서 실제로 어떤 페이지를 봤는지. 같은 페이지만 반복되거나 direct(리퍼러 없음)로 몰려있으면 봇·스크래퍼 의심.</p>';
     countries.forEach(c=>{
       if(!c.pages || !c.pages.length){
         html+=`<div class="section-block"><div class="section-block-head"><span class="section-block-title">${c.country}</span><span class="section-block-total">세션 ${fmt(c.sessions)} · ${c.share.toFixed(1)}%</span></div><div class="state">방문 페이지 없음</div></div>`;
@@ -1276,27 +1268,50 @@ async function loadRevenue(){
 function renderRevenue(d){
   let h=periodLabel(d);
   const b=d.revenue.before, a=d.revenue.after;
+  // 환불율 = 환불액 ÷ 거래액
+  const refRateB = b.gmv ? b.refund/b.gmv*100 : 0;
+  const refRateA = a.gmv ? a.refund/a.gmv*100 : 0;
   const rows=[
     {label:'거래액(GMV)',b:b.gmv,a:a.gmv},
     {label:'매출총액',b:b.net,a:a.net},
-    {label:'주문 건수',b:b.count,a:a.count},
+    {label:'주문 건수',b:b.count,a:a.count,unit:'count'},
     {label:'객단가',b:b.aov,a:a.aov},
-    {label:'환불액',b:b.refund,a:a.refund},
+    {label:'환불액',b:b.refund,a:a.refund,lower:true},
+    {label:'환불율',b:refRateB,a:refRateA,unit:'percent',lower:true},
   ];
-  h+='<div class="kpis">'+rows.map(r=>{const x=delta(r.b,r.a);
-    return `<div class="kpi"><div class="k-label">${r.label}</div><div class="k-now">${won(r.a)}</div>
-    <div class="delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+won(r.b):''}</div></div>`;}).join('')+'</div>';
+  const fmtVal=(v,unit)=> unit==='percent' ? v.toFixed(2)+'%' : (unit==='count' ? fmt(v)+'건' : won(v));
+  h+='<div class="kpis">'+rows.map(r=>{const x=delta(r.b,r.a,r.lower);
+    return `<div class="kpi"><div class="k-label">${r.label}</div><div class="k-now">${fmtVal(r.a,r.unit)}</div>
+    <div class="delta ${x.good?'good':'bad'}">${x.up?'▲':'▼'} ${x.text}</div><div class="k-was">${$('cmp').checked?'이전: '+fmtVal(r.b,r.unit):''}</div></div>`;}).join('')+'</div>';
   // 일별 매출 추이 (선택 기간)
   const dr = d.dailyRows || [];
   if(dr.length>1){
     const labels = dr.map(r=>r.date.slice(5).replace('-','/'));
     h+='<h2 class="sec">일별 매출 추이</h2>';
-    h+='<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">선택한 기간의 매출총액 흐름 · 점에 마우스를 올리면 그날 값이 나와요.</p>';
-    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.net), '#0E7C6E', v=>Math.round(v/10000)+'만')+'</div>';
+    h+='<p class="sec-desc">선택한 기간의 매출총액 흐름 · 점에 마우스를 올리면 그날 값이 나와요.</p>';
+    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.net), '#0E7C6E', v=>wonAxis(v))+'</div>';
     h+='<h2 class="sec">일별 주문 건수</h2>';
     h+='<div class="funnel">'+verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v)))+'</div>';
     h+='<h2 class="sec">일별 객단가 추이</h2>';
-    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0), '#C8993F', v=>Math.round(v/10000)+'만')+'</div>';
+    h+='<div class="funnel">'+miniLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0), '#C8993F', v=>wonAxis(v))+'</div>';
+
+    // 환불: 금액과 비율을 같이 봐야 의미가 있어서 두 개 같이
+    const refunds = dr.map(r=>r.refund||0);
+    if(refunds.some(v=>v>0)){
+      h+='<h2 class="sec">일별 환불</h2>';
+      h+='<p class="sec-desc">환불액과 환불율(환불액÷거래액)을 같이 봐요 · 금액이 커도 거래액이 크면 비율은 낮을 수 있어요.</p>';
+      h+='<div class="chart-grid">';
+      h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#C85A3F"></span>환불액'
+        + `<span class="mini-total">${won(refunds.reduce((x,y)=>x+y,0))}</span></div>`
+        + verticalBarChart(labels, refunds, '#C85A3F', v=>wonAxis(v)) + '</div>';
+      const refRates = dr.map(r=>r.gmv? Number((r.refund/r.gmv*100).toFixed(2)) : 0);
+      const totalGmv = dr.reduce((x,r)=>x+(r.gmv||0),0);
+      const totalRef = refunds.reduce((x,y)=>x+y,0);
+      h+='<div class="mini-chart"><div class="mini-head"><span class="mini-dot" style="background:#C85A9E"></span>환불율'
+        + `<span class="mini-total">${totalGmv?(totalRef/totalGmv*100).toFixed(2):0}%</span></div>`
+        + miniLineChart(labels, refRates, '#C85A9E', v=>v.toFixed(1)+'%') + '</div>';
+      h+='</div>';
+    }
   }
 
   h+='<h2 class="sec">판매 TOP 5 (선택 기간)</h2>';
