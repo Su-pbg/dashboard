@@ -38,6 +38,7 @@
   .ctrl .pair{display:flex;gap:4px;align-items:center;}
   .ctrl .pair>span{font-size:12px;color:var(--muted);line-height:32px;}
   input[type=date]{font-family:var(--mono);font-size:12px;border:1px solid var(--hair);border-radius:7px;padding:0 6px;height:32px;color:var(--ink);background:var(--surface);min-width:0;flex:1 1 0;}
+  select.ctrl-sel{font-family:var(--sans);font-size:12px;border:1px solid var(--hair);border-radius:7px;padding:0 6px;height:32px;color:var(--ink);background:var(--surface);min-width:0;cursor:pointer;}
   .ctrl-row>label.excl{padding-bottom:7px;}
   .ctrl.is-off label{color:var(--ghost);}
   .ctrl.is-off .pair>span{color:var(--ghost);}
@@ -123,6 +124,7 @@
   .soon-box b{color:var(--ink);}
   .section-title{font-size:14px;font-weight:700;margin:20px 0 10px;color:var(--ink);}
   .section-title .badge{font-size:11px;color:var(--muted);font-weight:400;}
+  .mini-head .badge{font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;}
   
   .chart-hit{cursor:crosshair;}
   #chartTip{position:fixed;z-index:9999;background:#172230;color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;pointer-events:none;opacity:0;transition:opacity .1s;box-shadow:0 6px 20px rgba(0,0,0,.22);white-space:nowrap;}
@@ -207,6 +209,11 @@
       <div class="ctrl"><label>기간</label><div class="pair">
         <input type="date" id="s"><span>~</span><input type="date" id="e"></div></div>
       <label class="excl"><input type="checkbox" id="cmp"> 비교</label>
+      <div class="ctrl" id="cmpModeBox"><label>비교 방식</label><div class="pair">
+        <select class="ctrl-sel" id="cmpMode">
+          <option value="prev">직전 기간</option>
+          <option value="yoy">전년 동기</option>
+        </select></div></div>
       <div class="ctrl" id="cmpBox"><label>비교 대상 기간</label><div class="pair">
         <input type="date" id="cs"><span>~</span><input type="date" id="ce"></div></div>
     </div>
@@ -317,7 +324,21 @@ function setRange(s0,e0){$('s').value=s0;$('e').value=e0;}
 let MONTH_MODE=false;
 // 기간을 바꿀 때마다 비교 날짜를 '직전 기간'으로 미리 채워줌.
 // (사용자가 직접 고치면 그 값이 유지됨 — CMP_TOUCHED 플래그로 판단)
+// 같은 날짜의 1년 전. 2월 29일처럼 전년에 없는 날은 그 달 말일로 당김.
+function yearAgo(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  const py=y-1;
+  const lastDay=new Date(py, m, 0).getDate();
+  return `${py}-${String(m).padStart(2,'0')}-${String(Math.min(d,lastDay)).padStart(2,'0')}`;
+}
 function autoCompare(){
+  // 전년 동기: 시작·종료일을 그대로 1년 전으로 옮김. 달 단위 프리셋이어도 같은 규칙
+  // (지난달 → 작년 같은 달)이라 MONTH_MODE 분기가 필요 없음.
+  if($('cmpMode').value==='yoy'){
+    $('cs').value=yearAgo($('s').value);
+    $('ce').value=yearAgo($('e').value);
+    return;
+  }
   const s0=new Date($('s').value), e0=new Date($('e').value);
   if(MONTH_MODE){
     // 선택 기간이 속한 달의 "직전 달 전체"(1일~말일)
@@ -337,7 +358,9 @@ function syncCmpEnabled(){
   const on=$('cmp').checked;
   $('cs').disabled = !on;
   $('ce').disabled = !on;
+  $('cmpMode').disabled = !on;
   $('cmpBox').classList.toggle('is-off', !on);
+  $('cmpModeBox').classList.toggle('is-off', !on);
 }
 syncCmpEnabled();
 
@@ -346,6 +369,10 @@ const PRESETS=[
   {label:'최근 7일',month:false,fn:()=>{const y=addDays(new Date(),-1);setRange(iso(addDays(y,-6)),iso(y));}},
   {label:'지난달',month:true,fn:()=>{const n=new Date();const firstOfThisMonth=new Date(n.getFullYear(),n.getMonth(),1);const lastOfPrevMonth=addDays(firstOfThisMonth,-1);const firstOfPrevMonth=new Date(lastOfPrevMonth.getFullYear(),lastOfPrevMonth.getMonth(),1);setRange(iso(firstOfPrevMonth),iso(lastOfPrevMonth));}},
   {label:'이번달',month:true,fn:()=>{const n=new Date();setRange(iso(new Date(n.getFullYear(),n.getMonth(),1)),iso(addDays(new Date(),-1)));}},
+  {label:'올해',month:false,fn:()=>{const n=new Date();setRange(`${n.getFullYear()}-01-01`,iso(addDays(n,-1)));}},
+  // 매출 데이터는 2025-01-01부터 백필돼 있음. 그 이전(2024)은 데이터가 없어서
+  // 비교를 켜두면 전 구간이 0으로 나와 오해를 부르므로, 이 프리셋은 비교를 끈다.
+  {label:'작년',month:false,noCompare:true,fn:()=>{const y=new Date().getFullYear()-1;setRange(`${y}-01-01`,`${y}-12-31`);}},
 ];
 $('presets').innerHTML=PRESETS.map((p,i)=>`<button data-i="${i}" data-preset-btn>${p.label}</button>`).join('');
 document.querySelectorAll('[data-preset-btn]')[0]?.classList.add('active'); // 기본값=어제
@@ -354,8 +381,14 @@ $('presets').addEventListener('click',(e)=>{const i=e.target.dataset.i;if(i==nul
   PRESETS[i].fn();
   document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active'));
   e.target.classList.add('active');
+  // 비교할 이전 데이터가 없는 프리셋(작년 등)은 비교를 끈다. 켜는 쪽으로는 건드리지 않음.
+  if(PRESETS[i].noCompare && $('cmp').checked){ $('cmp').checked=false; syncCmpEnabled(); }
   if($('cmp').checked)autoCompare();
   load();
+});
+// 비교 방식(직전 기간 / 전년 동기)을 바꾸면 비교 날짜를 다시 채우고 바로 조회
+$('cmpMode').addEventListener('change',()=>{
+  if($('cmp').checked){ autoCompare(); load(); }
 });
 // 날짜를 직접 수정하면 프리셋 선택 표시 해제 + 달 단위 모드도 해제
 $('s').addEventListener('change',()=>{MONTH_MODE=false;document.querySelectorAll('[data-preset-btn]').forEach(b=>b.classList.remove('active'));});
@@ -396,10 +429,66 @@ function q(extra){
 function showLoading(){$('content').innerHTML='<div class="state"><div class="spinner"></div>데이터 불러오는 중…</div>';}
 function showErr(m){$('content').innerHTML=`<div class="err">데이터를 불러오지 못했습니다.<br>${m}<br><br>잠시 후 [조회]를 다시 눌러보세요.</div>`;}
 function cmpModeLabel(){
-  return '비교 기간';
+  return $('cmpMode').value==='yoy' ? '전년 동기' : '비교 기간';
+}
+
+// ===== 긴 기간 자동 묶기 (일별 → 주별 → 월별) =====
+// 차트 그림영역 폭이 758px 고정이라, 일별로 그리면 365일에서 슬롯이 2px가 되어
+// 막대가 서로 겹친다(비교 켜면 한 슬롯을 둘로 쪼개므로 더 심함).
+// 그래서 기간이 길면 데이터를 미리 묶어서 넘긴다. 차트 함수 자체는 손대지 않음.
+//   ~62일   일별   (지난달+이번달까지 커버, 막대 폭 4px 이상 확보)
+//   ~180일  주별   (최대 26칸 → 막대 폭 약 10px)
+//   181일~  월별   (365일이 12칸 → 막대 폭 상한 14px)
+function bucketModeFor(n){ return n<=62 ? 'day' : (n<=180 ? 'week' : 'month'); }
+// GA4는 'YYYYMMDD', 매출은 'YYYY-MM-DD'로 날짜 형식이 달라서 흡수
+function normDate(d){ d=String(d); return d.length===8 && !d.includes('-') ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : d; }
+function bucketKeyOf(dateStr, mode){
+  const d=normDate(dateStr);
+  if(mode==='month') return d.slice(0,7);
+  const dt=new Date(d+'T00:00:00');
+  const dow=(dt.getDay()+6)%7;            // 월요일=0 으로 맞춤
+  dt.setDate(dt.getDate()-dow);
+  return iso(dt);                          // 그 주 월요일
+}
+function bucketLabelOf(key, mode){
+  if(mode==='month'){ const [y,m]=key.split('-'); return `${y.slice(2)}/${Number(m)}월`; }
+  return key.slice(5).replace('-','/');    // 주 시작일 MM/DD
+}
+// 숫자 필드는 전부 합산. 합산으로 만든 값에서 비율·객단가를 다시 계산하면
+// 자동으로 가중평균이 되므로(예: 월 객단가 = 월 매출합 / 월 건수합) 호출부 수식은 그대로 둬도 맞다.
+function bucketRows(rows, mode){
+  if(mode==='day' || !rows || !rows.length) return rows;
+  const map=new Map();
+  for(const r of rows){
+    const k=bucketKeyOf(r.date, mode);
+    let b=map.get(k);
+    if(!b){ b={date:k, _first:normDate(r.date), _days:0}; map.set(k,b); }
+    b._days++;
+    const nd=normDate(r.date);
+    if(nd<b._first) b._first=nd;            // 구간 첫날(선택 기간에 실제로 포함된 날)
+    for(const key in r){
+      if(key==='date') continue;
+      const v=r[key];
+      if(typeof v==='number') b[key]=(b[key]||0)+v;
+    }
+  }
+  // 주별 라벨은 달력상 월요일이 아니라 "선택 기간에 실제로 들어있는 첫날"로 표기한다.
+  // 그러지 않으면 기간 경계의 첫 칸이 범위 밖 날짜로 표시돼 오해를 부른다.
+  const out=[...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  out.forEach(b=>{ b._label = mode==='month' ? bucketLabelOf(b.date,mode) : b._first.slice(5).replace('-','/'); });
+  return out;
+}
+// 묶은 뒤에는 _label을, 일별이면 원래 라벨 함수를 쓴다
+function labelerFor(mode, dayLabel){
+  return (r)=> mode==='day' ? dayLabel(r.date) : r._label;
+}
+function bucketNoteOf(mode){
+  if(mode==='week') return '<span class="badge">주별 합계</span>';
+  if(mode==='month') return '<span class="badge">월별 합계</span>';
+  return '';
 }
 function periodLabel(d){
-  if($('cmp').checked) return `<div class="period-label"><b>비교</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
+  if($('cmp').checked) return `<div class="period-label"><b>${cmpModeLabel()}</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`;
   return `<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
 }
 
@@ -682,7 +771,7 @@ function compareLineChart(labels, curValues, prevValues, color, valueFmt, series
     <line x1="${padL}" y1="${padT-16}" x2="${padL+18}" y2="${padT-16}" stroke="${color}" stroke-width="2.5"/>
     <text x="${padL+24}" y="${padT-12}" fill="#172230">선택 기간</text>
     <line x1="${padL+96}" y1="${padT-16}" x2="${padL+114}" y2="${padT-16}" stroke="#98A4B4" stroke-width="2" stroke-dasharray="6 4"/>
-    <text x="${padL+120}" y="${padT-12}" fill="#66768A">비교 기간</text></g>` : '';
+    <text x="${padL+120}" y="${padT-12}" fill="#66768A">${cmpModeLabel()}</text></g>` : '';
 
   // 마우스 감지 영역 + 툴팁 데이터
   const tips=labels.map((lb,i)=>{
@@ -844,7 +933,7 @@ function verticalBarChart(labels, values, color, valueFmt, prevValues, seriesNam
     <rect x="${padL}" y="${padT-20}" width="10" height="10" rx="2" fill="${color}"/>
     <text x="${padL+15}" y="${padT-11}" fill="#172230">선택 기간</text>
     <rect x="${padL+92}" y="${padT-20}" width="10" height="10" rx="2" fill="#98A4B4"/>
-    <text x="${padL+107}" y="${padT-11}" fill="#66768A">비교 기간</text></g>` : '';
+    <text x="${padL+107}" y="${padT-11}" fill="#66768A">${cmpModeLabel()}</text></g>` : '';
 
   const tips=labels.map((lb,i)=>{
     const rows=[{n:seriesName||'선택', v:(valueFmt?valueFmt(values[i]):fmt(values[i])), c:color}];
@@ -908,24 +997,33 @@ async function loadHeroCharts(){
     const mdLabel=(d)=>d.slice(5).replace('-','/');          // 'YYYY-MM-DD' → 'MM/DD'
     const gaLabel=(d)=>d.slice(4,6)+'/'+d.slice(6,8);         // 'YYYYMMDD' → 'MM/DD'
 
-    if(revCur.length>1){
-      const labels=revCur.map(r=>mdLabel(r.date));
-      const prevLabels=revPrev.length? revPrev.map(r=>mdLabel(r.date)) : null;
-      const cur=revCur.map(r=>r.net);
-      const prev=revPrev.length? revPrev.map(r=>r.net) : null;
-      cards.push({title:'매출총액', total:won(cur.reduce((a,b)=>a+b,0)), color:'#0E7C6E',
+    // 선택 기간 길이로 묶는 단위를 정하고, 비교 기간도 같은 단위로 묶는다
+    // (compareLineChart가 인덱스로 짝을 맞추므로 단위가 어긋나면 안 됨).
+    const spanDays=Math.round((new Date(ae)-new Date(as))/86400000)+1;
+    const bmode=bucketModeFor(spanDays);
+    const bNote=bucketNoteOf(bmode);
+    const revCurB=bucketRows(revCur,bmode), revPrevB=bucketRows(revPrev,bmode);
+    const gaCurB=bucketRows(gaCur,bmode),  gaPrevB=bucketRows(gaPrev,bmode);
+    const revLab=labelerFor(bmode, mdLabel), gaLab=labelerFor(bmode, gaLabel);
+
+    if(revCurB.length>1){
+      const labels=revCurB.map(revLab);
+      const prevLabels=revPrevB.length? revPrevB.map(revLab) : null;
+      const cur=revCurB.map(r=>r.net);
+      const prev=revPrevB.length? revPrevB.map(r=>r.net) : null;
+      cards.push({title:'매출총액'+bNote, total:won(cur.reduce((a,b)=>a+b,0)), color:'#0E7C6E',
         svg: compareLineChart(labels, cur, prev, '#0E7C6E', v=>wonAxis(v), '매출총액', prevLabels)});
     }
-    if(gaCur.length>1){
-      const labels=gaCur.map(r=>gaLabel(r.date));
-      const prevLabels=gaPrev.length? gaPrev.map(r=>gaLabel(r.date)) : null;
-      const sess=gaCur.map(r=>r.sessions||0);
-      const sessPrev=gaPrev.length? gaPrev.map(r=>r.sessions||0) : null;
-      cards.push({title:'방문(세션)', total:fmt(sess.reduce((a,b)=>a+b,0)), color:'#2B7DB8',
+    if(gaCurB.length>1){
+      const labels=gaCurB.map(gaLab);
+      const prevLabels=gaPrevB.length? gaPrevB.map(gaLab) : null;
+      const sess=gaCurB.map(r=>r.sessions||0);
+      const sessPrev=gaPrevB.length? gaPrevB.map(r=>r.sessions||0) : null;
+      cards.push({title:'방문(세션)'+bNote, total:fmt(sess.reduce((a,b)=>a+b,0)), color:'#2B7DB8',
         svg: compareLineChart(labels, sess, sessPrev, '#2B7DB8', v=>fmt(Math.round(v)), '세션', prevLabels)});
-      const purch=gaCur.map(r=>r.purchase||0);
-      const purchPrev=gaPrev.length? gaPrev.map(r=>r.purchase||0) : null;
-      cards.push({title:'구매 건수', total:fmt(purch.reduce((a,b)=>a+b,0))+'건', color:'#7A3FC8',
+      const purch=gaCurB.map(r=>r.purchase||0);
+      const purchPrev=gaPrevB.length? gaPrevB.map(r=>r.purchase||0) : null;
+      cards.push({title:'구매 건수'+bNote, total:fmt(purch.reduce((a,b)=>a+b,0))+'건', color:'#7A3FC8',
         svg: verticalBarChart(labels, purch, '#7A3FC8', v=>fmt(Math.round(v)), purchPrev, '구매 건수')});
     }
 
@@ -1117,15 +1215,20 @@ const SERIES=[
 function drawChart(daily, dailyPrev){
   const wrap=document.getElementById('chartWrap');
   const cmpOn=$('cmp').checked && dailyPrev && dailyPrev.length>1;
-  const dt=(d)=>d.date.slice(4,6)+'/'+d.date.slice(6,8);
-  const labels=daily.map(dt);
-  const prevLabels=cmpOn? dailyPrev.map(dt) : null;
+  const dt=(d)=>d.slice(4,6)+'/'+d.slice(6,8);
+  // 긴 기간은 묶어서 그림. 요일별 평균은 일별 원본이 필요하므로 아래 drawDayOfWeek에는 원본을 넘긴다.
+  const bmode=bucketModeFor((daily||[]).length);
+  const bNote=bucketNoteOf(bmode);
+  const db=bucketRows(daily,bmode), dpb=cmpOn? bucketRows(dailyPrev,bmode) : [];
+  const lab=labelerFor(bmode, dt);
+  const labels=db.map(lab);
+  const prevLabels=cmpOn? dpb.map(lab) : null;
   let h='';
   SERIES.forEach(s=>{
-    const total=daily.reduce((a,d)=>a+(d[s.key]||0),0);
-    const cur=daily.map(d=>d[s.key]||0);
-    const prev=cmpOn? dailyPrev.map(d=>d[s.key]||0) : null;
-    h+=`<div class="funnel card-gap"><div class="mini-head"><span class="mini-dot" style="background:${s.color}"></span>${s.label}
+    const total=db.reduce((a,d)=>a+(d[s.key]||0),0);
+    const cur=db.map(d=>d[s.key]||0);
+    const prev=cmpOn? dpb.map(d=>d[s.key]||0) : null;
+    h+=`<div class="funnel card-gap"><div class="mini-head"><span class="mini-dot" style="background:${s.color}"></span>${s.label}${bNote}
       <span class="mini-total">${fmt(total)}</span></div>`
       + compareLineChart(labels, cur, prev, s.color, v=>fmt(Math.round(v)), s.label, prevLabels)
       + '</div>';
@@ -1814,7 +1917,7 @@ function renderRevenue(d){
   const cmpOn=$('cmp').checked;
   const b=d.revenue.before, a=d.revenue.after;
   let h = cmpOn
-    ? `<div class="period-label"><b>비교</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`
+    ? `<div class="period-label"><b>${cmpModeLabel()}</b> ${d.periodBefore} &nbsp;→&nbsp; <b>선택</b> ${d.periodAfter}</div>`
     : `<div class="period-label">기간 &nbsp; <b>${d.periodAfter}</b></div>`;
 
   // 정가(GMV) → 할인 → 환불 → 실매출(net) 흐름으로 봄
@@ -1923,16 +2026,23 @@ function drawRevenueTrend(){
 
   const cmpOn=$('cmp').checked;
   const cut=(s0,e0)=>all.filter(d=>d.date>=s0 && d.date<=e0).sort((a,b)=>a.date.localeCompare(b.date));
-  const dr=cut($('s').value, $('e').value);
-  const dp=cmpOn? cut($('cs').value, $('ce').value) : [];
+  const drRaw=cut($('s').value, $('e').value);
+  const dpRaw=cmpOn? cut($('cs').value, $('ce').value) : [];
 
-  if(dr.length<2){
+  if(drRaw.length<2){
     wrap.innerHTML='<div class="funnel"><div class="state">선택한 기간이 하루라 추이가 그려지지 않아요. 위에서 기간을 2일 이상으로 넓혀보세요.</div></div>';
     return;
   }
 
-  const labels=dr.map(r=>r.date.slice(5).replace('-','/'));
-  const prevLabels=dp.length? dp.map(r=>r.date.slice(5).replace('-','/')) : null;
+  // 긴 기간은 주별·월별로 묶어서 그린다. 합산 후 비율·객단가를 계산하므로 값은 가중평균이 되어 정확함.
+  const bmode=bucketModeFor(drRaw.length);
+  const bNote=bucketNoteOf(bmode);
+  const dr=bucketRows(drRaw,bmode), dp=bucketRows(dpRaw,bmode);
+  const dayLab=(d)=>d.slice(5).replace('-','/');
+  const lab=labelerFor(bmode, dayLab);
+
+  const labels=dr.map(lab);
+  const prevLabels=dp.length? dp.map(lab) : null;
   const refunds=dr.map(r=>r.refund||0);
   const refundsPrev=dp.length? dp.map(r=>r.refund||0) : null;
   const totalRef=refunds.reduce((x,z)=>x+z,0);
@@ -1944,7 +2054,7 @@ function drawRevenueTrend(){
 
   let h='';
   // 매출 vs 환불 (한 차트에 두 지표) — 제일 중요하니 맨 위
-  h+='<div class="section-title">매출총액 vs 환불액</div>';
+  h+=`<div class="section-title">매출총액 vs 환불액${bNote}</div>`;
   h+='<div class="funnel card-gap">'
     + dualLineChart(labels,
         {name:'매출총액', values:dr.map(r=>r.net), color:'#0E7C6E'},
@@ -1952,26 +2062,26 @@ function drawRevenueTrend(){
         v=>wonAxis(v))
     + '</div>';
 
-  h+=card('매출총액','#0E7C6E', won(sumNet),
+  h+=card('매출총액'+bNote,'#0E7C6E', won(sumNet),
       compareLineChart(labels, dr.map(r=>r.net), pick(dp.map(r=>r.net)), '#0E7C6E', v=>wonAxis(v), '매출총액', prevLabels));
-  h+=card('주문 건수','#2B7DB8', fmt(sumCnt)+'건',
+  h+=card('주문 건수'+bNote,'#2B7DB8', fmt(sumCnt)+'건',
       verticalBarChart(labels, dr.map(r=>r.count), '#2B7DB8', v=>fmt(Math.round(v)),
         cmpOn&&dp.length? dp.map(r=>r.count):null, '주문 건수'));
-  h+=card('객단가','#C8993F', won(sumCnt? Math.round(sumNet/sumCnt) : 0),
+  h+=card('객단가'+bNote,'#C8993F', won(sumCnt? Math.round(sumNet/sumCnt) : 0),
       compareLineChart(labels, dr.map(r=>r.count?Math.round(r.net/r.count):0),
         pick(dp.map(r=>r.count?Math.round(r.net/r.count):0)), '#C8993F', v=>wonAxis(v), '객단가', prevLabels));
-  h+=card('환불액','#C85A3F', won(totalRef),
+  h+=card('환불액'+bNote,'#C85A3F', won(totalRef),
       compareLineChart(labels, refunds, cmpOn&&dp.length? refundsPrev:null, '#C85A3F', v=>wonAxis(v), '환불액', prevLabels));
-  h+=card('환불율','#C85A9E', (totalGmv?(totalRef/totalGmv*100).toFixed(2):0)+'%',
+  h+=card('환불율'+bNote,'#C85A9E', (totalGmv?(totalRef/totalGmv*100).toFixed(2):0)+'%',
       compareLineChart(labels, dr.map(r=>r.gmv?Number((r.refund/r.gmv*100).toFixed(2)):0),
         pick(dp.map(r=>r.gmv?Number((r.refund/r.gmv*100).toFixed(2)):0)), '#C85A9E', v=>v.toFixed(1)+'%', '환불율', prevLabels));
   // 할인: 금액과 비율을 같이 (할인액 = 정가 - (실매출 + 환불))
   const disc=dr.map(r=>Math.max(0,(r.gmv||0)-((r.net||0)+(r.refund||0))));
   const discPrev=dp.length? dp.map(r=>Math.max(0,(r.gmv||0)-((r.net||0)+(r.refund||0)))) : null;
   const totalDisc=disc.reduce((x,z)=>x+z,0);
-  h+=card('할인액','#D8843F', won(totalDisc),
+  h+=card('할인액'+bNote,'#D8843F', won(totalDisc),
       compareLineChart(labels, disc, cmpOn&&dp.length? discPrev:null, '#D8843F', v=>wonAxis(v), '할인액', prevLabels));
-  h+=card('할인율','#B5651D', (totalGmv?(totalDisc/totalGmv*100).toFixed(2):0)+'%',
+  h+=card('할인율'+bNote,'#B5651D', (totalGmv?(totalDisc/totalGmv*100).toFixed(2):0)+'%',
       compareLineChart(labels, dr.map(r=>r.gmv?Number((Math.max(0,r.gmv-(r.net+r.refund))/r.gmv*100).toFixed(2)):0),
         pick(dp.map(r=>r.gmv?Number((Math.max(0,r.gmv-(r.net+r.refund))/r.gmv*100).toFixed(2)):0)), '#B5651D', v=>v.toFixed(1)+'%', '할인율', prevLabels));
 
