@@ -119,12 +119,22 @@
   .sec-desc{font-size:13px;color:var(--muted);margin:0 0 var(--s4);line-height:1.65;}
   .card-gap{margin-bottom:var(--s3);}
   .funnel{background:var(--surface);border:0;border-radius:var(--r-card);padding:var(--s5);}
-  .stage{margin-bottom:var(--s5);}.stage:last-child{margin-bottom:0;}
-  .stage-drop{font-size:12px;color:var(--muted);margin-top:var(--s2);padding-left:var(--s7);}
-  .stage-drop b{color:var(--down);font-weight:700;}
-  .stage-top{display:flex;justify-content:space-between;margin-bottom:var(--s2);font-size:14px;gap:var(--s3);}
-  .stage-name{font-weight:700;font-size:14px;}.stage-conv{font-size:13px;color:var(--muted);font-weight:500;}
-  .stage-conv b{color:var(--accent);}.stage-conv .w{color:var(--down);}
+  /* ── 구매 전환 퍼널 ──
+     통과율·이탈률이 주인공. 세션 수와 막대는 규모를 보여주는 보조 역할. */
+  .fstage{padding:var(--s4) 0;border-bottom:1px solid var(--hair);}
+  .fstage:first-child{padding-top:0;}
+  .fstage:last-child{border-bottom:0;padding-bottom:0;}
+  .fstage-head{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s3);}
+  .fstage-name{font-size:14px;font-weight:700;letter-spacing:-.01em;}
+  .fstage-count{margin-left:auto;font-size:12px;color:var(--muted);font-weight:500;}
+  .fstage-stats{display:flex;gap:var(--s8);margin-bottom:var(--s3);flex-wrap:wrap;}
+  .fstat{min-width:0;}
+  .fstat-num{font-size:24px;font-weight:700;letter-spacing:-.03em;line-height:1.15;display:flex;align-items:baseline;gap:var(--s2);}
+  .fstat-delta{font-size:12px;font-weight:700;letter-spacing:0;white-space:nowrap;}
+  .fstat-label{font-size:12px;color:var(--muted);margin-top:var(--s1);font-weight:500;}
+  .fstat.is-drop .fstat-num{color:var(--down);}
+  .fstage-track{background:var(--fill);border-radius:var(--r-pill);height:8px;overflow:hidden;}
+  .fstage-fill{height:100%;background:var(--accent);border-radius:var(--r-pill);transition:width .5s cubic-bezier(.2,.8,.2,1);}
   .bars{display:grid;gap:var(--s2);}
   .bar-row{display:flex;align-items:center;gap:var(--s3);}.bar-tag{width:26px;font-size:11px;color:var(--muted);text-align:right;font-weight:500;}
   .bar-track{flex:1;background:var(--fill);border-radius:var(--r-pill);height:16px;overflow:hidden;}
@@ -243,6 +253,8 @@
     .icon-btn{flex:0 0 40px;width:40px;}   /* 아이콘 버튼은 늘어나지 않게 */
     .preset-btns{width:100%;}
     .preset-btns button{flex:1;min-width:64px;text-align:center;}
+    .fstage-stats{gap:var(--s5);}
+    .fstat-num{font-size:20px;}
     .kpis{grid-template-columns:repeat(2,1fr);gap:8px;}
     .kpi{padding:12px;min-height:96px;}
     .kpi .k-now{font-size:18px;}
@@ -1419,33 +1431,39 @@ function renderFunnel(d){
 
   h+='<div class="funnel">';
   const maxVal = Math.max(...d.funnel.map(s=>Math.max(s.after, cmpOn?s.before:0)), 1);
+  // 통과율·이탈률을 큰 숫자로, 세션 수는 보조로 내린다.
+  // (예전엔 막대와 세션 수가 주인공이라 정작 봐야 할 비율이 작은 글자로 묻혔음)
   h+=stages.map(st=>{
-    const dd = st.prev ? st.passA - st.passB : 0;
-    const cls = dd<0?'w':'';
-    const conv = st.prev
-      ? (cmpOn
-          ? `<span class="stage-conv">통과율 ${st.passB.toFixed(1)}% → <b class="${cls}">${st.passA.toFixed(1)}%</b> <span class="${cls}">(${dd>=0?'+':''}${dd.toFixed(1)}%p)</span></span>`
-          : `<span class="stage-conv">통과율 <b>${st.passA.toFixed(1)}%</b></span>`)
-      // 첫 단계는 통과율이 항상 100%라 정보가 없음 → 비교가 켜져 있으면 증감률을 대신 보여준다
-      : (cmpOn && st.before
-          ? (()=>{ const dv=(st.after-st.before)/st.before*100, up=dv>=0;
-              return `<span class="stage-conv"><span class="${up?'up-txt':'down-txt'}">${up?'▲':'▼'} ${Math.abs(dv).toFixed(1)}%</span></span>`; })()
-          : '');
-    const row=(tag,val,cls2)=>`<div class="bar-row"><span class="bar-tag">${tag}</span>
-      <div class="bar-track"><div class="bar-fill ${cls2}" style="width:${Math.min(Math.max(val/maxVal*100,2),100)}%"></div></div>
-      <span class="bar-val">${fmt(val)}</span></div>`;
-    // 이탈 정보 (첫 단계는 이탈 개념이 없음)
-    let dropHtml='';
-    if(st.prev && st.dropA>0){
-      const dv = cmpOn ? (st.dropRateA - st.dropRateB) : null;
-      dropHtml = `<div class="stage-drop">이 단계에서 <b>${fmt(st.dropA)}</b> 이탈 · 이탈률 ${st.dropRateA.toFixed(1)}%`
-        + (cmpOn ? ` <span class="${dv>0?'down-txt':'up-txt'}">(비교 ${st.dropRateB.toFixed(1)}% → ${dv>=0?'+':''}${dv.toFixed(1)}%p)</span>` : '')
-        + `</div>`;
+    const barW = Math.min(Math.max(st.after/maxVal*100,2),100);
+    const chip=(v,unit,goodWhenUp)=>{
+      if(v==null || !isFinite(v)) return '';
+      const up=v>=0, good=goodWhenUp?up:!up;
+      return `<span class="fstat-delta ${good?'up-txt':'down-txt'}">${up?'▲':'▼'} ${Math.abs(v).toFixed(1)}${unit}</span>`;
+    };
+    let stats;
+    if(st.prev){
+      // 통과율(높을수록 좋음) / 이탈률(낮을수록 좋음)
+      stats = `<div class="fstat">
+          <div class="fstat-num">${st.passA.toFixed(1)}%${cmpOn?chip(st.passA-st.passB,'%p',true):''}</div>
+          <div class="fstat-label">통과율${cmpOn?` · 비교 ${st.passB.toFixed(1)}%`:''}</div>
+        </div>
+        <div class="fstat is-drop">
+          <div class="fstat-num">${st.dropRateA.toFixed(1)}%${cmpOn?chip(st.dropRateA-st.dropRateB,'%p',false):''}</div>
+          <div class="fstat-label">이탈률 · ${fmt(st.dropA)}명 이탈</div>
+        </div>`;
+    }else{
+      // 첫 단계는 통과율·이탈 개념이 없으므로 세션 수가 주인공
+      const dv = (cmpOn && st.before) ? (st.after-st.before)/st.before*100 : null;
+      stats = `<div class="fstat">
+          <div class="fstat-num">${fmt(st.after)}${chip(dv,'%',true)}</div>
+          <div class="fstat-label">세션${cmpOn?` · 비교 ${fmt(st.before)}`:''}</div>
+        </div>`;
     }
-    return `<div class="stage"><div class="stage-top"><span class="stage-name">${st.name}</span>${conv}</div><div class="bars">
-      ${cmpOn?row('비교',st.before,'b'):''}
-      ${row(cmpOn?'선택':'', st.after, 'a')}
-    </div>${dropHtml}</div>`;
+    return `<div class="fstage">
+      <div class="fstage-head"><span class="fstage-name">${st.name}</span>${st.prev?`<span class="fstage-count">세션 ${fmt(st.after)}</span>`:''}</div>
+      <div class="fstage-stats">${stats}</div>
+      <div class="fstage-track"><div class="fstage-fill" style="width:${barW}%"></div></div>
+    </div>`;
   }).join('')+'</div>';
 
   // ===== 개선 기회 순위: 이탈 인원이 많은 단계부터 =====
