@@ -168,10 +168,10 @@
   /* 개요 최상단 요약.
      칸을 나누지 않고 세로로 쌓는다 — 3칸 그리드였을 때 칸마다 글자 길이와 설명 유무가
      달라 균등 분할이 오히려 불균형하게 보였다. 세로 스택은 내용이 길어져도 흔들리지 않는다. */
-  .summary{background:var(--surface);border-radius:var(--r-card);padding:var(--s5) var(--s6);margin-bottom:var(--s5);}
-  .sum-head{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:var(--s3);letter-spacing:-.01em;}
+  .summary{background:var(--surface);border-radius:var(--r-card);padding:var(--s6);margin-bottom:var(--s5);}
+  .sum-head{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:var(--s5);letter-spacing:-.01em;}
   /* 목표 진행률 */
-  .goal-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--s5);}
+  .goal-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--s6) var(--s7);}
   .goal{min-width:0;}
   .goal-top{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s2);}
   .goal-label{font-size:14px;font-weight:600;color:var(--ink);}
@@ -188,6 +188,16 @@
   .goal.is-back .goal-pct{color:var(--down);}
   .goal.is-done .goal-pct{color:var(--up);}
   .goal-note{font-size:12px;color:var(--muted);margin-top:var(--s2);line-height:1.6;}
+  /* 진단 두 줄 (병목 · 나쁜 조합).
+     [복원] 목표 스타일로 교체할 때 이 규칙들을 실수로 함께 삭제해 태그와 본문이
+     붙어버렸다(예: '가장 큰 병목방문 → 상품조회'). sum-tag 의 margin-right 가 사라진 탓. */
+  .sum-rows{margin-top:var(--s6);padding-top:var(--s2);border-top:1px solid var(--hair);}
+  .sum-line{font-size:14px;padding:var(--s3) 0;line-height:1.7;border-bottom:1px solid var(--hair);
+    display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap;}
+  .sum-line:last-child{border-bottom:0;padding-bottom:0;}
+  .sum-line b{font-weight:700;}
+  .sum-tag{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--muted);background:var(--fill);
+    border-radius:var(--r-pill);padding:3px 9px;}
   .mini-chart-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);}
   @media(max-width:900px){.mini-chart-row{grid-template-columns:1fr;}}
   .slotbar-row:last-child{border-bottom:0;}
