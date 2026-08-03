@@ -214,8 +214,9 @@
   .sum-tag{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--muted);}
   .sum-tag::before{content:'[';}
   .sum-tag::after{content:']';}
-  .mini-chart-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);}
-  @media(max-width:900px){.mini-chart-row{grid-template-columns:1fr;}}
+  /* 차트는 한 줄에 하나. 2열로 나누면 viewBox 920px SVG 가 절반 폭으로 축소돼
+     눈금·라벨을 읽을 수 없다 (요일별 평균에서 이미 겪은 문제). */
+  .mini-chart-row{display:grid;grid-template-columns:1fr;gap:var(--s3);}
   .slotbar-row:last-child{border-bottom:0;}
   .slotbar-row>div:first-child{min-width:0;overflow:hidden;}
   .slotbar-name{font-size:14px;font-weight:600;cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:22px;letter-spacing:-.01em;}
@@ -1086,10 +1087,10 @@ async function renderOverview(d){
 
   h+='<h2 class="sec">⑥ 성장 지표</h2>';
   h+='<p class="sec-desc">기간 선택과 무관 · 완료된 최근 12개월 (진행 중인 달은 제외)</p>';
-  h+='<div id="growthWrap" class="state"><div class="spinner"></div>성장 지표 불러오는 중…</div>';
+  h+='<div id="growthWrap"><div class="state"><div class="spinner"></div>성장 지표 불러오는 중…</div></div>';
 
   h+='<h2 class="sec">⑦ 유저 세그먼트</h2>';
-    h+='<div id="segWrap" class="state"><div class="spinner"></div>세그먼트 불러오는 중…</div>';
+    h+='<div id="segWrap"><div class="state"><div class="spinner"></div>세그먼트 불러오는 중…</div></div>';
 
   h+='<h2 class="sec">일별 추이</h2>';
     h+='<div id="chartWrap"><div class="funnel"><div class="state"><div class="spinner"></div>추이 불러오는 중…</div></div></div>';
@@ -2358,7 +2359,7 @@ function renderAcquisition(d){
     h+='<div class="state">국가별 데이터 없음</div>';
   }
 
-  h+='<h2 class="sec">상위 5개국 상세 진단</h2><div id="countryDetailWrap" class="state"><div class="spinner"></div>불러오는 중…</div>';
+  h+='<h2 class="sec">상위 5개국 상세 진단</h2><div id="countryDetailWrap"><div class="state"><div class="spinner"></div>불러오는 중…</div></div>';
 
   $('content').innerHTML=h;
   loadCountryDetail();
