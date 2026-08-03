@@ -170,16 +170,24 @@
      달라 균등 분할이 오히려 불균형하게 보였다. 세로 스택은 내용이 길어져도 흔들리지 않는다. */
   .summary{background:var(--surface);border-radius:var(--r-card);padding:var(--s5) var(--s6);margin-bottom:var(--s5);}
   .sum-head{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:var(--s3);letter-spacing:-.01em;}
-  .sum-lead{font-size:19px;font-weight:600;letter-spacing:-.02em;line-height:1.5;display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap;}
-  .sum-lead b{font-weight:700;}
-  .sum-rate{font-size:28px;font-weight:700;letter-spacing:-.035em;}
-  .sum-delta{font-size:14px;font-weight:700;letter-spacing:0;}
-  .sum-note{font-size:14px;color:var(--ink-2);margin-top:var(--s2);line-height:1.6;}
-  .sum-rows{margin-top:var(--s4);border-top:1px solid var(--hair);}
-  .sum-line{font-size:14px;padding:var(--s3) 0;line-height:1.7;border-bottom:1px solid var(--hair);}
-  .sum-line:last-child{border-bottom:0;padding-bottom:0;}
-  .sum-tag{display:inline-block;font-size:11px;font-weight:700;color:var(--muted);background:var(--fill);border-radius:var(--r-pill);padding:2px 8px;margin-right:var(--s2);}
-  @media(max-width:820px){.sum-lead{font-size:16px;}.sum-rate{font-size:24px;}}
+  /* 목표 진행률 */
+  .goal-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--s5);}
+  .goal{min-width:0;}
+  .goal-top{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s2);}
+  .goal-label{font-size:14px;font-weight:600;color:var(--ink);}
+  .goal-badge{font-size:10px;font-weight:700;color:#fff;background:var(--up);border-radius:var(--r-pill);padding:2px 7px;margin-left:var(--s2);vertical-align:middle;}
+  .goal-nums{margin-left:auto;font-size:14px;color:var(--muted);white-space:nowrap;}
+  .goal-nums b{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.03em;}
+  .goal-target{font-size:13px;}
+  .goal-track{height:8px;background:var(--fill);border-radius:var(--r-pill);overflow:hidden;}
+  .goal-fill{height:100%;background:var(--accent);border-radius:var(--r-pill);transition:width .6s cubic-bezier(.2,.8,.2,1);}
+  .goal.is-done .goal-fill{background:var(--up);}
+  .goal.is-back .goal-fill{background:var(--down);}
+  .goal-foot{display:flex;justify-content:space-between;gap:var(--s3);font-size:12px;color:var(--muted);margin-top:var(--s2);}
+  .goal-pct{font-weight:600;}
+  .goal.is-back .goal-pct{color:var(--down);}
+  .goal.is-done .goal-pct{color:var(--up);}
+  .goal-note{font-size:12px;color:var(--muted);margin-top:var(--s2);line-height:1.6;}
   .mini-chart-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);}
   @media(max-width:900px){.mini-chart-row{grid-template-columns:1fr;}}
   .slotbar-row:last-child{border-bottom:0;}
@@ -862,50 +870,102 @@ async function memberRangeInfo(s0,e0){
   };
 }
 
-// ===== 지금 볼 것 (개요 최상단 요약) =====
-// [2026-08-03 재작성] 처음 만든 버전은 구매 건수·재방문자를 큰 숫자로 넣었는데,
-// 둘 다 바로 아래 KPI 카드에 이미 있어 중복이었다. 칸마다 글자 길이와 설명 유무가
-// 달라 3칸 그리드가 오히려 불균형하게 보이는 문제도 있었다.
+// ===== 목표 진행률 (개요 최상단) =====
+// [2026-08-03 재설계] 처음엔 '가장 큰 병목 하나'를 보여줬는데, 매주 볼 때마다 병목이
+// 바뀌면 무엇을 추적하는지가 흐려진다. 단기 목표 2~3개를 정해두고 매주 같은 숫자만
+// 확인하는 편이 실제로 개선을 밀고 나가기 쉽다.
 //
-// 여기에는 '다른 곳에 없는 것'만 둔다:
-//   · 주문서→구매 — 퍼널 안에만 있어 개요에서는 볼 수 없던 지표. 지금 가장 아까운 이탈.
-//   · 가장 큰 병목 / 가장 나쁜 조합 — 여러 탭을 조합해야 나오던 판단
-// 그리고 숫자만 던지지 않고 '무엇을 하면 얼마가 되는지'를 문장으로 보여준다.
-// 레이아웃은 세로 한 줄씩 쌓아 글자 길이에 따라 간격이 깨지지 않게 한다.
-function summaryHTML(d){
-  const cmpOn=$('cmp').checked;
+// 목표값은 코드가 아니라 goals.json 에 둔다. 숫자를 바꿀 때마다 코드를 고치지 않아도 되고,
+// 파일이 없으면 이 블록은 그냥 나타나지 않는다(기능이 없어도 대시보드는 정상 동작).
+//
+// 진행률은 '목표까지 얼마나 남았나'가 아니라 '시작점에서 얼마나 움직였나'로 계산한다.
+//   진행률 = (현재 - 시작) / (목표 - 시작)
+// 목표 대비 절대 위치만 보면 시작점이 낮았을 때 늘 초라해 보여 동기가 안 붙는다.
+let GOALS=null;
+async function ensureGoals(){
+  if(GOALS!==null) return GOALS;
+  try{
+    const r=await fetch('./goals.json',{cache:'no-store'});
+    GOALS = r.ok ? await r.json() : false;
+  }catch(e){ GOALS=false; }
+  return GOALS;
+}
+
+// 지표 key → 현재값. 없으면 null 을 돌려 그 목표는 건너뛴다.
+function goalValue(key, d){
   const f=d.funnel||[];
-  const at=(name)=>f.find(x=>x.name===name)||{before:0,after:0};
-  const order=at('결제(주문서)'), buy=at('구매');
-  if(!order.after) return '';
-
-  const rateA=buy.after/order.after*100;
-  const rateB=order.before? buy.before/order.before*100 : rateA;
-  const dropped=Math.max(0, order.after-buy.after);
-  const gain=Math.round(dropped*0.1);                 // 이탈자 10%를 되돌렸을 때 늘어나는 구매
-  const x=delta(rateB, rateA);
-  const chip = cmpOn ? `<span class="sum-delta ${x.good?'up-txt':'down-txt'}">${x.up?'▲':'▼'} ${x.text}</span>` : '';
-
-  let h='<div class="summary">';
-  h+='<div class="sum-head">지금 볼 것</div>';
-  h+=`<div class="sum-lead">주문서를 연 <b>${fmt(order.after)}명</b> 중 <b>${fmt(buy.after)}명</b>이 구매했습니다
-      <span class="sum-rate">${rateA.toFixed(1)}%</span>${chip}</div>`;
-  if(gain>0){
-    h+=`<div class="sum-note"><b class="down-txt">${fmt(dropped)}명</b>이 결제 직전에 나갔습니다 ·
-        그중 10%만 되돌리면 구매 <b>+${fmt(gain)}건</b></div>`;
+  const at=(nm)=>f.find(x=>x.name===nm)||{after:0};
+  const kpi=(lb)=>(d.kpis||[]).find(k=>k.label===lb);
+  const order=at('결제(주문서)').after, buy=at('구매').after, visit=at('방문').after;
+  switch(key){
+    case 'orderToBuy':   return order? buy/order*100 : null;
+    case 'sessionToBuy': return visit? buy/visit*100 : null;
+    case 'returning':    return kpi('재방문자 비율')?.after ?? null;
+    case 'cartRate':     return kpi('장바구니 전환율')?.after ?? null;
+    case 'detailRate':   return kpi('상품조회 전환율')?.after ?? null;
+    case 'aov':          return kpi('객단가')?.after ?? null;
+    case 'churn':        return kpi('이탈률')?.after ?? null;
+    default:             return null;
   }
+}
+const GOAL_UNIT={ aov:'won' };
+const GOAL_LOWER_BETTER=new Set(['churn']);
 
-  // 가장 큰 병목 = 이탈 '인원'이 가장 많은 단계 (비율이 아니라 인원 기준이라 손해가 큰 곳이 잡힘)
+async function goalsHTML(d){
+  const cfg=await ensureGoals();
+  if(!cfg || !Array.isArray(cfg.goals) || !cfg.goals.length) return '';
+  const rows=[];
+  for(const g of cfg.goals){
+    const cur=goalValue(g.key, d);
+    if(cur==null || g.target==null) continue;
+    const base=(g.baseline!=null)? g.baseline : cur;
+    const lower=GOAL_LOWER_BETTER.has(g.key);
+    const span=g.target-base;
+    // 시작점과 목표가 같으면 진행률을 정의할 수 없다 → 달성 여부만 본다
+    let pct = span===0 ? (lower? (cur<=g.target?100:0) : (cur>=g.target?100:0))
+                       : (cur-base)/span*100;
+    const done = lower ? cur<=g.target : cur>=g.target;
+    if(done) pct=100;
+    const shown=Math.max(0, Math.min(100, pct));
+    const fmtV=(v)=> GOAL_UNIT[g.key]==='won' ? won(v) : v.toFixed(v<1?2:1)+'%';
+    // 뒤로 갔으면(진행률 음수) 빨간색으로 알린다
+    const cls = done ? 'is-done' : (pct<0 ? 'is-back' : '');
+    rows.push(`<div class="goal ${cls}">
+      <div class="goal-top">
+        <span class="goal-label">${g.label}${done?'<span class="goal-badge">달성</span>':''}</span>
+        <span class="goal-nums"><b>${fmtV(cur)}</b> <span class="goal-target">/ ${fmtV(g.target)}</span></span>
+      </div>
+      <div class="goal-track"><div class="goal-fill" style="width:${shown.toFixed(1)}%"></div></div>
+      <div class="goal-foot">
+        <span>시작 ${fmtV(base)} → 목표 ${fmtV(g.target)}</span>
+        <span class="goal-pct">${pct<0?'시작보다 후퇴':(shown.toFixed(0)+'% 진행')}</span>
+      </div>
+      ${g.note?`<div class="goal-note">${g.note}</div>`:''}
+    </div>`);
+  }
+  if(!rows.length) return '';
+  let h='<div class="summary">';
+  h+=`<div class="sum-head">${cfg.period||'목표'}</div>`;
+  h+='<div class="goal-list">'+rows.join('')+'</div>';
+  // 목표가 잘 안 오를 때 어디를 볼지 — 진단 두 줄은 남긴다
+  h+='<div class="sum-rows"><div class="sum-line" id="sumBottleneck"></div>'
+    + '<div class="sum-line" id="sumWorstSeg"><span class="sum-tag">가장 나쁜 조합</span><span style="color:var(--muted);">확인 중…</span></div></div>';
+  h+='</div>';
+  return h;
+}
+
+// 병목 한 줄 (목표가 안 오를 때 원인을 찾는 출발점)
+function fillBottleneck(d){
+  const el=document.getElementById('sumBottleneck');
+  if(!el) return;
+  const f=d.funnel||[];
   let ws='', wd=0, wf='';
   for(let i=1;i<f.length;i++){
     const drop=Math.max(0, f[i-1].after - f[i].after);
     if(drop>wd){ wd=drop; ws=f[i].name; wf=f[i-1].name; }
   }
-  h+='<div class="sum-rows">';
-  if(ws) h+=`<div class="sum-line"><span class="sum-tag">가장 큰 병목</span><b>${wf} → ${ws}</b> ${fmt(wd)}명 이탈</div>`;
-  h+='<div class="sum-line" id="sumWorstSeg"><span class="sum-tag">가장 나쁜 조합</span><span style="color:var(--muted);">확인 중…</span></div>';
-  h+='</div></div>';
-  return h;
+  if(!ws){ el.remove(); return; }
+  el.innerHTML=`<span class="sum-tag">가장 큰 병목</span><b>${wf} → ${ws}</b> ${fmt(wd)}명 이탈`;
 }
 
 async function fillWorstSegment(){
@@ -942,7 +1002,7 @@ async function renderOverview(d){
   const byGroup=(g)=>d.kpis.filter(k=>k.group===g);
 
   // ===== 최상단: 한눈에 보기 (핵심 지표 3개를 그래프로 먼저) =====
-  h+=summaryHTML(d);
+  h+='<div id="goalsWrap"></div>';
   h+='<h2 class="sec">한눈에 보기</h2>';
     h+='<div id="heroWrap"><div class="state"><div class="spinner"></div>핵심 지표 불러오는 중…</div></div>';
 
@@ -1022,8 +1082,13 @@ async function renderOverview(d){
 
   // 회원 지표 (총 회원 수·순증·이탈률 + 추이)
   loadMemberMetrics();
-  // 요약의 '가장 나쁜 조합'을 채운다. 세그먼트 퍼널은 별도 조회라 먼저 화면을 띄우고 나중에 채운다.
-  fillWorstSegment();
+  // 목표 진행률 (goals.json 이 있으면 표시). 병목·나쁜 조합은 그 안에 이어서 채운다.
+  goalsHTML(d).then(html=>{
+    const w=document.getElementById('goalsWrap');
+    if(!w) return;
+    w.innerHTML=html;
+    if(html){ fillBottleneck(d); fillWorstSegment(); }
+  });
 
   // cafe24 기준 방문자·페이지뷰 (GA4보다 오래된 기간도 커버, 별도 표시)
   try{
