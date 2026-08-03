@@ -107,7 +107,11 @@
     *{animation-duration:.01ms !important;transition-duration:.01ms !important;}
   }
   .err{background:var(--down-soft);color:var(--down);border-radius:var(--r-ctrl);padding:var(--s5);font-size:14px;font-weight:500;}
-  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s3);margin-bottom:var(--s3);}   /* 한 줄에 4개 고정 */
+  /* 한 줄에 '최대' 4개.
+     4칸으로 고정했더니 카드가 3개인 섹션은 네 번째 칸이 빈 채로 남았다.
+     auto-fit + 최소폭 250px 이면 안쪽 폭 1072px 에서 최대 4개까지만 들어가고,
+     카드가 3개면 3칸으로 균등 분할돼 빈 칸이 생기지 않는다. */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:var(--s3);margin-bottom:var(--s3);}
   .kpi{background:var(--surface);border:0;border-radius:var(--r-card);padding:var(--s5);display:flex;flex-direction:column;min-height:124px;}
   .kpi .k-label{font-size:13px;color:var(--muted);margin-bottom:var(--s3);font-weight:500;}
   .kpi .k-now{font-family:var(--sans);font-size:24px;font-weight:700;letter-spacing:-.035em;line-height:1.2;}
@@ -171,6 +175,16 @@
   .summary{background:var(--surface);border-radius:var(--r-card);padding:var(--s6);margin-bottom:var(--s5);}
   .sum-head{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:var(--s5);letter-spacing:-.01em;}
   /* 목표 진행률 */
+  /* 요약 맨 위 매출 규모 */
+  .sum-money{padding-bottom:var(--s5);margin-bottom:var(--s5);border-bottom:1px solid var(--hair);}
+  .money-label{font-size:13px;color:var(--muted);font-weight:500;margin-right:var(--s2);}
+  /* [복원] 목표 스타일 교체 때 함께 지워졌던 증감 칩 */
+  .sum-delta{font-size:14px;font-weight:700;letter-spacing:0;white-space:nowrap;}
+  .money-main{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap;}
+  .money-main b{font-size:32px;font-weight:700;letter-spacing:-.035em;line-height:1.15;}
+  .money-sub{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s2);font-size:16px;font-weight:600;color:var(--ink-2);}
+  .money-gap{font-size:13px;color:var(--muted);font-weight:500;}
+  @media(max-width:820px){.money-main b{font-size:26px;}.money-sub{font-size:14px;}}
   .goal-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--s6) var(--s7);}
   .goal{min-width:0;}
   .goal-top{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s2);}
@@ -196,8 +210,10 @@
     display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap;}
   .sum-line:last-child{border-bottom:0;padding-bottom:0;}
   .sum-line b{font-weight:700;}
-  .sum-tag{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--muted);background:var(--fill);
-    border-radius:var(--r-pill);padding:3px 9px;}
+  /* 항목명은 대괄호로 감싼 텍스트. 알약 배경은 진단 두 줄에는 과해서 뺐다. */
+  .sum-tag{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--muted);}
+  .sum-tag::before{content:'[';}
+  .sum-tag::after{content:']';}
   .mini-chart-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);}
   @media(max-width:900px){.mini-chart-row{grid-template-columns:1fr;}}
   .slotbar-row:last-child{border-bottom:0;}
@@ -261,8 +277,8 @@
     h2.sec{font-size:18px;margin-top:var(--s6);}
     .ctrl-row-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
   }
-  @media(max-width:1000px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr));}}
-  @media(max-width:820px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr));}.pages,.slot-cols{grid-template-columns:1fr;}}
+  @media(max-width:1000px){.kpis{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}}
+  @media(max-width:820px){.kpis{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}.pages,.slot-cols{grid-template-columns:1fr;}}
 
   /* ===== 모바일 반응형 ===== */
   @media(max-width:640px){
@@ -344,7 +360,7 @@
     <div class="ctrl-row ctrl-row-split">
       <div class="excl-group">
         <label class="excl"><input type="checkbox" id="exclLpoint"> L포인트 제외</label>
-        <label class="excl"><input type="checkbox" id="exclBots" checked> 성과 없는 트래픽 제외</label>
+        <label class="excl"><input type="checkbox" id="exclBots" checked> 봇·어뷰징 트래픽 제외</label>
       </div>
       <div class="btn-group">
         <button class="go" id="go">조회</button>
@@ -603,6 +619,22 @@ $('refreshBtn').addEventListener('click',async()=>{
 const WORKER_KEY = 'pbg-secret-key-2026';
 let NOCACHE=false;  // '새로고침' 눌렀을 때만 true → 서버 캐시 무시
 
+// ===== 워커 요청 합치기 =====
+// 같은 URL 을 여러 곳에서 각각 부르고 있었다. 대표적으로 loadHeroCharts 와 loadTrend 가
+// tab=daily 를 완전히 동일한 주소로 각각 조회해, 비교를 켜면 같은 요청이 4번 나갔다.
+// (워커에 KV 캐시가 있어 두 번째는 캐시를 타지만, 새로고침 버튼은 캐시를 무시하므로
+//  GA4 조회가 그대로 4번 발생했다)
+// 한 번의 조회(load) 안에서는 같은 URL 이면 결과를 공유한다.
+let WREQ = new Map();
+function wfetch(url){
+  if(WREQ.has(url)) return WREQ.get(url);
+  const p = fetch(url,{cache:'no-store'})
+    .then(r => r.json())
+    .catch(err => { WREQ.delete(url); throw err; });   // 실패는 캐시하지 않음 → 재시도 가능
+  WREQ.set(url, p);
+  return p;
+}
+
 function q(extra){
   const cmp=$('cmp').checked;
   const as=$('s').value, ae=$('e').value;
@@ -701,6 +733,7 @@ function toggleRowDetail(btn){
 }
 
 async function load(){
+  WREQ.clear();                     // 조회마다 요청 합치기 캐시 초기화
   stateToUrl();                     // 지금 설정을 주소에 반영 → 북마크·공유가 그대로 재현됨
   const cur=TABS.find(t=>t.id===TAB);
   if(cur && !cur.ready){$('content').innerHTML=`<div class="soon-box"><b>${cur.name}</b> 탭은 준비 중입니다.<br>다음 단계에서 추가됩니다.</div>`;return;}
@@ -709,8 +742,7 @@ async function load(){
   showLoading();
   try{
     const tabParam=(TAB==='acquisition')?'&tab=acquisition':'';
-    const r=await fetch(WORKER+'/?'+q()+tabParam,{cache:'no-store'});
-    const d=await r.json();
+    const d = await wfetch(WORKER+'/?'+q()+tabParam);
     if(d.error){showErr(d.error);return;}
     if(TAB==='acquisition')renderAcquisition(d);
     else if(TAB==='funnel')renderFunnel(d);
@@ -954,8 +986,32 @@ async function goalsHTML(d){
     </div>`);
   }
   if(!rows.length) return '';
+  // 규모를 먼저 보여준다 — 비율만 있으면 '좋아졌는데 얼마나?'가 안 잡힌다.
+  // 거래액(GMV)이 가장 상위 지표라 맨 위, 실매출은 그 아래.
+  let topLine='';
+  try{
+    const as=$('s').value, ae=$('e').value;
+    const cmpOn=$('cmp').checked;
+    const [sa, sb] = await Promise.all([
+      revenueRangeSum(as,ae),
+      cmpOn ? revenueRangeSum($('cs').value,$('ce').value) : Promise.resolve(null),
+    ]);
+    if(sa && sa.gmv){
+      const chip=(b,a)=>{ if(!cmpOn||!b) return '';
+        const x=delta(b,a); return `<span class="sum-delta ${x.good?'up-txt':'down-txt'}">${x.up?'▲':'▼'} ${x.text}</span>`; };
+      topLine=`<div class="sum-money">
+        <div class="money-main"><span class="money-label">거래액</span>
+          <b>${won(sa.gmv)}</b>${chip(sb?sb.gmv:0, sa.gmv)}</div>
+        <div class="money-sub"><span class="money-label">실매출</span>
+          ${won(sa.net)}${chip(sb?sb.net:0, sa.net)}
+          <span class="money-gap">· 할인·환불 ${won(sa.gmv-sa.net)}</span></div>
+      </div>`;
+    }
+  }catch(e){ /* 매출 데이터가 없으면 이 줄만 생략 */ }
+
   let h='<div class="summary">';
   h+=`<div class="sum-head">${cfg.period||'목표'}</div>`;
+  h+=topLine;
   h+='<div class="goal-list">'+rows.join('')+'</div>';
   // 목표가 잘 안 오를 때 어디를 볼지 — 진단 두 줄은 남긴다
   h+='<div class="sum-rows"><div class="sum-line" id="sumBottleneck"></div>'
@@ -982,8 +1038,7 @@ async function fillWorstSegment(){
   const el=document.getElementById('sumWorstSeg');
   if(!el) return;
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=segfunnel',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=segfunnel');
     const sf=dd && dd.segfunnel;
     if(!sf){ el.remove(); return; }
     const all=[];
@@ -1030,7 +1085,7 @@ async function renderOverview(d){
   h+='<h2 class="sec">⑤ 추천 (Referral)</h2><div class="soon-box">아직 측정 안 됨.<br><span style="font-size:12px;">공유·바이럴 이벤트가 GA4에 연결돼 있지 않아요. 공유 버튼 등에 클릭 이벤트를 추가하면 바이럴계수·공유율을 여기에 넣을 수 있어요.</span></div>';
 
   h+='<h2 class="sec">⑥ 성장 지표</h2>';
-  h+='<p class="sec-desc">기간 선택과 무관 · 최근 12개월</p>';
+  h+='<p class="sec-desc">기간 선택과 무관 · 완료된 최근 12개월 (진행 중인 달은 제외)</p>';
   h+='<div id="growthWrap" class="state"><div class="spinner"></div>성장 지표 불러오는 중…</div>';
 
   h+='<h2 class="sec">⑦ 유저 세그먼트</h2>';
@@ -1046,8 +1101,7 @@ async function renderOverview(d){
   await loadTrend();
 
   try{
-    const r2=await fetch(WORKER+'/?'+q()+'&tab=activeusers',{cache:'no-store'});
-    const au=await r2.json();
+    const au = await wfetch(WORKER+'/?'+q()+'&tab=activeusers');
     if(au.error){ document.getElementById('auWrap').innerHTML='<div class="state">불러오지 못함</div>'; }
     else{
       document.getElementById('auWrap').innerHTML =
@@ -1122,10 +1176,21 @@ async function renderOverview(d){
 }
 
 function monthKey(dateStr){ return dateStr.slice(0,7); } // 'YYYY-MM-DD' -> 'YYYY-MM'
-function aggregateMonthlyRevenue(daily){
+// [2026-08-03 버그 수정] 진행 중인 달을 제외한다.
+// 카드 이름은 '최근 완료월'인데 이번 달(며칠치)이 그대로 들어가 있었다. 그래서 8월 3일에
+// 8월 매출 1,429만원이 '완료월'로 잡혀 전월 대비 -94.6%, 추이 그래프 마지막 점이 0 근처로
+// 곤두박질치고, 평균선까지 끌려 내려갔다. 며칠치를 한 달과 비교한 셈이라 전부 무의미했다.
+// 월 단위 지표는 달이 끝난 뒤에만 의미가 있으므로 이번 달은 계산과 그래프에서 모두 뺀다.
+function currentMonthKey(){
+  const kst=new Date(Date.now()+9*3600*1000);
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth()+1).padStart(2,'0')}`;
+}
+function aggregateMonthlyRevenue(daily, includeCurrentMonth){
+  const cur=currentMonthKey();
   const map={};
   daily.forEach(r=>{
     const mk=monthKey(r.date);
+    if(!includeCurrentMonth && mk===cur) return;      // 진행 중인 달은 제외
     if(!map[mk]) map[mk]={month:mk, net:0, count:0};
     map[mk].net+=(r.net||0); map[mk].count+=(r.count||0);
   });
@@ -1392,8 +1457,7 @@ async function loadHeroCharts(){
     const fetchGA=async(s0,e0)=>{
       try{
         const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
-        const r=await fetch(url,{cache:'no-store'});
-        const dd=await r.json();
+        const dd = await wfetch(url);
         return dd.daily||[];
       }catch(e){ return []; }
     };
@@ -1495,12 +1559,16 @@ async function loadGrowthMetrics(){
 
   // 2) 월별 MAU 추이
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=monthlyusers',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=monthlyusers');
     if(dd.monthly && dd.monthly.length){
-      const labels=dd.monthly.map(m=>m.month.slice(4)); // 'YYYYMM' -> 'MM'
-      const values=dd.monthly.map(m=>m.activeUsers);
-      const lastM=dd.monthly[dd.monthly.length-1], prevM=dd.monthly[dd.monthly.length-2];
+      // 매출 추이와 같은 이유로 진행 중인 달을 뺀다.
+      // GA4 는 'YYYYMM' 형식이라 하이픈을 없앤 현재 월 키와 비교한다.
+      const curKey=currentMonthKey().replace('-','');
+      const mrows=dd.monthly.filter(m=>m.month!==curKey);
+      if(!mrows.length) throw new Error('완료된 달이 없음');
+      const labels=mrows.map(m=>m.month.slice(4)); // 'YYYYMM' -> 'MM'
+      const values=mrows.map(m=>m.activeUsers);
+      const lastM=mrows[mrows.length-1], prevM=mrows[mrows.length-2];
       const momMau=prevM? growthPct(prevM.activeUsers,lastM.activeUsers):null;
       h+='<div class="section-title">월별 MAU 추이 <span class="badge">'+(momMau!=null?('전월대비 '+(momMau>=0?'+':'')+momMau.toFixed(1)+'%'):'')+'</span></div>';
       h+='<div class="funnel">'+miniLineChart(labels, values, '#00B26B', v=>fmt(v))+'</div>';
@@ -1509,8 +1577,7 @@ async function loadGrowthMetrics(){
 
   // 3) 리텐션 곡선 (Day 0~30)
   try{
-    const r2=await fetch(WORKER+'/?'+q()+'&tab=retention',{cache:'no-store'});
-    const dd2=await r2.json();
+    const dd2 = await wfetch(WORKER+'/?'+q()+'&tab=retention');
     if(dd2.error){
       h+='<div class="state" style="margin-top:22px;">리텐션 곡선을 불러오지 못했습니다: '+dd2.error+'</div>';
     } else if(dd2.points && dd2.points.length){
@@ -1562,8 +1629,7 @@ async function loadUserSegments(){
   const wrap=document.getElementById('segWrap');
   try{
     let url=WORKER+'/?'+q()+'&tab=usersegments';
-    const r=await fetch(url,{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(url);
     if(!dd.segments){ wrap.innerHTML='<div class="state">세그먼트 데이터 없음</div>'; return; }
     const seg=dd.segments;
     let h='';
@@ -1607,8 +1673,7 @@ async function loadTrend(){
   const fetchDaily=async(s0,e0)=>{
     try{
       const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
-      const r=await fetch(url,{cache:'no-store'});
-      const dd=await r.json();
+      const dd = await wfetch(url);
       return dd.daily||[];
     }catch(e){ return []; }
   };
@@ -1821,8 +1886,7 @@ async function loadCartAnalysis(){
   const wrap=$('cartWrap');
   if(!wrap) return;
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=cart',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=cart');
     if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
     if(!dd.cartAnalysis){ wrap.innerHTML='<div class="funnel"><div class="state">장바구니 데이터가 없습니다</div></div>'; return; }
     const c=dd.cartAnalysis.cart, p=dd.cartAnalysis.path;
@@ -1894,8 +1958,7 @@ async function loadSegmentFunnel(){
   const wrap=$('segFunnelWrap');
   if(!wrap) return;
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=segfunnel',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=segfunnel');
     if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
     if(!dd.segfunnel){ wrap.innerHTML='<div class="funnel"><div class="state">세그먼트 퍼널 데이터가 없습니다</div></div>'; return; }
     const cur=dd.segfunnel, prev=dd.segfunnelBefore;
@@ -1949,17 +2012,16 @@ async function loadUtmPerformance(){
   const wrap=$('utmWrap');
   if(!wrap) return;
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=utm',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=utm');
     if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
     if(!dd.utm){ wrap.innerHTML='<div class="funnel"><div class="state">UTM 데이터가 없습니다</div></div>'; return; }
     const cur=dd.utm, prev=dd.utmBefore;
     const cmpOn=$('cmp').checked && prev;
 
-    // 성과 없는 트래픽으로 자동 제외된 캠페인이 있으면 안내 (표에서 조용히 사라지면 "내 캠페인 어디 갔지"가 되므로)
+    // 봇·어뷰징으로 자동 제외된 캠페인이 있으면 안내 (표에서 조용히 사라지면 "내 캠페인 어디 갔지"가 되므로)
     let exclNote='';
     if(cur.excludedCampaigns && cur.excludedCampaigns.length){
-      exclNote=`<p class="sec-desc" style="color:var(--down);">성과 없는 트래픽으로 제외: ${cur.excludedCampaigns.map(c=>`<b>${c}</b>`).join(', ')}</p>`;
+      exclNote=`<p class="sec-desc" style="color:var(--down);">봇·어뷰징으로 제외: ${cur.excludedCampaigns.map(c=>`<b>${c}</b>`).join(', ')}</p>`;
     }
 
     const block=(title, rows, prevRows, color)=>{
@@ -2004,8 +2066,7 @@ async function loadScrollDepth(){
   const wrap=$('scrollWrap');
   if(!wrap) return;
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=scroll',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=scroll');
     if(dd.error || !dd.scroll){ wrap.innerHTML='<div class="funnel"><div class="state">스크롤 지표를 불러오지 못했습니다</div></div>'; return; }
     const cur=dd.scroll, prev=dd.scrollBefore;
     const cmpOn=$('cmp').checked && prev;
@@ -2306,8 +2367,7 @@ function renderAcquisition(d){
 async function loadCountryDetail(){
   const wrap=document.getElementById('countryDetailWrap');
   try{
-    const r=await fetch(WORKER+'/?'+q()+'&tab=countrydetail',{cache:'no-store'});
-    const dd=await r.json();
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=countrydetail');
     if(dd.error){ wrap.innerHTML='<div class="state">불러오지 못했습니다: '+dd.error+'</div>'; return; }
     const countries=dd.countries||[];
     if(!countries.length){ wrap.innerHTML='<div class="state">데이터 없음</div>'; return; }
