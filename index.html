@@ -473,13 +473,14 @@ function diffText(before,after,unit){
 //   · '개요' 는 사실상 목차였다. 목표는 그로스로, 수익은 매출로, 나머지는 고객으로 나누니
 //     탭 자체가 필요 없어졌다.
 //   · '획득' 탭과 개요의 '①획득' 이 같은 내용이라 '고객' 으로 합쳤다.
-//   · '퍼널' 과 '구좌·상품' 은 둘 다 "어디서 막히나" 를 보는 것이라 묶었다.
+//   · '구좌·상품' 은 양이 많아 별도 탭으로 둔다.
 //   · 손익은 새 탭이 아니라 '매출' 안에 둔다 — 매출과 원가를 같이 봐야 의미가 있다.
 const TABS=[
   {id:'growth',  name:'그로스',    ready:true},   // 주 1회: 목표·다음 할 일
   {id:'revenue', name:'매출',      ready:true},   // 주 1회: 매출·할인·손익
   {id:'customer',name:'고객',      ready:true},   // 필요할 때: 획득·활성화·유지
-  {id:'funnel',  name:'퍼널·상품',  ready:true},   // 필요할 때: 퍼널·페이지·구좌·상품
+  {id:'funnel',  name:'퍼널·페이지', ready:true},   // 필요할 때: 퍼널·페이지·스크롤
+  {id:'product', name:'구좌·상품',   ready:true},   // 필요할 때: 구좌 성과·상품 성과
 ];
 // 탭은 URL(?tab=) 이 있으면 그것을, 없으면 마지막으로 본 탭을 쓴다.
 // URL 이 우선인 이유: 북마크로 특정 탭을 바로 열 수 있어야 하기 때문.
@@ -774,15 +775,16 @@ async function load(){
   try{
     const d = await wfetch(WORKER+'/?'+q());
     if(d.error){showErr(d.error);return;}
-    if(TAB==='funnel'){ renderFunnel(d); loadProductSections(); }
+    if(TAB==='funnel'){ renderFunnel(d); }
+    else if(TAB==='product'){ await loadProductTab(); }
     else await renderCustomer(d);
   }catch(e){showErr(String(e));}
 }
 // [2026-08-03] 별도였던 '구좌·상품 성과' 탭을 '퍼널·상품' 탭 하단 섹션으로 옮겼다.
 // 둘 다 "어디서 막히나"를 보는 것이라 같이 두는 편이 판단에 낫다.
-async function loadProductSections(){
+async function loadProductTab(){
+  $('content').innerHTML='<div id="productWrap"><div class="state"><div class="spinner"></div>구좌·상품 성과 불러오는 중…</div></div>';
   const wrap=document.getElementById('productWrap');
-  if(!wrap) return;
   try{
     const [dPerf,dSlots]=await Promise.all([
       wfetch(WORKER+'/?'+q()+'&tab=slotperf'),
@@ -1841,7 +1843,6 @@ function renderFunnel(d){
   h+='<p class="sec-desc">매출은 GA4 추적 기준 — 매출 탭 실매출과 다릅니다</p>';
   h+='<div id="utmWrap"><div class="funnel"><div class="state"><div class="spinner"></div>UTM 지표 불러오는 중…</div></div></div>';
 
-  h+='<div id="productWrap"><div class="state"><div class="spinner"></div>구좌·상품 성과 불러오는 중…</div></div>';
   $('content').innerHTML=h;
   loadSegmentFunnel();
   loadCartAnalysis();
@@ -2215,7 +2216,6 @@ let LAST_PERF_DATA = null;
 function renderProductSections(dPerf, dSlots, wrap){
   LAST_PERF_DATA = {dPerf, dSlots};
   let h='';
-  h+='<h2 class="sec">구좌 · 상품 성과</h2>';
   h+='<p class="sec-desc">구좌 순서 = 메인 배치 위치 · 유입 세션 = 클릭해 넘어간 방문 수</p>';
 
   // 핵심 구좌 TOP 10: art+life 전체(글로벌네비 중복 제외)를 합쳐서, 전체 유입 대비 비중이 높은 순
