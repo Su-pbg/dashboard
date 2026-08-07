@@ -202,6 +202,31 @@
   .goal.is-back .goal-pct{color:var(--down);}
   .goal.is-done .goal-pct{color:var(--up);}
   .goal-note{font-size:12px;color:var(--muted);margin-top:var(--s2);line-height:1.6;}
+  /* '다음 할 일' 은 나머지 진단 줄보다 눈에 먼저 들어와야 한다 */
+  .sum-next{background:var(--accent-soft);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4) !important;margin-bottom:var(--s2);}
+  /* 실험 기록 */
+  .exp{padding:var(--s4) 0;border-bottom:1px solid var(--hair);}
+  .exp:first-child{padding-top:0;}
+  .exp:last-child{border-bottom:0;padding-bottom:0;}
+  .exp-head{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;}
+  .exp-date{font-size:13px;color:var(--muted);font-weight:500;flex:0 0 auto;}
+  .exp-title{font-size:15px;font-weight:600;letter-spacing:-.01em;}
+  .exp-state{margin-left:auto;font-size:11px;font-weight:700;color:#fff;border-radius:var(--r-pill);padding:2px 8px;flex:0 0 auto;}
+  .exp-note{font-size:13px;color:var(--muted);margin-top:var(--s2);line-height:1.6;}
+  .exp-metrics{margin-top:var(--s3);display:grid;gap:var(--s2);}
+  .exp-metric{display:flex;align-items:baseline;gap:var(--s3);font-size:14px;flex-wrap:wrap;}
+  .exp-metric-name{font-size:13px;color:var(--muted);min-width:120px;}
+  /* 손익 월별 표 */
+  .pnl-row{display:grid;grid-template-columns:56px 1.2fr 1.2fr 76px 1.2fr 76px;gap:var(--s3);
+    align-items:center;padding:var(--s3) 0;border-bottom:1px solid var(--hair);font-size:14px;}
+  .pnl-row>span:not(:first-child){text-align:right;}
+  .pnl-row:last-child{border-bottom:0;}
+  .pnl-head{font-size:12px;color:var(--muted);font-weight:600;padding-top:0;}
+  .pnl-total{font-weight:700;border-top:2px solid var(--hair);border-bottom:0;}
+  @media(max-width:820px){
+    .pnl-row{grid-template-columns:44px 1fr 1fr 60px;font-size:13px;}
+    .pnl-row>span:nth-child(5),.pnl-row>span:nth-child(6){display:none;}
+  }
   /* 진단 두 줄 (병목 · 나쁜 조합).
      [복원] 목표 스타일로 교체할 때 이 규칙들을 실수로 함께 삭제해 태그와 본문이
      붙어버렸다(예: '가장 큰 병목방문 → 상품조회'). sum-tag 의 margin-right 가 사라진 탓. */
@@ -444,12 +469,17 @@ function diffText(before,after,unit){
   return `${sign}${fmt(diff)}`; // count
 }
 
+// [2026-08-03 탭 정리] 6개 → 4개.
+//   · '개요' 는 사실상 목차였다. 목표는 그로스로, 수익은 매출로, 나머지는 고객으로 나누니
+//     탭 자체가 필요 없어졌다.
+//   · '획득' 탭과 개요의 '①획득' 이 같은 내용이라 '고객' 으로 합쳤다.
+//   · '퍼널' 과 '구좌·상품' 은 둘 다 "어디서 막히나" 를 보는 것이라 묶었다.
+//   · 손익은 새 탭이 아니라 '매출' 안에 둔다 — 매출과 원가를 같이 봐야 의미가 있다.
 const TABS=[
-  {id:'overview',name:'개요',ready:true},
-  {id:'revenue',name:'매출',ready:true},
-  {id:'acquisition',name:'획득',ready:true},
-  {id:'funnel',name:'퍼널·페이지',ready:true},
-  {id:'product',name:'구좌·상품 성과',ready:true},
+  {id:'growth',  name:'그로스',    ready:true},   // 주 1회: 목표·다음 할 일
+  {id:'revenue', name:'매출',      ready:true},   // 주 1회: 매출·할인·손익
+  {id:'customer',name:'고객',      ready:true},   // 필요할 때: 획득·활성화·유지
+  {id:'funnel',  name:'퍼널·상품',  ready:true},   // 필요할 때: 퍼널·페이지·구좌·상품
 ];
 // 탭은 URL(?tab=) 이 있으면 그것을, 없으면 마지막으로 본 탭을 쓴다.
 // URL 이 우선인 이유: 북마크로 특정 탭을 바로 열 수 있어야 하기 때문.
@@ -738,30 +768,31 @@ async function load(){
   stateToUrl();                     // 지금 설정을 주소에 반영 → 북마크·공유가 그대로 재현됨
   const cur=TABS.find(t=>t.id===TAB);
   if(cur && !cur.ready){$('content').innerHTML=`<div class="soon-box"><b>${cur.name}</b> 탭은 준비 중입니다.<br>다음 단계에서 추가됩니다.</div>`;return;}
+  if(TAB==='growth'){ await loadGrowthTab(); return; }
   if(TAB==='revenue'){ await loadRevenue(); return; }
-  if(TAB==='product'){ await loadProductTab(); return; }
   showLoading();
   try{
-    const tabParam=(TAB==='acquisition')?'&tab=acquisition':'';
-    const d = await wfetch(WORKER+'/?'+q()+tabParam);
+    const d = await wfetch(WORKER+'/?'+q());
     if(d.error){showErr(d.error);return;}
-    if(TAB==='acquisition')renderAcquisition(d);
-    else if(TAB==='funnel')renderFunnel(d);
-    else await renderOverview(d);
+    if(TAB==='funnel'){ renderFunnel(d); loadProductSections(); }
+    else await renderCustomer(d);
   }catch(e){showErr(String(e));}
 }
-async function loadProductTab(){
-  showLoading();
+// [2026-08-03] 별도였던 '구좌·상품 성과' 탭을 '퍼널·상품' 탭 하단 섹션으로 옮겼다.
+// 둘 다 "어디서 막히나"를 보는 것이라 같이 두는 편이 판단에 낫다.
+async function loadProductSections(){
+  const wrap=document.getElementById('productWrap');
+  if(!wrap) return;
   try{
-    const [r1,r2]=await Promise.all([
-      fetch(WORKER+'/?'+q()+'&tab=slotperf',{cache:'no-store'}),
-      fetch(WORKER+'/?'+q()+'&tab=slots',{cache:'no-store'}),
+    const [dPerf,dSlots]=await Promise.all([
+      wfetch(WORKER+'/?'+q()+'&tab=slotperf'),
+      wfetch(WORKER+'/?'+q()+'&tab=slots'),
     ]);
-    const dPerf=await r1.json(), dSlots=await r2.json();
-    if(dPerf.error){showErr(dPerf.error);return;}
-    if(dSlots.error){showErr(dSlots.error);return;}
-    renderProductTab(dPerf,dSlots);
-  }catch(e){showErr(String(e));}
+    if(dPerf.error || dSlots.error){
+      wrap.innerHTML='<div class="state">구좌·상품 성과를 불러오지 못했습니다</div>'; return;
+    }
+    renderProductSections(dPerf,dSlots,wrap);
+  }catch(e){ wrap.innerHTML='<div class="state">구좌·상품 성과를 불러오지 못했습니다</div>'; }
 }
 
 function fmtByUnit(v,unit){
@@ -954,10 +985,23 @@ function goalValue(key, d){
 const GOAL_UNIT={ aov:'won' };
 const GOAL_LOWER_BETTER=new Set(['churn']);
 
+// 목표가 뒤처졌을 때 무엇을 하면 되는지. 대시보드 안에서 확인 가능한 것만 적는다.
+const GOAL_ACTION={
+  orderToBuy:   '퍼널·페이지 탭 → 세그먼트 퍼널에서 <b>기기별</b>과 <b>신규/재방문</b>을 비교하세요. '
+              + '모바일만 낮으면 결제창 문제, 신규만 낮으면 가입 강제가 원인입니다',
+  sessionToBuy: '퍼널·페이지 탭 → <b>개선 기회</b> 순위에서 이탈 인원이 가장 많은 단계를 먼저 보세요',
+  returning:    '유지 섹션의 <b>이탈률</b>과 재구매를 함께 보세요. 한 번 산 사람이 돌아오지 않으면 '
+              + '매출이 광고비에 묶입니다',
+  cartRate:     '구좌·상품 성과 탭에서 유입이 많은 자리와 실제 구매로 이어지는 자리를 비교하세요',
+  detailRate:   '획득 탭에서 유입 채널별 품질을 보세요. 유입은 많은데 상품을 안 보는 채널이 있습니다',
+  aov:          '매출 탭 → <b>아트·라이프</b>와 <b>할인 종류별</b>을 보세요. 할인율이 객단가를 누르고 있을 수 있습니다',
+  churn:        '유지 섹션의 회원 수·이탈률 추이를 보세요. 탈퇴 사유는 cafe24 관리자에서 확인됩니다',
+};
+
 async function goalsHTML(d){
   const cfg=await ensureGoals();
   if(!cfg || !Array.isArray(cfg.goals) || !cfg.goals.length) return '';
-  const rows=[];
+  const rows=[], tracked=[];
   for(const g of cfg.goals){
     const cur=goalValue(g.key, d);
     if(cur==null || g.target==null) continue;
@@ -973,6 +1017,7 @@ async function goalsHTML(d){
     const fmtV=(v)=> GOAL_UNIT[g.key]==='won' ? won(v) : v.toFixed(v<1?2:1)+'%';
     // 뒤로 갔으면(진행률 음수) 빨간색으로 알린다
     const cls = done ? 'is-done' : (pct<0 ? 'is-back' : '');
+    tracked.push({ g, cur, pct, done, lower });
     rows.push(`<div class="goal ${cls}">
       <div class="goal-top">
         <span class="goal-label">${g.label}${done?'<span class="goal-badge">달성</span>':''}</span>
@@ -1015,7 +1060,15 @@ async function goalsHTML(d){
   h+=topLine;
   h+='<div class="goal-list">'+rows.join('')+'</div>';
   // 목표가 잘 안 오를 때 어디를 볼지 — 진단 두 줄은 남긴다
-  h+='<div class="sum-rows"><div class="sum-line" id="sumBottleneck"></div>'
+  h+='<div class="sum-rows">';
+  // 가장 뒤처진 목표 하나만 짚는다. 여러 개를 동시에 하면 무엇이 효과였는지 알 수 없다.
+  const behind = tracked.filter(t=>!t.done).sort((a,b)=>a.pct-b.pct)[0];
+  if(behind && GOAL_ACTION[behind.g.key]){
+    const state = behind.pct<0 ? '시작보다 뒤로 갔습니다' : `${Math.max(0,behind.pct).toFixed(0)}% 진행`;
+    h+=`<div class="sum-line sum-next"><span class="sum-tag">다음 할 일</span>
+      <span><b>${behind.g.label}</b>이 ${state}. ${GOAL_ACTION[behind.g.key]}</span></div>`;
+  }
+  h+='<div class="sum-line" id="sumBottleneck"></div>'
     + '<div class="sum-line" id="sumWorstSeg"><span class="sum-tag">가장 나쁜 조합</span><span style="color:var(--muted);">확인 중…</span></div></div>';
   h+='</div>';
   return h;
@@ -1063,17 +1116,18 @@ async function fillWorstSegment(){
   }catch(e){ el.remove(); }
 }
 
-async function renderOverview(d){
+async function renderCustomer(d){
   let h='';
   const byGroup=(g)=>d.kpis.filter(k=>k.group===g);
 
   // ===== 최상단: 한눈에 보기 (핵심 지표 3개를 그래프로 먼저) =====
-  h+='<div id="goalsWrap"></div>';
-  h+='<h2 class="sec">한눈에 보기</h2>';
-    h+='<div id="heroWrap"><div class="state"><div class="spinner"></div>핵심 지표 불러오는 중…</div></div>';
+  // [2026-08-03] '한눈에 보기' 제거 — 실매출·세션·구매 건수가 아래 KPI 와 전부 중복이었다.
+  // 목표·다음 할 일·진단은 '그로스' 탭으로 옮겼다. 성격이 다르고 개요에 두면 또 중복이 된다.
 
   h+='<h2 class="sec">① 획득 (Acquisition)</h2>'+kpiHTML(byGroup('acquisition'));
   h+='<div id="cafe24TrafficWrap"></div>';
+  // [2026-08-03] 별도였던 '획득' 탭을 여기로 합쳤다. 개요의 ①획득과 같은 내용이었다.
+  h+='<div id="acqWrap"><div class="state"><div class="spinner"></div>유입 채널 불러오는 중…</div></div>';
 
   h+='<h2 class="sec">② 활성화 (Activation)</h2><div id="actWrap">'+kpiHTML(byGroup('activation'))+'</div>';
   
@@ -1097,7 +1151,6 @@ async function renderOverview(d){
   $('content').innerHTML=h;
 
   // 최상단 핵심 그래프를 가장 먼저 로드 (제일 먼저 보이는 영역이니까)
-  loadHeroCharts();
 
   await loadTrend();
 
@@ -1131,9 +1184,8 @@ async function renderOverview(d){
     if(aovAfter!=null || sumA.gmv){
       // 거래액(GMV) → 실매출 → 객단가 순. GMV 가 가장 상위 지표라 맨 앞에 둔다.
       const cmpSum = (cmpOnAov && sumB) ? sumB : sumA;   // 비교 꺼져 있으면 증감 0으로 보이게
+      // 거래액·실매출은 맨 위 목표 블록에 이미 있어 여기서는 빼고 객단가만 둔다
       const extraItems=[];
-      if(sumA.gmv) extraItems.push({label:'거래액(GMV)', before:cmpSum.gmv, after:sumA.gmv, unit:'won'});
-      if(sumA.net) extraItems.push({label:'실매출', before:cmpSum.net, after:sumA.net, unit:'won'});
       if(aovAfter!=null) extraItems.push({label:'객단가', before:aovBefore, after:aovAfter, unit:'won'});
       document.getElementById('revWrap').innerHTML = kpiHTML([...extraItems, ...byGroup('revenue')]);
     }
@@ -1147,13 +1199,8 @@ async function renderOverview(d){
 
   // 회원 지표 (총 회원 수·순증·이탈률 + 추이)
   loadMemberMetrics();
-  // 목표 진행률 (goals.json 이 있으면 표시). 병목·나쁜 조합은 그 안에 이어서 채운다.
-  goalsHTML(d).then(html=>{
-    const w=document.getElementById('goalsWrap');
-    if(!w) return;
-    w.innerHTML=html;
-    if(html){ fillBottleneck(d); fillWorstSegment(); }
-  });
+  // 유입 채널 상세 (예전 '획득' 탭 내용)
+  loadAcquisitionSections();
 
   // cafe24 기준 방문자·페이지뷰 (GA4보다 오래된 기간도 커버, 별도 표시)
   try{
@@ -1443,87 +1490,6 @@ function wonAxis(v){
 let REVENUE_CACHE=null;
 
 // ===== 최상단 핵심 그래프: 매출 / 방문 / 구매 (최근 30일) =====
-async function loadHeroCharts(){
-  const wrap=document.getElementById('heroWrap');
-  if(!wrap) return;
-  try{
-    // 상단에서 고른 기간을 그대로 사용 + 비교 켜져 있으면 비교 기간도 같이
-    const as=$('s').value, ae=$('e').value;
-    const cmpOn=$('cmp').checked;
-    const cs=$('cs').value, ce=$('ce').value;
-
-    const exclQS = ($('exclLpoint').checked ? '&excl=lpoint,lotte,l.point' : '')
-                 + ($('exclBots').checked ? '&autoExclLowEngagement=1' : '')
-                 + (NOCACHE ? '&nocache=1' : '');
-    const fetchGA=async(s0,e0)=>{
-      try{
-        const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
-        const dd = await wfetch(url);
-        return dd.daily||[];
-      }catch(e){ return []; }
-    };
-
-    // GA4: 선택 기간(+비교 기간)
-    const [gaCur, gaPrev] = await Promise.all([ fetchGA(as,ae), cmpOn? fetchGA(cs,ce) : Promise.resolve([]) ]);
-
-    // 매출: 캐시에서 두 기간 잘라 씀
-    let revCur=[], revPrev=[];
-    try{
-      const all=(await ensureRevenue()).daily||[];
-      const cut=(s0,e0)=>all.filter(d=>d.date>=s0 && d.date<=e0).sort((a,b)=>a.date.localeCompare(b.date));
-      revCur=cut(as,ae);
-      if(cmpOn) revPrev=cut(cs,ce);
-    }catch(e){ /* 매출 실패해도 GA4는 보여줌 */ }
-
-    const cards=[];
-    const mdLabel=(d)=>d.slice(5).replace('-','/');          // 'YYYY-MM-DD' → 'MM/DD'
-    const gaLabel=(d)=>d.slice(4,6)+'/'+d.slice(6,8);         // 'YYYYMMDD' → 'MM/DD'
-
-    // 선택 기간 길이로 묶는 단위를 정하고, 비교 기간도 같은 단위로 묶는다
-    // (compareLineChart가 인덱스로 짝을 맞추므로 단위가 어긋나면 안 됨).
-    const spanDays=Math.round((new Date(ae)-new Date(as))/86400000)+1;
-    const bmode=bucketModeFor(spanDays);
-    const bNote=bucketNoteOf(bmode);
-    const revCurB=bucketRows(revCur,bmode), revPrevB=bucketRows(revPrev,bmode);
-    const gaCurB=bucketRows(gaCur,bmode),  gaPrevB=bucketRows(gaPrev,bmode);
-    const revLab=labelerFor(bmode, mdLabel), gaLab=labelerFor(bmode, gaLabel);
-
-    if(revCurB.length>1){
-      const labels=revCurB.map(revLab);
-      const prevLabels=revPrevB.length? revPrevB.map(revLab) : null;
-      const cur=revCurB.map(r=>r.net);
-      const prev=revPrevB.length? revPrevB.map(r=>r.net) : null;
-      cards.push({title:'실매출'+bNote, total:won(cur.reduce((a,b)=>a+b,0)), color:'#3182F6',
-        svg: compareLineChart(labels, cur, prev, '#3182F6', v=>wonAxis(v), '실매출', prevLabels)});
-    }
-    if(gaCurB.length>1){
-      const labels=gaCurB.map(gaLab);
-      const prevLabels=gaPrevB.length? gaPrevB.map(gaLab) : null;
-      const sess=gaCurB.map(r=>r.sessions||0);
-      const sessPrev=gaPrevB.length? gaPrevB.map(r=>r.sessions||0) : null;
-      cards.push({title:'방문(세션)'+bNote, total:fmt(sess.reduce((a,b)=>a+b,0)), color:'#00B26B',
-        svg: compareLineChart(labels, sess, sessPrev, '#00B26B', v=>fmt(Math.round(v)), '세션', prevLabels)});
-      const purch=gaCurB.map(r=>r.purchase||0);
-      const purchPrev=gaPrevB.length? gaPrevB.map(r=>r.purchase||0) : null;
-      cards.push({title:'구매 건수'+bNote, total:fmt(purch.reduce((a,b)=>a+b,0))+'건', color:'#8B5CF6',
-        svg: verticalBarChart(labels, purch, '#8B5CF6', v=>fmt(Math.round(v)), purchPrev, '구매 건수')});
-    }
-
-    if(!cards.length){
-      wrap.innerHTML='<div class="funnel"><div class="state">선택한 기간이 하루라 추이가 그려지지 않아요. 기간을 2일 이상으로 넓혀보세요.</div></div>';
-      return;
-    }
-    wrap.innerHTML = cards.map(c=>
-      `<div class="funnel card-gap">
-        <div class="mini-head"><span class="mini-dot" style="background:${c.color}"></span>${c.title}
-          <span class="mini-total">${c.total}</span></div>
-        ${c.svg}
-      </div>`).join('');
-  }catch(e){
-    wrap.innerHTML='<div class="funnel"><div class="state">핵심 지표를 불러오지 못했습니다</div></div>';
-  }
-}
-
 async function loadGrowthMetrics(){
   const wrap=document.getElementById('growthWrap');
   let h='';
@@ -1875,6 +1841,7 @@ function renderFunnel(d){
   h+='<p class="sec-desc">매출은 GA4 추적 기준 — 매출 탭 실매출과 다릅니다</p>';
   h+='<div id="utmWrap"><div class="funnel"><div class="state"><div class="spinner"></div>UTM 지표 불러오는 중…</div></div></div>';
 
+  h+='<div id="productWrap"><div class="state"><div class="spinner"></div>구좌·상품 성과 불러오는 중…</div></div>';
   $('content').innerHTML=h;
   loadSegmentFunnel();
   loadCartAnalysis();
@@ -2245,9 +2212,10 @@ function toggleSlotTableRest(id, count){
 let PRODUCT_SUBTAB = localStorage.getItem('pbg_product_subtab') || 'art';
 let LAST_PERF_DATA = null;
 
-function renderProductTab(dPerf, dSlots){
+function renderProductSections(dPerf, dSlots, wrap){
   LAST_PERF_DATA = {dPerf, dSlots};
   let h='';
+  h+='<h2 class="sec">구좌 · 상품 성과</h2>';
   h+='<p class="sec-desc">구좌 순서 = 메인 배치 위치 · 유입 세션 = 클릭해 넘어간 방문 수</p>';
 
   // 핵심 구좌 TOP 10: art+life 전체(글로벌네비 중복 제외)를 합쳐서, 전체 유입 대비 비중이 높은 순
@@ -2280,12 +2248,12 @@ function renderProductTab(dPerf, dSlots){
   h+='<div class="preset-btns" id="productSubtabBtns" style="margin-bottom:16px;"></div>';
   h+='<div id="productSubtabWrap"></div>';
 
-  h+='<h2 class="sec">목적지별 이동 순위 (상위 30)</h2>';
+  h+='<div class="section-title">목적지별 이동 순위 (상위 30)</div>';
     ['art.html','life.html'].forEach(k=>{const s=dSlots.slots[k]||{};
-    h+=`<h2 class="sec" style="font-size:15px;">${k} 메인에서의 이동</h2>`;
+    h+=`<div class="section-title" style="font-size:14px;">${k} 메인에서의 이동</div>`;
     h+=`<div class="slot-cols"><div class="section-block">${slotTable(s.before)}</div><div class="section-block">${slotTable(s.after)}</div></div>`;});
 
-  $('content').innerHTML=h;
+  wrap.innerHTML=h;
 
   $('productSubtabBtns').innerHTML=['art','life'].map(t=>
     `<button data-t="${t}" class="${t===PRODUCT_SUBTAB?'active':''}">${t.toUpperCase()}</button>`).join('');
@@ -2334,14 +2302,21 @@ function rankTable(rows,label,prevRows){
     </div>`;
   }).join('')+'</div>';
 }
-function renderAcquisition(d){
+// 유입 채널 상세. 고객 탭의 ①획득 아래에 붙는다(예전 '획득' 탭 내용).
+async function loadAcquisitionSections(){
+  const wrap=document.getElementById('acqWrap');
+  if(!wrap) return;
+  let d;
+  try{ d = await wfetch(WORKER+'/?'+q()+'&tab=acquisition'); }
+  catch(e){ wrap.innerHTML='<div class="state">유입 채널을 불러오지 못했습니다</div>'; return; }
+  if(!d || !d.acquisition){ wrap.innerHTML=''; return; }
   let h='';
   const ab=d.acquisitionBefore;
-  h+='<h2 class="sec">유입 소스별</h2>'+rankTable(d.acquisition.bySource,'소스 / 매체', ab?ab.bySource:null);
-  h+='<h2 class="sec">디바이스별</h2>'+rankTable(d.acquisition.byDevice,'디바이스', ab?ab.byDevice:null);
+  h+='<div class="section-title">유입 소스별</div>'+rankTable(d.acquisition.bySource,'소스 / 매체', ab?ab.bySource:null);
+  h+='<div class="section-title">디바이스별</div>'+rankTable(d.acquisition.byDevice,'디바이스', ab?ab.byDevice:null);
 
-  h+='<h2 class="sec">국가별 유입</h2>';
-  h+='<p class="sec-desc">체류가 수 초 이내면 봇 의심</p>';
+  h+='<div class="section-title">국가별 유입</div>';
+  h+='<p class="sec-desc">필터를 걸지 않은 원본 · 체류가 수 초 이내면 봇 의심</p>';
   const countries=d.acquisition.byCountry||[];
   if(countries.length){
     const maxC=Math.max(...countries.map(c=>c.sessions),1);
@@ -2359,9 +2334,9 @@ function renderAcquisition(d){
     h+='<div class="state">국가별 데이터 없음</div>';
   }
 
-  h+='<h2 class="sec">상위 5개국 상세 진단</h2><div id="countryDetailWrap"><div class="state"><div class="spinner"></div>불러오는 중…</div></div>';
+  h+='<div class="section-title">상위 5개국 상세 진단</div><div id="countryDetailWrap"><div class="state"><div class="spinner"></div>불러오는 중…</div></div>';
 
-  $('content').innerHTML=h;
+  wrap.innerHTML=h;
   loadCountryDetail();
 }
 
@@ -2394,6 +2369,214 @@ async function loadCountryDetail(){
     });
     wrap.innerHTML=html;
   }catch(e){ wrap.innerHTML='<div class="state">불러오지 못했습니다</div>'; }
+}
+
+// ===== 그로스 탭 =====
+// '무엇을 할까'만 보는 탭. 사업 목표 + 운영 목표 + 다음 할 일 + 진단 + 실험 기록.
+// 지표를 나열하지 않는다 — 그건 고객·매출·퍼널 탭이 한다.
+async function loadGrowthTab(){
+  showLoading();
+  try{
+    const r = await wfetch(WORKER+'/?'+q());
+    if(r.error){ showErr(r.error); return; }
+
+    let h='';
+    h+='<div id="bizGoalWrap"></div>';    // 사업 목표 (pnl.json)
+    h+='<div id="goalsWrap"><div class="state"><div class="spinner"></div>목표 불러오는 중…</div></div>';
+    h+='<div id="expWrap"></div>';        // 실험 기록 (experiments.json)
+    $('content').innerHTML=h;
+
+    // 사업 목표 (없으면 조용히 생략)
+    businessGoalHTML().then(html=>{
+      const w=document.getElementById('bizGoalWrap');
+      if(w) w.innerHTML=html||'';
+    });
+
+    // 운영 목표 → 그 안에 병목·나쁜 조합을 이어서 채운다
+    const html = await goalsHTML(r);
+    const w=document.getElementById('goalsWrap');
+    if(w){
+      w.innerHTML = html || '<div class="funnel"><div class="state">goals.json 이 없어 목표를 표시할 수 없어요.<br>'
+        + '<span style="font-size:12px;">레포에 goals.json 을 올리면 이 자리에 목표 진행률이 나옵니다.</span></div></div>';
+      if(html){ fillBottleneck(r); fillWorstSegment(); }
+    }
+    loadExperiments();
+  }catch(e){ showErr('그로스 지표를 불러오지 못했습니다'); }
+}
+
+// 실험 기록. experiments.json 이 없으면 이 섹션은 나타나지 않는다.
+// 무엇을 언제 바꿨는지는 시스템이 알 수 없어 손으로 적어야 한다.
+// 이게 없으면 지표가 좋아져도 우리가 뭘 해서 좋아진 건지 알 수 없다.
+async function loadExperiments(){
+  const wrap=document.getElementById('expWrap');
+  if(!wrap) return;
+  let cfg=null;
+  try{
+    const r=await fetch('./experiments.json',{cache:'no-store'});
+    if(!r.ok) throw new Error('없음');
+    cfg=await r.json();
+  }catch(e){ wrap.innerHTML=''; return; }
+  const list=Array.isArray(cfg && cfg.experiments)? cfg.experiments : [];
+  if(!list.length){ wrap.innerHTML=''; return; }
+
+  const STATE={ '진행중':'#3182F6', '종료':'#8B95A1', '예정':'#FF9500' };
+  let h='<h2 class="sec">실험 기록</h2>';
+  h+='<p class="sec-desc">무엇을 언제 바꿨는지 · 지표 변화와 함께 봐야 개선이 우연인지 알 수 있어요</p>';
+  h+='<div class="section-block">';
+  h+=[...list].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(x=>{
+    const color=STATE[x.status]||'#3182F6';
+    const metrics=(x.metrics||[]).map(m=>{
+      const before=Number(m.before), after=Number(m.after);
+      if(!isFinite(before)||!isFinite(after)) return '';
+      const up=after>=before;
+      const good=(m.lowerIsBetter? !up : up);
+      const unit=m.unit||'%';
+      return `<div class="exp-metric"><span class="exp-metric-name">${m.label||''}</span>
+        <span>${before}${unit} → <b>${after}${unit}</b></span>
+        <span class="${good?'up-txt':'down-txt'}">${up?'▲':'▼'} ${Math.abs(after-before).toFixed(1)}${unit==='%'?'%p':unit}</span></div>`;
+    }).join('');
+    return `<div class="exp">
+      <div class="exp-head">
+        <span class="exp-date">${x.date||''}</span>
+        <span class="exp-title">${x.title||''}</span>
+        <span class="exp-state" style="background:${color};">${x.status||'진행중'}</span>
+      </div>
+      ${x.note?`<div class="exp-note">${x.note}</div>`:''}
+      ${metrics?`<div class="exp-metrics">${metrics}</div>`:''}
+    </div>`;
+  }).join('');
+  h+='</div>';
+  wrap.innerHTML=h;
+}
+
+// ===== 손익 (pnl.json) =====
+// 회계 기준(배송완료·부가세 제외)이라 대시보드의 주문 기준 매출과 값이 다르다.
+// 차이 = 부가세 10% + 선수금(결제됐지만 미발송). 그래서 목표 달성률은 이 파일 값으로 계산한다.
+// 파일이 없으면 관련 섹션은 나타나지 않는다.
+let PNL=null;
+async function ensurePnl(){
+  if(PNL!==null) return PNL;
+  try{
+    const r=await fetch('./pnl.json',{cache:'no-store'});
+    PNL = r.ok ? await r.json() : false;
+  }catch(e){ PNL=false; }
+  return PNL;
+}
+
+// 매출 탭 하단 손익 섹션
+async function loadPnlSection(){
+  const wrap=document.getElementById('pnlWrap');
+  if(!wrap) return;
+  const p=await ensurePnl();
+  const rows=(p && Array.isArray(p.actuals)) ? p.actuals : [];
+  if(!rows.length){ wrap.innerHTML=''; return; }
+  const plan=p.plan||{};
+  const ref=p.reference2025H1||{};
+
+  const calc=rows.map(r=>({
+    ...r,
+    costRate: r.revenue? r.cost/r.revenue*100 : 0,
+    adRate:   r.revenue? (r.ad||0)/r.revenue*100 : 0,
+    roas:     r.ad? r.revenue/r.ad : 0,
+  }));
+  const last=calc[calc.length-1];
+  const tot={revenue:0,cost:0,ad:0};
+  calc.forEach(r=>{ tot.revenue+=r.revenue; tot.cost+=r.cost; tot.ad+=(r.ad||0); });
+  const totCostRate=tot.revenue? tot.cost/tot.revenue*100 : 0;
+
+  let h='<h2 class="sec">손익 (회계 기준)</h2>';
+  h+='<p class="sec-desc">배송완료·부가세 제외 · 위 거래액·실매출은 주문일·부가세 포함이라 값이 다릅니다</p>';
+
+  // 월별 표
+  h+='<div class="section-block">';
+  h+=`<div class="pnl-row pnl-head"><span>월</span><span>매출액</span><span>매출원가</span><span>원가율</span><span>광고비</span><span>광고비율</span></div>`;
+  h+=calc.map(r=>{
+    const over = plan.costRate!=null && r.costRate>plan.costRate;
+    return `<div class="pnl-row">
+      <span>${r.month.slice(5)}월</span>
+      <span>${won(r.revenue)}</span>
+      <span>${won(r.cost)}</span>
+      <span class="${over?'down-txt':''}"><b>${r.costRate.toFixed(1)}%</b></span>
+      <span>${won(r.ad||0)}</span>
+      <span>${r.adRate.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+  h+=`<div class="pnl-row pnl-total">
+      <span>누적</span><span>${won(tot.revenue)}</span><span>${won(tot.cost)}</span>
+      <span><b>${totCostRate.toFixed(1)}%</b></span><span>${won(tot.ad)}</span>
+      <span>${(tot.ad/tot.revenue*100).toFixed(1)}%</span></div>`;
+  h+='</div>';
+
+  // 원가율 추이 — 목표선과 함께
+  if(calc.length>=3){
+    const labels=calc.map(r=>r.month.slice(5)+'월');
+    h+='<div class="section-title">원가율 추이';
+    if(plan.costRate!=null) h+=`<span class="badge">목표 ${plan.costRate}%</span>`;
+    if(ref.costRate!=null) h+=`<span class="badge">2025 상반기 ${ref.costRate}%</span>`;
+    h+='</div>';
+    h+='<div class="funnel card-gap">'+miniLineChart(labels, calc.map(r=>r.costRate), '#F04452', v=>v.toFixed(1)+'%')+'</div>';
+  }
+  wrap.innerHTML=h;
+}
+
+// 그로스 탭: 사업 목표 (매출·원가율·연누적)
+async function businessGoalHTML(){
+  const p=await ensurePnl();
+  if(!p || !Array.isArray(p.actuals) || !p.actuals.length) return '';
+  const plan=p.plan||{}; const rows=p.actuals;
+  const last=rows[rows.length-1];
+  const cum=rows.reduce((s,r)=>s+r.revenue,0);
+  const costRate=last.revenue? last.cost/last.revenue*100 : 0;
+
+  const bar=(pct, cls)=>`<div class="goal-track"><div class="goal-fill ${cls}" style="width:${Math.max(0,Math.min(100,pct)).toFixed(1)}%"></div></div>`;
+  const items=[];
+  if(plan.monthlyRevenue){
+    const pct=last.revenue/plan.monthlyRevenue*100;
+    items.push(`<div class="goal">
+      <div class="goal-top"><span class="goal-label">월 매출 <span class="badge">${last.month}</span></span>
+        <span class="goal-nums"><b>${won(last.revenue)}</b> <span class="goal-target">/ ${won(plan.monthlyRevenue)}</span></span></div>
+      ${bar(pct,'')}
+      <div class="goal-foot"><span>목표 ${won(plan.monthlyRevenue)}</span><span class="goal-pct">${pct.toFixed(0)}% 달성</span></div>
+    </div>`);
+  }
+  if(plan.costRate!=null){
+    // 원가율은 낮을수록 좋다. 목표를 넘으면 빨간 막대.
+    const over=costRate>plan.costRate;
+    const pct=over?100:costRate/plan.costRate*100;
+    items.push(`<div class="goal ${over?'is-back':''}">
+      <div class="goal-top"><span class="goal-label">원가율</span>
+        <span class="goal-nums"><b>${costRate.toFixed(1)}%</b> <span class="goal-target">/ ${plan.costRate}%</span></span></div>
+      ${bar(pct, over?'':'')}
+      <div class="goal-foot"><span>목표 ${plan.costRate}% 이하</span>
+        <span class="goal-pct">${over?`${(costRate-plan.costRate).toFixed(1)}%p 초과`:'목표 내'}</span></div>
+    </div>`);
+  }
+  if(plan.yearRevenue){
+    const pct=cum/plan.yearRevenue*100;
+    items.push(`<div class="goal">
+      <div class="goal-top"><span class="goal-label">연 누적 매출</span>
+        <span class="goal-nums"><b>${won(cum)}</b> <span class="goal-target">/ ${won(plan.yearRevenue)}</span></span></div>
+      ${bar(pct,'')}
+      <div class="goal-foot"><span>${rows.length}개월 누적</span><span class="goal-pct">${pct.toFixed(0)}% 진행</span></div>
+    </div>`);
+  }
+  if(!items.length) return '';
+
+  // 비용 추세 — 판단 없이 숫자와 비교값만
+  const ref=p.reference2025H1||{};
+  const adRate=last.revenue? (last.ad||0)/last.revenue*100 : 0;
+  const prev=rows.length>1? rows[rows.length-2] : null;
+  const prevAdRate=prev&&prev.revenue? (prev.ad||0)/prev.revenue*100 : null;
+  let trend='<div class="sum-rows"><div class="sum-line"><span class="sum-tag">비용 추세</span><span>'
+    + `광고비율 <b>${adRate.toFixed(1)}%</b>`
+    + (prevAdRate!=null? ` <span style="color:var(--muted);">(전월 ${prevAdRate.toFixed(1)}%)</span>`:'')
+    + (ref.adRate!=null? ` · 2025 상반기 ${ref.adRate}%`:'')
+    + ` &nbsp;·&nbsp; 원가율 <b>${costRate.toFixed(1)}%</b>`
+    + (ref.costRate!=null? ` <span style="color:var(--muted);">(2025 상반기 ${ref.costRate}%)</span>`:'')
+    + '</span></div></div>';
+
+  return '<div class="summary"><div class="sum-head">2026 사업 목표 <span class="badge" style="font-weight:500;">회계 기준</span></div>'
+       + '<div class="goal-list">'+items.join('')+'</div>' + trend + '</div>';
 }
 
 async function loadRevenue(){
@@ -2584,8 +2767,10 @@ function renderRevenue(d){
     h+='<div class="section-block"><div class="state">데이터 없음</div></div>';
   }
 
+  h+='<div id="pnlWrap"></div>';
   $('content').innerHTML=h;
   drawRevenueTrend();
+  loadPnlSection();          // 손익 (pnl.json 이 있으면 표시)
 }
 
 // 매출 추이: 상단에서 고른 기간을 그대로 사용, 비교 켜면 비교 기간도 점선으로
