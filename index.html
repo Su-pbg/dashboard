@@ -450,6 +450,8 @@ const WORKER="https://proud-sea-35f9.sugim-386.workers.dev";
 const $=(id)=>document.getElementById(id);
 const nf=new Intl.NumberFormat('ko-KR');
 const fmt=(v)=>nf.format(Math.round(v||0));
+// 검색어처럼 사용자가 직접 입력한 문자열을 innerHTML 에 넣기 전 이스케이프
+const esc=(s)=>String(s??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const delta=(b,a,lowerIsBetter)=>{const p=b===0?0:((a-b)/b*100);const up=a>=b;return{text:(p>0?'+':'')+p.toFixed(1)+'%',good:lowerIsBetter?!up:up,up};};
 // unit별로 "실제 증감분"과 "비율"을 함께 만든 표시 문자열
 function diffText(before,after,unit){
@@ -1835,6 +1837,10 @@ function renderFunnel(d){
       <span class="m-delta ${x.good?'good':'bad'}">${x.good?'▲':'▼'} ${x.text}</span></div>`;}).join('');
     return `<div class="page"><div class="page-name">${pg.name}</div>${rows}</div>`;}).join('')+'</div>';
 
+  h+='<h2 class="sec">사이트 검색어</h2>';
+  h+='<p class="sec-desc">view_search_results 이벤트 기준 · 검색 횟수 많은 순</p>';
+  h+='<div id="searchWrap"><div class="funnel"><div class="state"><div class="spinner"></div>검색어 불러오는 중…</div></div></div>';
+
   h+='<h2 class="sec">스크롤 도달률</h2>';
   h+='<p class="sec-desc">90% 지점까지 내려본 비율</p>';
   h+='<div id="scrollWrap"><div class="funnel"><div class="state"><div class="spinner"></div>스크롤 지표 불러오는 중…</div></div></div>';
@@ -1846,8 +1852,72 @@ function renderFunnel(d){
   $('content').innerHTML=h;
   loadSegmentFunnel();
   loadCartAnalysis();
+  loadSearchTerms();
   loadScrollDepth();
   loadUtmPerformance();
+}
+
+// 사이트 검색어 (view_search_results 의 search_term)
+async function loadSearchTerms(){
+  const wrap=$('searchWrap');
+  if(!wrap) return;
+  try{
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=searchterms');
+    if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
+    const cur=dd.searchTerms, prev=dd.searchTermsBefore;
+    if(!cur || !cur.rows || !cur.rows.length){
+      wrap.innerHTML='<div class="funnel"><div class="state">이 기간에 잡힌 검색어가 없습니다.<br>'
+        +'GA4 관리 → 맞춤 정의에서 <b>search_term</b> 을 이벤트 범위 측정기준으로 등록했는지 확인해 주세요.</div></div>';
+      return;
+    }
+    const cmpOn=$('cmp').checked && prev && prev.rows;
+    const prevMap={}; if(cmpOn) prev.rows.forEach(p=>prevMap[p.term]=p);
+
+    const rows=cur.rows;
+    const maxV=Math.max(...rows.map(x=>x.searches),1);
+    const totSearch=cur.totalSearches||rows.reduce((a,b)=>a+b.searches,0);
+    const uniq=cur.uniqueTerms||rows.length;
+
+    let h=`<div class="section-block">
+      <div class="section-block-head">
+        <span class="section-dot" style="background:#0EA5E9;"></span>
+        <span class="section-block-title">검색어 상위 ${rows.length}개</span>
+        <span class="section-block-total">검색 ${fmt(totSearch)}회 · 고유 검색어 ${fmt(uniq)}개</span>
+      </div>`;
+
+    h+=rows.map(x=>{
+      const w=Math.max(x.searches/maxV*100,3);
+      const share=totSearch?(x.searches/totSearch*100):0;
+      let cmpHtml='';
+      if(cmpOn){
+        const p=prevMap[x.term];
+        const pv=p?p.searches:0;
+        const dv=delta(pv, x.searches);
+        cmpHtml=`<div class="slotbar-meta">비교 ${fmt(pv)}회 <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>${pv===0?' · <b>신규</b>':''}</div>`;
+      }
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${esc(x.term)}</span>
+          <div class="slotbar-meta">사용자 ${fmt(x.users)}명 · 점유 ${share.toFixed(1)}%</div>${cmpHtml}</div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#0EA5E9;"></div></div>
+        <div><div class="slotbar-val">${fmt(x.searches)}</div><div class="slotbar-sub">검색</div></div>
+      </div>`;
+    }).join('');
+    h+='</div>';
+
+    // 비교 기간에만 있고 이번 기간엔 사라진 검색어 (수요 이탈 신호)
+    if(cmpOn){
+      const curSet=new Set(rows.map(r=>r.term));
+      const gone=prev.rows.filter(p=>!curSet.has(p.term)).slice(0,10);
+      if(gone.length){
+        h+=`<p class="sec-desc" style="margin-top:10px;">비교 기간에 있었지만 이번엔 사라진 검색어: `
+          +gone.map(g=>`<b>${esc(g.term)}</b>(${fmt(g.searches)})`).join(', ')+'</p>';
+      }
+    }
+    if(cur.dimUsed==='customEvent:search_term'){
+      h+='<p class="sec-desc">맞춤 측정기준 <b>customEvent:search_term</b> 기준으로 집계했습니다.</p>';
+    }
+    wrap.innerHTML=h;
+  }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">검색어를 불러오지 못했습니다</div></div>'; }
 }
 
 // 장바구니 분석 + 구매 경로
