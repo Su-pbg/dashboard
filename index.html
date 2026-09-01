@@ -263,6 +263,13 @@
   .section-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
   .section-block-title{font-size:15px;font-weight:700;color:var(--ink);letter-spacing:-.015em;}
   .section-block-total{margin-left:auto;font-size:13px;color:var(--muted);font-weight:500;}
+  /* CSV 내려받기 버튼. 워커가 Content-Disposition: attachment 로 주므로 클릭하면
+     페이지 이동 없이 바로 저장된다(download 속성은 교차 출처라 무시됨 — 헤더가 처리). */
+  .csv-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:var(--r-pill);
+    border:1px solid var(--hair);background:var(--surface);color:var(--ink-2);font-size:12px;font-weight:600;
+    text-decoration:none;white-space:nowrap;transition:background .15s,border-color .15s,color .15s;}
+  .csv-btn:hover{background:var(--fill);border-color:var(--ghost);color:var(--ink);}
+  .csv-btn::before{content:'⤓';font-size:13px;line-height:1;}
   .prod-mini-row{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) 0 var(--s2) var(--s5);font-size:13px;}
   .prod-mini-name{flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .prod-mini-val{color:var(--muted);min-width:80px;text-align:right;font-weight:500;}
@@ -1878,11 +1885,16 @@ async function loadSearchTerms(){
     const totSearch=cur.totalSearches||rows.reduce((a,b)=>a+b.searches,0);
     const uniq=cur.uniqueTerms||rows.length;
 
+    // 전체 검색어 CSV 내려받기. 화면은 상위 50개만 보여주므로, 전수는 워커가 직접
+    // 파일로 내려준다(BOM 포함이라 엑셀에서 한글이 안 깨짐).
+    const csvUrl = WORKER+'/?'+q()+'&tab=searchtermscsv';
+
     let h=`<div class="section-block">
       <div class="section-block-head">
-        <span class="section-dot" style="background:#0EA5E9;"></span>
+        <span class="section-dot" style="background:#3182F6;"></span>
         <span class="section-block-title">검색어 상위 ${rows.length}개</span>
         <span class="section-block-total">검색 ${fmt(totSearch)}회 · 고유 검색어 ${fmt(uniq)}개</span>
+        <a class="csv-btn" href="${csvUrl}" download>전체 ${fmt(uniq)}개 엑셀 다운로드</a>
       </div>`;
 
     h+=rows.map(x=>{
@@ -1898,7 +1910,7 @@ async function loadSearchTerms(){
       return `<div class="slotbar-row">
         <div><span class="slotbar-name" style="cursor:default;">${esc(x.term)}</span>
           <div class="slotbar-meta">사용자 ${fmt(x.users)}명 · 점유 ${share.toFixed(1)}%</div>${cmpHtml}</div>
-        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#0EA5E9;"></div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#3182F6;"></div></div>
         <div><div class="slotbar-val">${fmt(x.searches)}</div><div class="slotbar-sub">검색</div></div>
       </div>`;
     }).join('');
