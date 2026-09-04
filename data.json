@@ -1,7 +1,7 @@
 {
   "shopName": "",
   "source": "GA4 (자동 연동)",
-  "updatedAt": "2026. 9. 4. AM 8:00:09",
+  "updatedAt": "2026. 9. 5. AM 7:47:43",
   "defaultPreset": "renewal",
   "presets": [
     {
@@ -192,36 +192,36 @@
     },
     "d7": {
       "label": "최근 7일",
-      "periodBefore": "2026-08-21 ~ 2026-08-27",
-      "periodAfter": "2026-08-28 ~ 2026-09-03",
+      "periodBefore": "2026-08-22 ~ 2026-08-28",
+      "periodAfter": "2026-08-29 ~ 2026-09-04",
       "kpis": [
         {
           "label": "세션(방문)",
-          "before": 23274,
-          "after": 27604,
+          "before": 24262,
+          "after": 28519,
           "unit": "count"
         },
         {
           "label": "신규 방문자",
-          "before": 13199,
-          "after": 16528,
+          "before": 13921,
+          "after": 17117,
           "unit": "count"
         },
         {
           "label": "상품상세 조회",
-          "before": 28160,
-          "after": 30047,
+          "before": 28696,
+          "after": 30146,
           "unit": "count"
         },
         {
           "label": "장바구니 담기",
-          "before": 2063,
-          "after": 2116,
+          "before": 2092,
+          "after": 2119,
           "unit": "count"
         },
         {
           "label": "구매",
-          "before": 147,
+          "before": 145,
           "after": 153,
           "unit": "count"
         }
@@ -229,27 +229,27 @@
       "funnel": [
         {
           "name": "방문",
-          "before": 23274,
-          "after": 27604
+          "before": 24262,
+          "after": 28519
         },
         {
           "name": "상품조회",
-          "before": 28160,
-          "after": 30047
+          "before": 28696,
+          "after": 30146
         },
         {
           "name": "장바구니 담기",
-          "before": 2063,
-          "after": 2116
+          "before": 2092,
+          "after": 2119
         },
         {
           "name": "결제(주문서)",
-          "before": 934,
-          "after": 1113
+          "before": 952,
+          "after": 1056
         },
         {
           "name": "구매",
-          "before": 147,
+          "before": 145,
           "after": 153
         }
       ],
@@ -260,13 +260,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 11775,
-              "after": 12669
+              "before": 12164,
+              "after": 12695
             },
             {
               "label": "활성 사용자",
-              "before": 5383,
-              "after": 5750
+              "before": 5391,
+              "after": 6385
             }
           ],
           "note": "실제 메인인 <b>/art.html · /life.html</b> 합산."
@@ -277,13 +277,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 31661,
-              "after": 33260
+              "before": 32548,
+              "after": 33216
             },
             {
               "label": "활성 사용자",
-              "before": 5410,
-              "after": 7934
+              "before": 5852,
+              "after": 8333
             }
           ],
           "note": "상품 목록 페이지 트래픽."
@@ -294,13 +294,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 28160,
-              "after": 30047
+              "before": 28696,
+              "after": 30146
             },
             {
               "label": "활성 사용자",
-              "before": 8626,
-              "after": 9989
+              "before": 8851,
+              "after": 10294
             }
           ],
           "note": "상품 상세 조회."
@@ -311,13 +311,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 11584,
-              "after": 2222
+              "before": 11052,
+              "after": 1420
             },
             {
               "label": "활성 사용자",
-              "before": 3078,
-              "after": 854
+              "before": 2989,
+              "after": 653
             }
           ],
           "note": "검색 사용자 유입."
@@ -328,13 +328,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 2820,
-              "after": 2996
+              "before": 2930,
+              "after": 2893
             },
             {
               "label": "활성 사용자",
-              "before": 717,
-              "after": 830
+              "before": 740,
+              "after": 912
             }
           ],
           "note": "장바구니 도달."
@@ -345,13 +345,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 934,
-              "after": 1113
+              "before": 952,
+              "after": 1056
             },
             {
               "label": "활성 사용자",
               "before": 414,
-              "after": 499
+              "after": 536
             }
           ],
           "note": "결제 단계 도달. 구매 전환을 높이는 것이 과제."
@@ -360,65 +360,65 @@
     },
     "d28": {
       "label": "최근 28일",
-      "periodBefore": "2026-07-10 ~ 2026-08-06",
-      "periodAfter": "2026-08-07 ~ 2026-09-03",
+      "periodBefore": "2026-07-11 ~ 2026-08-07",
+      "periodAfter": "2026-08-08 ~ 2026-09-04",
       "kpis": [
         {
           "label": "세션(방문)",
-          "before": 457690,
-          "after": 127340,
+          "before": 448167,
+          "after": 127658,
           "unit": "count"
         },
         {
           "label": "신규 방문자",
-          "before": 290296,
-          "after": 84171,
+          "before": 285956,
+          "after": 83662,
           "unit": "count"
         },
         {
           "label": "상품상세 조회",
-          "before": 265464,
-          "after": 138721,
+          "before": 262601,
+          "after": 138574,
           "unit": "count"
         },
         {
           "label": "장바구니 담기",
-          "before": 12011,
-          "after": 9127,
+          "before": 12098,
+          "after": 8964,
           "unit": "count"
         },
         {
           "label": "구매",
-          "before": 937,
-          "after": 652,
+          "before": 936,
+          "after": 636,
           "unit": "count"
         }
       ],
       "funnel": [
         {
           "name": "방문",
-          "before": 457690,
-          "after": 127340
+          "before": 448167,
+          "after": 127658
         },
         {
           "name": "상품조회",
-          "before": 265464,
-          "after": 138721
+          "before": 262601,
+          "after": 138574
         },
         {
           "name": "장바구니 담기",
-          "before": 12011,
-          "after": 9127
+          "before": 12098,
+          "after": 8964
         },
         {
           "name": "결제(주문서)",
-          "before": 5396,
-          "after": 4664
+          "before": 5470,
+          "after": 4455
         },
         {
           "name": "구매",
-          "before": 937,
-          "after": 652
+          "before": 936,
+          "after": 636
         }
       ],
       "pages": [
@@ -428,13 +428,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 66698,
-              "after": 51793
+              "before": 66149,
+              "after": 51803
             },
             {
               "label": "활성 사용자",
-              "before": 27808,
-              "after": 21133
+              "before": 27634,
+              "after": 21671
             }
           ],
           "note": "실제 메인인 <b>/art.html · /life.html</b> 합산."
@@ -445,13 +445,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 370721,
-              "after": 138394
+              "before": 363461,
+              "after": 137182
             },
             {
               "label": "활성 사용자",
-              "before": 88319,
-              "after": 23292
+              "before": 86384,
+              "after": 23651
             }
           ],
           "note": "상품 목록 페이지 트래픽."
@@ -462,13 +462,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 265464,
-              "after": 138721
+              "before": 262601,
+              "after": 138574
             },
             {
               "label": "활성 사용자",
-              "before": 172532,
-              "after": 53360
+              "before": 169318,
+              "after": 53663
             }
           ],
           "note": "상품 상세 조회."
@@ -479,13 +479,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 81030,
-              "after": 41495
+              "before": 82337,
+              "after": 37859
             },
             {
               "label": "활성 사용자",
-              "before": 28536,
-              "after": 10677
+              "before": 28827,
+              "after": 9691
             }
           ],
           "note": "검색 사용자 유입."
@@ -496,13 +496,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 14732,
-              "after": 12423
+              "before": 14812,
+              "after": 12142
             },
             {
               "label": "활성 사용자",
-              "before": 3693,
-              "after": 2918
+              "before": 3689,
+              "after": 2966
             }
           ],
           "note": "장바구니 도달."
@@ -513,13 +513,13 @@
           "metrics": [
             {
               "label": "조회수",
-              "before": 5396,
-              "after": 4664
+              "before": 5470,
+              "after": 4455
             },
             {
               "label": "활성 사용자",
-              "before": 2364,
-              "after": 1843
+              "before": 2370,
+              "after": 1839
             }
           ],
           "note": "결제 단계 도달. 구매 전환을 높이는 것이 과제."
@@ -529,36 +529,36 @@
     "month": {
       "label": "지난달 vs 이번달",
       "periodBefore": "2026-08-01 ~ 2026-08-31",
-      "periodAfter": "2026-09-01 ~ 2026-09-03",
+      "periodAfter": "2026-09-01 ~ 2026-09-04",
       "kpis": [
         {
           "label": "세션(방문)",
           "before": 176648,
-          "after": 12578,
+          "after": 17552,
           "unit": "count"
         },
         {
           "label": "신규 방문자",
           "before": 131030,
-          "after": 7900,
+          "after": 10939,
           "unit": "count"
         },
         {
           "label": "상품상세 조회",
           "before": 183972,
-          "after": 12990,
+          "after": 17591,
           "unit": "count"
         },
         {
           "label": "장바구니 담기",
           "before": 10420,
-          "after": 869,
+          "after": 1154,
           "unit": "count"
         },
         {
           "label": "구매",
           "before": 779,
-          "after": 61,
+          "after": 79,
           "unit": "count"
         }
       ],
@@ -566,27 +566,27 @@
         {
           "name": "방문",
           "before": 176648,
-          "after": 12578
+          "after": 17552
         },
         {
           "name": "상품조회",
           "before": 183972,
-          "after": 12990
+          "after": 17591
         },
         {
           "name": "장바구니 담기",
           "before": 10420,
-          "after": 869
+          "after": 1154
         },
         {
           "name": "결제(주문서)",
           "before": 4952,
-          "after": 523
+          "after": 601
         },
         {
           "name": "구매",
           "before": 779,
-          "after": 61
+          "after": 79
         }
       ],
       "pages": [
@@ -597,12 +597,12 @@
             {
               "label": "조회수",
               "before": 59070,
-              "after": 4913
+              "after": 7042
             },
             {
               "label": "활성 사용자",
               "before": 24001,
-              "after": 2665
+              "after": 4107
             }
           ],
           "note": "실제 메인인 <b>/art.html · /life.html</b> 합산."
@@ -614,12 +614,12 @@
             {
               "label": "조회수",
               "before": 158473,
-              "after": 13351
+              "after": 18473
             },
             {
               "label": "활성 사용자",
               "before": 26025,
-              "after": 3738
+              "after": 5269
             }
           ],
           "note": "상품 목록 페이지 트래픽."
@@ -631,12 +631,12 @@
             {
               "label": "조회수",
               "before": 183972,
-              "after": 12990
+              "after": 17591
             },
             {
               "label": "활성 사용자",
               "before": 88296,
-              "after": 5247
+              "after": 6976
             }
           ],
           "note": "상품 상세 조회."
@@ -648,12 +648,12 @@
             {
               "label": "조회수",
               "before": 62453,
-              "after": 232
+              "after": 303
             },
             {
               "label": "활성 사용자",
               "before": 19963,
-              "after": 134
+              "after": 195
             }
           ],
           "note": "검색 사용자 유입."
@@ -665,12 +665,12 @@
             {
               "label": "조회수",
               "before": 13376,
-              "after": 1320
+              "after": 1661
             },
             {
               "label": "활성 사용자",
               "before": 3213,
-              "after": 409
+              "after": 603
             }
           ],
           "note": "장바구니 도달."
@@ -682,12 +682,12 @@
             {
               "label": "조회수",
               "before": 4952,
-              "after": 523
+              "after": 601
             },
             {
               "label": "활성 사용자",
               "before": 2029,
-              "after": 239
+              "after": 334
             }
           ],
           "note": "결제 단계 도달. 구매 전환을 높이는 것이 과제."
