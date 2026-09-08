@@ -455,6 +455,34 @@
 
 const WORKER="https://proud-sea-35f9.sugim-386.workers.dev";
 const $=(id)=>document.getElementById(id);
+
+/* ===== 구매하기 버튼 분리 (2026-09-07) =====
+   그 전: [구매하기] = 장바구니 담기 → 장바구니 페이지 → 주문서. 즉 장바구니가 필수 경로였다.
+   그 후: [구매하기] = 주문서 직행(바로구매), [장바구니 담기]는 별도 버튼.
+   따라서 ① add_to_cart 는 더 이상 퍼널의 필수 단계가 아니고(선택 분기),
+        ② '주문서 세션 − 장바구니 세션' 은 추적 이슈가 아니라 실제 바로구매 경로다.
+   기간이 이 날짜를 걸치면 두 체계가 섞이므로 화면에 경고를 띄운다. */
+const BUY_SPLIT_DATE='2026-09-07';
+const BUY_SPLIT_LABEL='2026.09.07 구매하기 버튼 분리';
+// 현재 선택 기간이 분리 시점 기준 어디에 있는지: 'before' | 'after' | 'span'
+function buySplitPhase(s,e){
+  const st=s||$('s')?.value, en=e||$('e')?.value;
+  if(!st||!en) return 'after';
+  if(en<BUY_SPLIT_DATE) return 'before';
+  if(st>=BUY_SPLIT_DATE) return 'after';
+  return 'span';
+}
+// 바로구매 경로가 존재하는 기간인가 (분리 이후 데이터가 섞여 있는가)
+const hasDirectBuy=(s,e)=>buySplitPhase(s,e)!=='before';
+// 기간이 분리일을 걸칠 때 붙이는 경고 배너
+function buySplitNotice(extra){
+  if(buySplitPhase()!=='span') return '';
+  return `<div class="section-block" style="border-color:#FF9500;">
+    <div class="section-block-head"><span class="section-dot" style="background:#FF9500;"></span>
+    <span class="section-block-title">기간에 ${BUY_SPLIT_LABEL} 시점이 포함돼 있습니다</span></div>
+    <p class="sec-desc" style="margin:0;">분리 전에는 구매하기=장바구니 담기였고, 분리 후에는 주문서 직행입니다.
+    장바구니 지표와 구매 경로가 두 체계로 섞여 있으니 ${BUY_SPLIT_DATE} 전/후를 나눠서 보세요.${extra?' '+extra:''}</p></div>`;
+}
 const nf=new Intl.NumberFormat('ko-KR');
 const fmt=(v)=>nf.format(Math.round(v||0));
 // 검색어처럼 사용자가 직접 입력한 문자열을 innerHTML 에 넣기 전 이스케이프
@@ -1003,7 +1031,9 @@ const GOAL_ACTION={
   sessionToBuy: '퍼널·페이지 탭 → <b>개선 기회</b> 순위에서 이탈 인원이 가장 많은 단계를 먼저 보세요',
   returning:    '유지 섹션의 <b>이탈률</b>과 재구매를 함께 보세요. 한 번 산 사람이 돌아오지 않으면 '
               + '매출이 광고비에 묶입니다',
-  cartRate:     '구좌·상품 성과 탭에서 유입이 많은 자리와 실제 구매로 이어지는 자리를 비교하세요',
+  cartRate:     '구좌·상품 성과 탭에서 유입이 많은 자리와 실제 구매로 이어지는 자리를 비교하세요. '
+              + '<b>2026.09.07 구매하기 버튼 분리</b> 이후에는 구매하기가 담기를 거치지 않으므로 '
+              + '이 지표가 구조적으로 낮아집니다 — 목표치·기준선을 분리 이후 기준으로 다시 잡으세요',
   detailRate:   '획득 탭에서 유입 채널별 품질을 보세요. 유입은 많은데 상품을 안 보는 채널이 있습니다',
   aov:          '매출 탭 → <b>아트·라이프</b>와 <b>할인 종류별</b>을 보세요. 할인율이 객단가를 누르고 있을 수 있습니다',
   churn:        '유지 섹션의 회원 수·이탈률 추이를 보세요. 탈퇴 사유는 cafe24 관리자에서 확인됩니다',
@@ -1089,7 +1119,8 @@ async function goalsHTML(d){
 function fillBottleneck(d){
   const el=document.getElementById('sumBottleneck');
   if(!el) return;
-  const f=d.funnel||[];
+  // [2026-09-07 구매하기 버튼 분리] 장바구니는 선택 경로라 병목 계산에서 뺀다.
+  const f=(d.funnel||[]).filter(s=>!(s.branch===true || (hasDirectBuy() && s.name==='장바구니 담기')));
   let ws='', wd=0, wf='';
   for(let i=1;i<f.length;i++){
     const drop=Math.max(0, f[i-1].after - f[i].after);
@@ -1688,7 +1719,11 @@ function drawChart(daily, dailyPrev){
     const total=db.reduce((a,d)=>a+(d[s.key]||0),0);
     const cur=db.map(d=>d[s.key]||0);
     const prev=cmpOn? dpb.map(d=>d[s.key]||0) : null;
-    h+=`<div class="funnel card-gap"><div class="mini-head"><span class="mini-dot" style="background:${s.color}"></span>${s.label}${bNote}
+    // [2026-09-07 구매하기 버튼 분리] 그 전엔 구매하기가 곧 담기여서 add_to_cart 가 부풀어 있었다.
+    // 분리일을 걸친 기간이면 추이에 계단이 생기므로 라벨에 표시한다.
+    const splitNote = (s.key==='add_to_cart' && buySplitPhase()==='span')
+      ? `<span class="badge" style="color:#FF9500;">${BUY_SPLIT_DATE} 버튼 분리로 단절</span>` : '';
+    h+=`<div class="funnel card-gap"><div class="mini-head"><span class="mini-dot" style="background:${s.color}"></span>${s.label}${bNote}${splitNote}
       <span class="mini-total">${fmt(total)}</span></div>`
       + compareLineChart(labels, cur, prev, s.color, v=>fmt(Math.round(v)), s.label, prevLabels)
       + '</div>';
@@ -1758,13 +1793,24 @@ function drawDayOfWeek(daily, dailyPrev){
 }
 function renderFunnel(d){
   const cmpOn = $('cmp').checked;
+  const directBuy = hasDirectBuy();
   let h='';
   h+='<h2 class="sec">구매 전환 퍼널</h2>';
-  h+='<p class="sec-desc">단계별 통과율과 이탈 인원</p>';
+  h+='<p class="sec-desc">'+(directBuy
+      ? '단계별 통과율과 이탈 인원 · 장바구니는 선택 경로(바로구매 분리됨)'
+      : '단계별 통과율과 이탈 인원')+'</p>';
+  h+=buySplitNotice();
+
+  // [2026-09-07 구매하기 버튼 분리] 장바구니 담기는 더 이상 필수 단계가 아니므로
+  // 본 퍼널 체인에서 빼고 아래에 '선택 경로'로 따로 보여준다.
+  // 체인에 남겨두면 담지 않고 바로 산 세션이 전부 '장바구니에서 이탈'로 잡혀 이탈률이 뻥튀기된다.
+  const isBranchStep=(s)=>s.branch===true || (directBuy && s.name==='장바구니 담기');
+  const chain = (d.funnel||[]).filter(s=>!isBranchStep(s));
+  const branchSteps = (d.funnel||[]).filter(isBranchStep);
 
   // 단계별 이탈 계산 (앞 단계보다 줄어든 만큼이 이탈)
-  const stages = d.funnel.map((s,i)=>{
-    const p = d.funnel[i-1];
+  const stages = chain.map((s,i)=>{
+    const p = chain[i-1];
     const passA = p ? (s.after/p.after*100) : 100;
     const passB = (p && p.before) ? (s.before/p.before*100) : 100;
     const dropA = p ? Math.max(0, p.after - s.after) : 0;      // 이탈 인원
@@ -1775,7 +1821,7 @@ function renderFunnel(d){
   });
 
   h+='<div class="funnel">';
-  const maxVal = Math.max(...d.funnel.map(s=>Math.max(s.after, cmpOn?s.before:0)), 1);
+  const maxVal = Math.max(...chain.map(s=>Math.max(s.after, cmpOn?s.before:0)), 1);
   // 통과율·이탈률을 큰 숫자로, 세션 수는 보조로 내린다.
   // (예전엔 막대와 세션 수가 주인공이라 정작 봐야 할 비율이 작은 글자로 묻혔음)
   h+=stages.map(st=>{
@@ -1810,6 +1856,26 @@ function renderFunnel(d){
       <div class="fstage-track"><div class="fstage-fill" style="width:${barW}%"></div></div>
     </div>`;
   }).join('')+'</div>';
+
+  // ===== 선택 경로: 장바구니 담기 =====
+  // 구매하기 버튼 분리 후 장바구니는 '나중에 살 것 담아두기' 용도가 됐다.
+  // 본 퍼널의 이탈로 세지 말고, 상품조회 대비 담기 비율만 따로 본다.
+  if(branchSteps.length){
+    const base = chain.find(s=>s.name==='상품조회') || chain[0];
+    h+='<h2 class="sec">선택 경로 · 장바구니</h2>';
+    h+=`<p class="sec-desc">${BUY_SPLIT_LABEL} 이후 장바구니는 필수 단계가 아닙니다 · 퍼널 이탈로 계산하지 않습니다</p>`;
+    h+='<div class="section-block">'+branchSteps.map(s=>{
+      const rateA = base && base.after ? s.after/base.after*100 : 0;
+      const rateB = (cmpOn && base && base.before) ? s.before/base.before*100 : null;
+      const w=Math.max(Math.min(rateA,100),3);
+      return `<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${base?base.name:'앞 단계'} → ${s.name}</span>
+          <div class="slotbar-meta">담기율 ${rateA.toFixed(1)}%${rateB!=null?` · 비교 ${rateB.toFixed(1)}%`:''}</div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#F04452;"></div></div>
+        <div><div class="slotbar-val">${fmt(s.after)}</div><div class="slotbar-sub">담기</div></div>
+      </div>`;
+    }).join('')+'</div>';
+  }
 
   // ===== 개선 기회 순위: 이탈 인원이 많은 단계부터 =====
   const drops = stages.filter(st=>st.prev && st.dropA>0).sort((a,b)=>b.dropA-a.dropA);
@@ -1958,28 +2024,38 @@ async function loadCartAnalysis(){
         ${cmpHtml}<div class="slotbar-meta" style="margin-top:6px;">${sub}</div></div>`;
     };
 
-    let h='<div class="kpis">';
+    const directBuy = hasDirectBuy();
+
+    let h=buySplitNotice();
+    h+='<div class="kpis">';
     h+=kpi('장바구니 담은 세션', c.addSessions, `담기 이벤트 ${fmt(c.addEvents)}회`, cb?cb.addSessions:null, false);
     h+=kpi('장바구니 이탈', c.abandonSessions, `담았지만 구매 안 함`, cb?cb.abandonSessions:null, true);
-    h+=kpi('장바구니 이탈률', c.abandonRate, `담은 세션 중 미구매 비율`, cb?cb.abandonRate:null, true, 'percent');
-    h+=kpi('담기→구매 전환율', c.convRate, `담은 세션 중 구매 도달`, cb?cb.convRate:null, false, 'percent');
+    h+=kpi('장바구니 이탈률', c.abandonRate, directBuy?`담은 세션 중 미구매 비율 · 바로구매 분리 후 담기는 '나중에 살 것' 성격`:`담은 세션 중 미구매 비율`, cb?cb.abandonRate:null, true, 'percent');
+    h+=kpi('담기→구매 전환율', c.convRate, directBuy?`담은 세션 중 구매 도달 · 전체 구매의 일부만 설명`:`담은 세션 중 구매 도달`, cb?cb.convRate:null, false, 'percent');
     h+=kpi('스스로 뺀 비율', c.removeRate, `담기 ${fmt(c.addEvents)}회 중 ${fmt(c.removeEvents)}회 제거`, cb?cb.removeRate:null, true, 'percent');
     h+='</div>';
 
     // 구매 경로
-    // [중요] 이 몰은 장바구니를 반드시 거쳐야 구매가 됩니다. 따라서 예전에 여기 있던
-    // '바로구매 추정'(= 주문서 세션 − 장바구니 세션)은 존재할 수 없는 경로였습니다.
-    // 그 차이값의 실제 의미는 ① 어제 담고 오늘 결제(세션 이월) ② 상세→주문서로 바로 넘어가
-    // 장바구니 페이지뷰가 안 찍힌 경우 ③ GA4 페이지뷰 누락 — 즉 추적 이슈 지표입니다.
+    // [2026-09-07 구매하기 버튼 분리]
+    //  · 분리 전: 구매하기 = 장바구니 담기였으므로 장바구니가 필수 경로.
+    //    이때 '주문서 세션 − 장바구니 세션'은 존재할 수 없는 경로이고, 그 실제 의미는
+    //    ① 세션 이월 ② 장바구니 페이지뷰 누락 ③ GA4 누락 — 추적 점검용 참고치.
+    //  · 분리 후: 구매하기 = 주문서 직행이므로 그 차이값은 실제 '바로구매' 경로다.
     h+='<div class="section-title">구매 경로</div>';
-    h+='<p class="sec-desc">장바구니는 필수 경로 · 단계별 세션 수</p>';
+    h+='<p class="sec-desc">'+(directBuy
+        ? `${BUY_SPLIT_LABEL} 이후 · 장바구니 경유와 바로구매 두 갈래 · 단계별 세션 수`
+        : '장바구니는 필수 경로 · 단계별 세션 수')+'</p>';
     const pathRows=[
       {name:'장바구니 페이지 방문', v:p.basketSessions, color:'#00B26B', meta:`조회수 ${fmt(p.basketViews)}`},
       {name:'주문서 페이지 도달', v:p.orderSessions, color:'#3182F6', meta:`조회수 ${fmt(p.orderViews)}`},
       {name:'구매 완료', v:c.purchaseSessions, color:'#8B5CF6', meta:`주문서→구매 ${p.orderToBuyRate.toFixed(1)}%`},
-      {name:'장바구니 페이지 미기록', v:p.directEstimate, color:'#FF9500',
-       meta:`주문서 세션 중 ${p.directShare.toFixed(1)}%`,
-       detail:'장바구니를 안 거친 구매가 아닙니다 (이 몰은 장바구니가 필수). 다음 중 하나입니다 — ① 세션 이월: 어제 담아두고 오늘 결제 (가장 흔함) ② 상품 상세에서 담고 주문서로 바로 넘어가 장바구니 페이지뷰가 안 찍힘 ③ GA4 페이지뷰 누락. 즉 구매 경로 지표가 아니라 추적 점검용 참고치입니다.'},
+      directBuy
+      ? {name:'바로구매 (주문서 직행)', v:p.directEstimate, color:'#FF9500',
+         meta:`주문서 세션 중 ${p.directShare.toFixed(1)}%`,
+         detail:`구매하기 버튼이 장바구니를 거치지 않고 주문서로 바로 넘어가는 경로입니다 (${BUY_SPLIT_LABEL}). 추정식은 주문서 세션 − 장바구니 페이지 세션입니다. 세션 이월(어제 담고 오늘 결제)이나 GA4 페이지뷰 누락도 이 값에 섞일 수 있으니 절대값보다 추세로 보세요.`}
+      : {name:'장바구니 페이지 미기록', v:p.directEstimate, color:'#FF9500',
+         meta:`주문서 세션 중 ${p.directShare.toFixed(1)}%`,
+         detail:'장바구니를 안 거친 구매가 아닙니다 (분리 전에는 장바구니가 필수 경로). 다음 중 하나입니다 — ① 세션 이월: 어제 담아두고 오늘 결제 (가장 흔함) ② 상품 상세에서 담고 주문서로 바로 넘어가 장바구니 페이지뷰가 안 찍힘 ③ GA4 페이지뷰 누락. 즉 구매 경로 지표가 아니라 추적 점검용 참고치입니다.'},
     ];
     const maxP=Math.max(...pathRows.map(x=>x.v),1);
     h+='<div class="section-block">'+pathRows.map(x=>{
