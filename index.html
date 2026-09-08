@@ -407,6 +407,7 @@
     <div class="ctrl-row ctrl-row-top"><div class="ctrl" style="width:100%;"><label>빠른 선택</label><div class="preset-btns" id="presets"></div></div></div>
   </div>
 
+  <div id="dataHealth"></div>
   <div id="content"><div class="state"><div class="spinner"></div>데이터 불러오는 중…</div></div>
 </div>
 
@@ -867,6 +868,78 @@ async function trafficRangeSum(s0,e0){
   const daily=TRAFFIC_CACHE.daily||[];
   const rows=daily.filter(x=>x.date>=s0 && x.date<=e0);
   return { uv: rows.reduce((s,x)=>s+(x.uv||0),0), pv: rows.reduce((s,x)=>s+(x.pv||0),0), hasData: rows.length>0 };
+}
+
+// ===== 데이터 건강 검진 =====
+// [왜 넣었나] 2026-08-01부터 회원 스냅샷(newMembers/totalMembers)이 38일간 통째로 비어 있었는데
+// 대시보드는 아무 말 없이 0/빈칸으로 그려서, 월간 분석을 돌릴 때까지 아무도 몰랐다.
+// 수집이 멈추면 화면 맨 위에서 바로 알리도록 한다. 판단 근거가 조용히 사라지는 게 제일 나쁘다.
+const HEALTH_STALE_HOURS = 36;   // 매출 파일이 이 시간 넘게 안 갱신되면 경고
+const HEALTH_LOOKBACK    = 7;    // 최근 며칠을 보고 '수집 멈춤'으로 판단할지
+async function renderDataHealth(){
+  const box=document.getElementById('dataHealth');
+  if(!box) return;
+  let j;
+  try{ j=await ensureRevenue(); }catch(e){
+    box.innerHTML=healthCard('매출 데이터(revenue-daily.json)를 불러오지 못했습니다','대시보드의 매출·회원 지표가 전부 비어 보입니다.');
+    return;
+  }
+  const daily=(j&&j.daily)||[];
+  if(!daily.length){ box.innerHTML=''; return; }
+  const issues=[];
+
+  // 1) 파일 자체가 갱신되고 있는가
+  if(j.updatedAt){
+    const h=(Date.now()-Date.parse(j.updatedAt))/3600000;
+    if(h>HEALTH_STALE_HOURS){
+      issues.push([`매출 수집이 ${Math.floor(h/24)}일째 멈춰 있습니다`,
+        `revenue-daily.json 마지막 갱신 ${j.updatedAt.slice(0,16).replace('T',' ')} · slackbot 레포의 update-revenue 워크플로우를 확인하세요.`]);
+    }
+  }
+
+  // 2) 필드별 수집 중단 — 최근 N일이 전부 비어 있으면 '멈춤'으로 본다
+  const tail=daily.slice(-HEALTH_LOOKBACK);
+  const checkField=(field,label,fixHint)=>{
+    if(!tail.length || tail.some(r=>r[field]!=null)) return;
+    // 마지막으로 값이 있던 날 찾기 → 며칠째 멈췄는지
+    let lastOk=null;
+    for(const r of daily) if(r[field]!=null) lastOk=r.date;
+    const days=lastOk? Math.round((Date.parse(daily[daily.length-1].date)-Date.parse(lastOk))/86400000) : daily.length;
+    issues.push([`${label} 수집이 ${days}일째 멈춰 있습니다`,
+      `마지막 정상 기록 ${lastOk||'없음'} · ${fixHint}`]);
+  };
+  checkField('newMembers','신규 가입자','slackbot 레포의 update-new-members 워크플로우 실행 로그를 확인하세요. 회원 목록 API(/admin/customers) 권한(scope)부터 보면 빠릅니다.');
+  checkField('totalMembers','총 회원 수','위와 같은 워크플로우입니다. 유지 탭의 회원 수·이탈률이 이 기간 동안 비어 있습니다.');
+
+  // 3) 카테고리 매핑 — 값은 있는데 전부 '미분류'면 이름 조회가 실패한 것
+  const recent=daily.slice(-30).filter(r=>(r.categories||[]).length);
+  if(recent.length){
+    const all=recent.flatMap(r=>r.categories);
+    const unnamed=all.filter(c=>!c.name || c.name==='미분류' || /^카테고리 \d+$/.test(c.name)).length;
+    if(unnamed/all.length>0.8){
+      issues.push(['상품 카테고리 이름이 매핑되지 않았습니다',
+        `최근 30일 카테고리 항목의 ${Math.round(unnamed/all.length*100)}%가 '미분류' 상태입니다. 아트·라이프 매출 분해가 불가능합니다 — product-categories.json 의 카테고리 이름 조회를 확인하세요.`]);
+    }
+    // 매핑 커버리지 — 카테고리 합계가 GMV의 절반도 안 되면 상당수 주문이 빠진 것
+    const rows=daily.slice(-30);
+    const gmv=rows.reduce((a,r)=>a+(r.gmv||0),0);
+    const mapped=rows.reduce((a,r)=>a+(r.categories||[]).reduce((b,c)=>b+(c.amt||0),0),0);
+    if(gmv>0 && mapped/gmv<0.7){
+      issues.push(['카테고리 매핑이 매출의 일부만 덮고 있습니다',
+        `최근 30일 기준 매핑률 ${Math.round(mapped/gmv*100)}% — 나머지 주문은 카테고리 집계에서 빠집니다.`]);
+    }
+  }
+
+  box.innerHTML = issues.length ? issues.map(([t,d])=>healthCard(t,d)).join('') : '';
+}
+function healthCard(title, desc){
+  return `<div class="section-block" style="border-color:var(--down);margin-bottom:12px;">
+    <div class="section-block-head">
+      <span class="section-dot" style="background:var(--down);"></span>
+      <span class="section-block-title">데이터 점검 · ${title}</span>
+    </div>
+    <p class="sec-desc" style="margin:0;">${desc}</p>
+  </div>`;
 }
 
 // 매출 파일을 한 번만 읽어오는 공통 함수 (동시에 여러 곳에서 불려도 요청은 1번만 나감)
@@ -3014,6 +3087,7 @@ function tryUnlock(){
     stateFromUrl();
   syncCmpEnabled();
   load();
+  renderDataHealth();
   } else {
     document.getElementById('authErr').style.display='block';
   }
@@ -3026,6 +3100,7 @@ if(sessionStorage.getItem('pbg_authed')==='1'){
   stateFromUrl();       // 주소에 담긴 설정을 컨트롤에 복원 (없으면 기본값 유지)
   syncCmpEnabled();
   load();
+  renderDataHealth();   // 수집이 멈춘 지표가 있으면 화면 맨 위에 경고
 }
 // 비밀번호 입력 전에는 위 조건에 안 걸려 load()가 호출되지 않음 (데이터 요청 자체가 안 나감)
 </script>
