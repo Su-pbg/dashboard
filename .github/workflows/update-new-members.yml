@@ -1,0 +1,66 @@
+# Su-pbg/slackbot 레포의 .github/workflows/update-new-members.yml
+#
+# 2026-07-30 개편 때 이 워크플로우가 유실돼 08-01 ~ 09-07 회원 데이터가 38일간 비었다.
+# 복원본. snapshot_new_members.py 는 이 레포 루트에 둔다.
+#
+# 최초 1회: Actions → update-new-members → Run workflow → backfill_from 에 2026-08-01 입력
+#           (빈 구간을 한 번에 채운다. 그 뒤로는 스케줄이 알아서 돈다)
+
+name: update-new-members
+
+on:
+  schedule:
+    - cron: '20 20 * * *'    # KST 05:20 — 매출 잡(05:0x)과 겹치지 않게 띄움
+  workflow_dispatch:
+    inputs:
+      backfill_from:
+        description: '이 날짜부터 어제까지 다시 집계 (예: 2026-08-01). 비우면 최근 14일만'
+        required: false
+        default: ''
+
+concurrency:
+  # 같은 refresh token 을 쓰는 잡이 겹치면 토큰 회전이 꼬인다
+  group: cafe24-token
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 스크립트 체크아웃 (slackbot)
+        uses: actions/checkout@v4
+
+      - name: 대시보드 레포 체크아웃 (revenue-daily.json 이 있는 곳)
+        uses: actions/checkout@v4
+        with:
+          repository: Su-pbg/dashboard
+          path: dashboard
+          # update-revenue.yml 에서 쓰는 것과 같은 PAT 이름으로 맞출 것
+          token: ${{ secrets.DASHBOARD_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: 회원 집계
+        env:
+          MALL_ID:       printbakery
+          CLIENT_ID:     ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          GIST_ID:       ${{ secrets.GIST_ID }}
+          GIST_TOKEN:    ${{ secrets.GIST_TOKEN }}
+          REVENUE_PATH:  dashboard/revenue-daily.json
+          LOOKBACK_DAYS: '14'
+          BACKFILL_FROM: ${{ github.event.inputs.backfill_from }}
+        run: python3 snapshot_new_members.py
+
+      - name: 커밋 & 푸시
+        working-directory: dashboard
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add revenue-daily.json
+          git diff --staged --quiet && echo "변경 없음" && exit 0
+          git commit -m "chore: snapshot new members"
+          # 매출 잡이 같은 파일을 밀었을 수 있으니 rebase 후 푸시
+          git pull --rebase --autostash
+          git push
