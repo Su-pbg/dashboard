@@ -5,6 +5,10 @@
 #
 # 최초 1회: Actions → update-new-members → Run workflow → backfill_from 에 2026-08-01 입력
 #           (빈 구간을 한 번에 채운다. 그 뒤로는 스케줄이 알아서 돈다)
+#
+# [PAT 관련] dashboard 레포에 커밋해야 하므로 개인 액세스 토큰이 필요하다.
+# 시크릿 이름을 모르면 아래 후보들을 순서대로 시도한다. 하나도 없으면 첫 step 에서
+# 무엇을 만들어야 하는지 로그로 알려주고 멈춘다.
 
 name: update-new-members
 
@@ -26,17 +30,51 @@ concurrency:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
+    env:
+      # update-revenue.yml 이 쓰는 이름이 이 중에 있으면 그대로 잡힌다.
+      # 없으면 아래 '시크릿 점검' step 이 무엇을 해야 하는지 알려준다.
+      DASH_PAT: >-
+        ${{ secrets.DASHBOARD_TOKEN || secrets.DASHBOARD_PAT || secrets.DASH_TOKEN
+         || secrets.GH_PAT || secrets.GH_TOKEN || secrets.PAT || secrets.REPO_TOKEN
+         || secrets.ACTIONS_PAT || secrets.PERSONAL_TOKEN }}
     steps:
+      - name: 시크릿 점검
+        run: |
+          fail=0
+          need() {
+            if [ -z "$2" ]; then echo "  [없음] $1"; fail=1; else echo "  [있음] $1"; fi
+          }
+          echo "필요한 시크릿:"
+          need CLIENT_ID     "${{ secrets.CLIENT_ID }}"
+          need CLIENT_SECRET "${{ secrets.CLIENT_SECRET }}"
+          need GIST_ID       "${{ secrets.GIST_ID }}"
+          need GIST_TOKEN    "${{ secrets.GIST_TOKEN }}"
+          need "dashboard 푸시용 PAT" "$DASH_PAT"
+          if [ "$fail" = "1" ]; then
+            echo ""
+            echo "----------------------------------------------------------------"
+            echo "위에서 [없음] 인 시크릿을 등록해야 한다."
+            echo "  Settings → Secrets and variables → Actions 에서 이름 목록 확인"
+            echo ""
+            echo "dashboard 푸시용 PAT 이 없다면:"
+            echo "  1) update-revenue.yml 을 열어 어떤 secrets.* 이름으로 푸시하는지 확인"
+            echo "  2) 그 이름을 이 파일 env.DASH_PAT 후보 목록에 추가하거나,"
+            echo "     같은 값을 DASHBOARD_TOKEN 이라는 이름으로 하나 더 등록"
+            echo "  3) PAT 이 아예 없으면 github.com/settings/tokens 에서"
+            echo "     Su-pbg/dashboard 에 대한 contents:write 권한으로 발급"
+            echo "----------------------------------------------------------------"
+            exit 1
+          fi
+
       - name: 스크립트 체크아웃 (slackbot)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 대시보드 레포 체크아웃 (revenue-daily.json 이 있는 곳)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: Su-pbg/dashboard
           path: dashboard
-          # update-revenue.yml 에서 쓰는 것과 같은 PAT 이름으로 맞출 것
-          token: ${{ secrets.DASHBOARD_TOKEN }}
+          token: ${{ env.DASH_PAT }}
 
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
