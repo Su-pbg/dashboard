@@ -5,6 +5,8 @@ worker.js 최소 패치. 손으로 끼워넣을 필요 없음.
   [필수] 정렬 구좌 구분 — cate_no 는 같고 sort_method 로만 갈리는 구좌를 별도 집계
          (안 고치면 '조회수 TOP'·'인기 상품' 유입이 글로벌네비 '아트' 실적에 잘못 더해짐)
   [선택] tab=membercount — 과거 시점 총 회원 수 조회 (순수 추가, 기존 코드 안 건드림)
+  [필수] cafe24 API 버전 헤더 — X-Cafe24-Api-Version 이 없으면 구버전으로 붙어
+         /admin/customers/count 가 404 "No API found" 를 뱉는다 (회원수 수집 정지의 원인)
 
 미등록 구좌 감지는 워커가 아니라 index.html 에서 한다 (프론트만 Git 으로 관리하기 위해).
 
@@ -12,10 +14,11 @@ worker.js 최소 패치. 손으로 끼워넣을 필요 없음.
   python3 apply_worker_patches.py worker.js            # 둘 다
   python3 apply_worker_patches.py worker.js --only sort   # 정렬 구좌만
   python3 apply_worker_patches.py worker.js --only member # membercount 만
+  python3 apply_worker_patches.py worker.js --only apiver # API 버전 헤더만
 
 앵커를 정확히 1번 못 찾으면 아무것도 쓰지 않고 멈춘다.
 """
-import sys, os, argparse, subprocess, shutil
+import sys, os, re, argparse, subprocess, shutil
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 패치 1 (필수): 정렬 구좌 구분 — 6군데 작은 치환
@@ -259,20 +262,59 @@ def patch_member(src):
     return src
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 패치 3 (필수): cafe24 API 버전 헤더
+#
+# [2026-09-14] tab=membercount 가 죽던 진짜 원인.
+#   [회원수] count 실패 status=404 body={"error":{"code":404,"message":"No API found."}}
+# 403 insufficient_scope 가 아니라 404 였다 — 스코프가 아니라 **엔드포인트가 없다**는 뜻.
+# 워커의 cafe24 호출은 X-Cafe24-Api-Version 을 안 보내서 앱 기본(구) 버전으로 붙는데,
+# 그 버전에는 /admin/customers/count 가 없다.
+# 같은 경로를 쓰는 snapshot_new_members.py 는 2024-06-01 을 보내고 정상 동작한다.
+#
+# 호출부마다 따로 고치지 않고 헤더 리터럴을 한 번에 치환한다 (호출부가 늘어도 같은 모양이면 잡힌다).
+# GA4 호출(`Bearer ${token}`)은 ${tok}/${accessToken} 만 매칭하므로 건드리지 않는다.
+CAFE24_API_VERSION_CONST = """const CAFE24_API_VERSION = '2024-06-01';   // 없으면 구버전으로 붙어 customers/count 가 404
+
+"""
+CAFE24_HEADER_RE = re.compile(
+    r"(Authorization['\"]?: `Bearer \$\{(?:tok|accessToken)\}`, ['\"]Content-Type['\"]: 'application/json')"
+)
+
+
+def patch_apiver(src):
+    print("패치: cafe24 API 버전 헤더 (필수)")
+    if 'CAFE24_API_VERSION' in src:
+        print("  [건너뜀] 이미 적용돼 있습니다")
+        return src
+
+    src, n = CAFE24_HEADER_RE.subn(
+        r"\1, 'X-Cafe24-Api-Version': CAFE24_API_VERSION", src)
+    if n == 0:
+        sys.exit("  [실패] cafe24 헤더 리터럴을 찾지 못했습니다. 아무것도 쓰지 않았습니다.")
+    print(f"  [ok] 헤더 {n}곳에 버전 추가")
+
+    anchor = 'async function getCafe24AccessToken(env) {'
+    src = replace_once(src, anchor, CAFE24_API_VERSION_CONST + anchor, '상수 선언')
+    return src
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('worker', help='원본 worker.js 경로')
     ap.add_argument('-o', '--out', help='출력 파일 (기본: worker.patched.js)')
-    ap.add_argument('--only', choices=['sort', 'member'], help='패치 하나만 적용')
+    ap.add_argument('--only', choices=['sort', 'member', 'apiver'], help='패치 하나만 적용')
     a = ap.parse_args()
 
     src = open(a.worker, encoding='utf-8').read()
     print(f"입력: {a.worker} ({len(src):,} bytes)\n")
 
-    if a.only != 'member':
+    if a.only in (None, 'sort'):
         src = patch_sort(src); print()
-    if a.only != 'sort':
+    if a.only in (None, 'member'):
         src = patch_member(src); print()
+    if a.only in (None, 'apiver'):
+        src = patch_apiver(src); print()
 
     out = a.out or os.path.join(os.path.dirname(os.path.abspath(a.worker)), 'worker.patched.js')
     open(out, 'w', encoding='utf-8').write(src)

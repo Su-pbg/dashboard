@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-09-14 02:50 KST
+마지막 갱신: 2026-09-14 03:05 KST
 
 ---
 
@@ -53,21 +53,63 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 
 ## 2. 지금 당장 열린 이슈 (우선순위 순)
 
-### [P0] 워커 `tab=membercount` 가 500 을 뱉는다 — 회원수 수집 전면 정지
-- 증상: `update-members` 워크플로우가 `[FAIL] 워커 응답 500` 으로 죽는다.
-- `revenue-daily.json` 의 `totalMembers` 가 **2026-07-31 (37,697명) 이후 전부 비어 있다.**
-  → 대시보드의 총 회원 수 / 순증 / 월 이탈률이 전부 추정값 or 공백.
-- 워커 자체는 정상 (다른 tab 은 200). `buildMemberCounts()` 내부에서 터진다.
-- **원인 미확정.** 500 이라 에러 본문이 중간 경로에서 잘려 안 보였다.
-- 2026-09-14 에 워커를 고쳐 **실패도 200 + `{error, detail, stack}` 으로 반환**하게 했다.
-  → 배포 후 아래를 실행하면 진짜 원인이 보인다:
-  ```bash
-  curl -s 'https://proud-sea-35f9.sugim-386.workers.dev/?bs=2026-09-12&be=2026-09-12&as=2026-09-12&ae=2026-09-12&key=pbg-secret-key-2026&tab=membercount' | head -c 600
-  ```
-- 유력 후보 (검증 필요, 단정하지 말 것):
-  1. cafe24 앱에 `mall.read_customer` 스코프가 없어서 `/admin/customers/count` 가 401/403
-  2. `resolveCustomerCountParam()` 이 가입일 상한 파라미터를 못 찾음
-  3. Gist 기반 refresh token 회전 실패
+### [P0] 워커 `tab=membercount` 실패 — **원인 확정됨. 패치 준비 완료, 배포만 남음**
+
+#### 원인 (2026-09-14 03:00 KST 확정, 추측 아님)
+Cloudflare 실시간 로그(대시보드 → 워커 → Observability)에서 직접 확인한 실제 응답:
+```
+[회원수] count 실패 status=404 qs= body={"error":{"code":404,"message":"No API found."}}
+```
+**403 insufficient_scope 가 아니라 404 "No API found" 다.**
+→ 스코프 문제가 아니라 **그 API 버전에 엔드포인트가 없다**는 뜻.
+
+워커의 cafe24 호출 4곳 전부 **`X-Cafe24-Api-Version` 헤더를 안 보낸다.**
+헤더가 없으면 앱 기본(구) 버전으로 붙고, 거기엔 `/admin/customers/count` 가 없다.
+같은 경로를 쓰는 `snapshot_new_members.py` 는 `X-Cafe24-Api-Version: 2024-06-01` 을
+보내고 정상 동작한다 (`API_VERSION`, line 30 / `api_headers`, line 119).
+
+→ CLAUDE.md 에 적혀 있던 유력 후보 3개(스코프 / 파라미터명 / Gist 토큰 회전)는 **전부 아니었다.**
+   인증은 통과하고 있었다 (통과 못 했으면 `cafe24 인증 실패` 가 떴을 것).
+
+#### 해놓은 것
+`tools/apply_worker_patches.py` 에 **패치 3 `apiver`** 추가 (커밋 안 됨, working tree 에만 있음).
+호출부 4곳을 정규식 한 방으로 고치고 `const CAFE24_API_VERSION = '2024-06-01'` 을 넣는다.
+GA4 호출(`Bearer ${token}`)은 안 건드린다.
+
+#### 남은 일 (배포 — 사람 손 필요)
+**주의: 레포의 `worker.js` 는 09-13 시점 사본이라 구버전이다.**
+09-14 에 넣은 SLOT_MAP 4종(994·948·1034·608+sort=5)과 500→200 변경이 빠져 있다.
+**이 파일로 덮어쓰면 그 작업이 되돌아간다.** 반드시 아래 순서로:
+
+```bash
+# 1. Cloudflare 워커 편집기에서 "현재 배포본" 전체 복사 → worker.js 에 덮어쓰기
+# 2. 패치 적용
+python3 tools/apply_worker_patches.py worker.js --only apiver
+# 3. worker.patched.js 를 편집기에 붙여넣고 배포
+# 4. 검증
+curl -s 'https://proud-sea-35f9.sugim-386.workers.dev/?bs=2026-09-12&be=2026-09-12&as=2026-09-12&ae=2026-09-12&key=pbg-secret-key-2026&tab=membercount' | head -c 600
+```
+`points` 가 돌아오면 성공. 또 404 면 API 버전 문자열을 올려본다.
+그 다음 `anchor.diffPct` 로 오차 확인 (1% 초과면 화면에 쓰면 안 됨 — 이미 그렇게 짜여 있음).
+
+#### 워커 디버깅 요령 (이번에 확보)
+Su 의 Chrome 은 Cloudflare 에 로그인돼 있다. 워커 `console.log` 를 그대로 읽을 수 있다:
+`dash.cloudflare.com` → Workers & Pages → proud-sea-35f9 → **Observability → Events**
+워커를 고치지 않고 진짜 status/body 를 볼 수 있으므로 **에러 추적용 워커 수정은 이제 불필요.**
+(`wrangler` 는 설치돼 있으나 로그인 안 돼 있음. `wrangler login` 하면 `tail`·`deploy` 로
+ 붙여넣기 루프 자체를 없앨 수 있다 — 미결정.)
+
+### [P0-b] 카테고리명 조회 403 insufficient_scope — **이번에 새로 발견**
+같은 로그에서:
+```
+[카테고리명 조회 실패] cate_no=867 status=403
+body={"error":{"code":403,"message":"The permission necessary for access tokens is not included. (insufficient_scope)"}}
+```
+`/admin/categories/{no}` 가 **스코프 부족으로 전부 403.** (234·235·272·540·541·789·866·867 확인)
+→ 슬롯 이름 번들에 **"남은 카테고리 53개"** 가 계속 남아 있는 이유가 이것이다.
+→ 상품명(`/admin/products`)은 정상 200. **카테고리 읽기 권한만 없다.**
+→ 할 일: cafe24 앱 설정에서 카테고리 읽기 스코프 추가 후 refresh token 재발급.
+   (P1 '미분류' 와는 다른 건이지만 같은 뿌리일 수 있으니 같이 볼 것.)
 
 ### [P1] 카테고리 100% '미분류' — 아트/라이프 매출 분해 불가
 - `product-categories.json`: `products` 1,097개는 정상, **`names` 가 0개**.
