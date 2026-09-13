@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-09-14 03:05 KST
+마지막 갱신: 2026-09-14 03:25 KST
 
 ---
 
@@ -53,9 +53,35 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 
 ## 2. 지금 당장 열린 이슈 (우선순위 순)
 
-### [P0] 워커 `tab=membercount` 실패 — **원인 확정됨. 패치 준비 완료, 배포만 남음**
+### [P0] 워커 `tab=membercount` 실패 — **원인 미확정. 03:05 에 "확정"이라 적었던 건 틀렸다**
 
-#### 원인 (2026-09-14 03:00 KST 확정, 추측 아님)
+#### [2026-09-14 03:25] 헤더 패치 배포했으나 안 고쳐졌다 — 반증 기록
+- `X-Cafe24-Api-Version: 2024-06-01` 패치를 실제로 배포 완료 (Cloudflare Active deployment ≈03:19).
+- 배포 **후** 호출(03:20:32) 워커 로그: `[회원수] count 실패 status=404 body={"error":{"code":404,"message":"No API found."}}`
+  → **404 그대로.** 헤더 부재는 원인이 아니었다.
+- **왜 헛짚었나 (중요):** 근거였던 "python 은 되는데 워커는 안 된다" 가 이 엔드포인트에 대해서는 성립하지 않았다.
+  `snapshot_new_members.py:195 total_members()` 는 **똑같은 URL 을 똑같은 헤더로** 부르고,
+  실패하면 조용히 넘어간다:
+  ```python
+  st, body = http(f'{BASE}/api/v2/admin/customers/count', api_headers(tok))
+  if st != 200 or ...:
+      print(f'[--] 총 회원 수 조회 실패({st}) — totalMembers 는 건드리지 않는다')
+      return None
+  ```
+  즉 **python 이 이 엔드포인트에 성공한 적이 있다는 증거는 없다.**
+  `totalMembers` 가 2026-07-31 이후 비어 있는 것 자체가 이 무음 실패의 결과와 정확히 일치한다.
+  python 이 증명한 건 `/admin/customers` (목록) 이지 `/admin/customers/count` 가 아니다.
+- **다음 가설 (아직 미검증, 또 단정하지 말 것):** `/api/v2/admin/customers/count` 가 이 앱/버전에
+  아예 존재하지 않는다. 검증하려면 워커에 임시 probe tab 을 넣어 아래를 각각 status 로 찍어봐야 한다:
+  `/admin/customers?limit=1` · `/admin/customers/count` · 다른 API 버전 문자열.
+- 대안 경로: 목록(`/admin/customers`)은 python 이 실제로 쓰고 있으므로, count 대신 **목록 페이징으로
+  가입일 기준 집계**하는 방식이 확실하다. (워커 서브요청 한도 50 은 별도 고려)
+- 미확인 1건: 배포된 소스에 패치가 실제 들어갔는지는 Cloudflare 편집기 내용을 기계적으로 읽지 못해
+  **소스 레벨로는 확인 못 했다.** 03:19 배포가 일어난 것과 건네준 파일이 `worker.patched.js` 뿐인 것은 확인됨.
+
+#### (아래는 03:05 에 쓴 내용 — 결론은 반증됐고, 조사 경로 기록용으로 남긴다)
+
+#### (반증됨) 원인이라고 봤던 것
 Cloudflare 실시간 로그(대시보드 → 워커 → Observability)에서 직접 확인한 실제 응답:
 ```
 [회원수] count 실패 status=404 qs= body={"error":{"code":404,"message":"No API found."}}
