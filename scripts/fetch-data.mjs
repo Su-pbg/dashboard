@@ -38,6 +38,10 @@ function addDays(s, n) {
 // 빈 문자열/미설정 모두 방어 → 기본값 사용
 const RENEWAL = (RENEWAL_DATE && RENEWAL_DATE.trim()) ? RENEWAL_DATE.trim() : '2026-07-01';
 
+// 구매하기 버튼 분리일. 이 날부터 [구매하기]는 장바구니를 거치지 않고 주문서로 직행한다.
+// 그 전까지는 구매하기 = 장바구니 담기여서 add_to_cart 가 사실상 필수 단계였다.
+const BUY_SPLIT_DATE = '2026-09-07';
+
 function buildPresets() {
   const todayStr = todayKST();
   const y = addDays(todayStr, -1); // 어제(데이터 완결일)
@@ -141,7 +145,10 @@ async function fetchWindow(ranges) {
     funnel: [
       { name: '방문',        before: S('before'), after: S('after') },
       { name: '상품조회',     before: P('detail','before','views'), after: P('detail','after','views') },
-      { name: '장바구니 담기', before: E('before','add_to_cart'), after: E('after','add_to_cart') },
+      // 구매하기 버튼 분리(BUY_SPLIT_DATE) 이후 장바구니는 필수 단계가 아니라 선택 분기다.
+      // branch:true 인 단계는 대시보드가 퍼널 체인에서 빼고 따로 보여준다.
+      { name: '장바구니 담기', before: E('before','add_to_cart'), after: E('after','add_to_cart'),
+        branch: ranges.after.end >= BUY_SPLIT_DATE },
       { name: '결제(주문서)', before: P('order','before','views'), after: P('order','after','views') },
       { name: '구매',        before: E('before','purchase'), after: E('after','purchase') },
     ],
