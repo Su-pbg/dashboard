@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-09-14 03:25 KST
+마지막 갱신: 2026-09-14 03:40 KST
 
 ---
 
@@ -125,6 +125,19 @@ Su 의 Chrome 은 Cloudflare 에 로그인돼 있다. 워커 `console.log` 를 �
 (`wrangler` 는 설치돼 있으나 로그인 안 돼 있음. `wrangler login` 하면 `tail`·`deploy` 로
  붙여넣기 루프 자체를 없앨 수 있다 — 미결정.)
 
+#### [2026-09-14 03:40] 수동 우회로 확보 — 08-01~09-12 백필 완료
+API 가 죽어 있는 동안 쓰는 경로. `scripts/import-members-csv.mjs` 추가.
+```bash
+# cafe24 관리자 → 회원 목록에서 CSV 2개 내보내기 (가입자 / 탈퇴자)
+node scripts/import-members-csv.mjs <가입자.csv> <탈퇴자.csv>            # 미리보기
+node scripts/import-members-csv.mjs <가입자.csv> <탈퇴자.csv> --write    # 기록
+```
+- 앵커(마지막 실측 totalMembers) 다음 날부터만 쓴다. **그 이전 누적은 안 건드린다.**
+- 같은 범위로 매번 내보내도 이어붙는다 (앵커 이전 구간은 무시). 중복 실행 안전.
+- 매출 행이 아직 없는 날은 건너뛴다 (`update-members.mjs` 와 같은 규칙).
+- **자동 아니다.** 사람이 내보내야 한다. 자동화하려면 API 경로를 고쳐야 한다.
+- 2026-09-14 실행 결과: 08-01 ~ 09-12 (43일) 기록. 09-12 = 38,757명.
+
 ### [P0-b] 카테고리명 조회 403 insufficient_scope — **이번에 새로 발견**
 같은 로그에서:
 ```
@@ -147,9 +160,11 @@ body={"error":{"code":403,"message":"The permission necessary for access tokens 
 - ART 23개 (807~812, 734~739, 740~744 등), LIFE 22개 (723~727, 718~721 등).
 - 실제로 메인에서 내린 건지, 매칭이 틀린 건지 가려야 한다.
 
-### [P3] `withdrawnMembers` 소스 없음
-- 탈퇴자 수를 구할 방법이 없어서 순증·이탈률이 계속 공백.
-- `/admin/customers/count` 방식으로는 원리상 불가 (탈퇴자는 목록에서 사라짐).
+### [P3] ~~`withdrawnMembers` 소스 없음~~ — **해결 (2026-09-14, 수동)**
+- cafe24 관리자 → 회원 목록 **CSV 내보내기**에 `탈퇴일` 컬럼이 있다. 이게 탈퇴자 실측 소스다.
+- API(`/admin/customers/count`)로는 원리상 불가한 게 맞았다(탈퇴자는 목록에서 사라짐).
+  하지만 **탈퇴자 목록 자체를 내보내면** 날짜별로 셀 수 있다.
+- 신뢰도 검증함: 2026-07 겹치는 19일 전부 기존 `withdrawnMembers` 와 **정확히 일치**.
 
 ### [P4] 7월 환불 62.6M (GMV의 14.7%) 원인 미조사
 
