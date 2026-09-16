@@ -50,6 +50,7 @@ jobs:
           TARGET_DATE: ${{ github.event.inputs.target_date }}
           FROM: ${{ github.event.inputs.from }}
           TO:   ${{ github.event.inputs.to }}
+          DASHBOARD_KEY: ${{ secrets.DASHBOARD_KEY }}
         run: node scripts/update-members.mjs
 
       - name: 커밋 & 푸시

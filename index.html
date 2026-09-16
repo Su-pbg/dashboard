@@ -686,8 +686,22 @@ $('refreshBtn').addEventListener('click',async()=>{
   try{ await load(); } finally { NOCACHE=false; btn.classList.remove('spinning'); btn.disabled=false; }
 });
 
-// Worker 접근 열쇠. Cloudflare Worker의 DASHBOARD_KEY 시크릿과 같은 값이어야 함.
-const WORKER_KEY = 'pbg-secret-key-2026';
+// ===== 워커 접근 토큰 =====
+// [2026-09-16] 예전에는 접근키와 비밀번호가 이 파일에 평문으로 들어 있었다. 이 페이지는
+// 공개 레포의 GitHub Pages 로 서빙되므로 소스만 열면 누구나 키를 가져가 워커에서 매출·
+// 회원·공급사 데이터를 통째로 받아갈 수 있었다. 이제 비밀은 워커 시크릿에만 있고,
+// 여기에는 로그인으로 받은 단기 토큰만 세션에 들고 있는다(탭을 닫으면 사라진다).
+const TOKEN_KEY='pbg_token';
+function authToken(){ try{ return sessionStorage.getItem(TOKEN_KEY)||''; }catch(e){ return ''; } }
+function authHeaders(){ const t=authToken(); return t?{Authorization:'Bearer '+t}:{}; }
+// 파일 다운로드처럼 헤더를 붙일 수 없는 요청에만 쓴다.
+function authQS(){ const t=authToken(); return t?'&t='+encodeURIComponent(t):''; }
+async function dashLogin(pw){
+  const r=await fetch(WORKER+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok || !j.token) throw new Error(j.error||'로그인 실패');
+  sessionStorage.setItem(TOKEN_KEY, j.token);
+}
 let NOCACHE=false;  // '새로고침' 눌렀을 때만 true → 서버 캐시 무시
 
 // ===== 워커 요청 합치기 =====
@@ -699,7 +713,7 @@ let NOCACHE=false;  // '새로고침' 눌렀을 때만 true → 서버 캐시 �
 let WREQ = new Map();
 function wfetch(url){
   if(WREQ.has(url)) return WREQ.get(url);
-  const p = fetch(url,{cache:'no-store'})
+  const p = fetch(url,{cache:'no-store',headers:authHeaders()})
     .then(r => r.json())
     .catch(err => { WREQ.delete(url); throw err; });   // 실패는 캐시하지 않음 → 재시도 가능
   WREQ.set(url, p);
@@ -710,7 +724,7 @@ function q(extra){
   const cmp=$('cmp').checked;
   const as=$('s').value, ae=$('e').value;
   const bs=cmp?$('cs').value:as, be=cmp?$('ce').value:ae;
-  let s=`bs=${bs}&be=${be}&as=${as}&ae=${ae}&key=${encodeURIComponent(WORKER_KEY)}`;
+  let s=`bs=${bs}&be=${be}&as=${as}&ae=${ae}`;
   if(cmp)s+='&cmp=1';
   if($('exclLpoint').checked)s+='&excl=lpoint,lotte,l.point';
   if($('exclBots').checked)s+='&autoExclLowEngagement=1';
@@ -1025,7 +1039,7 @@ async function fillMissingTotalMembers(){
     const to   = lastRow.date;
     // q() 는 화면에서 고른 기간을 넣으므로 여기서는 쓰지 않는다 (파라미터가 겹친다).
     const qs = `bs=${from}&be=${to}&as=${from}&ae=${to}`
-             + `&key=${encodeURIComponent(WORKER_KEY)}&tab=membercount`
+             + `&tab=membercount`
              + `&anchorDate=${anchorRow.date}&anchorTotal=${anchorRow.totalMembers}`;
     const dd = await wfetch(WORKER+'/?'+qs);
     if(!dd || dd.error || !Array.isArray(dd.points)) return MEMBER_FILL;
@@ -1848,7 +1862,7 @@ async function loadTrend(){
                + (NOCACHE ? '&nocache=1' : '');
   const fetchDaily=async(s0,e0)=>{
     try{
-      const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily&key=${encodeURIComponent(WORKER_KEY)}`+exclQS;
+      const url=WORKER+`/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&tab=daily`+exclQS;
       const dd = await wfetch(url);
       return dd.daily||[];
     }catch(e){ return []; }
@@ -2225,7 +2239,7 @@ async function loadSearchTerms(){
 
     // 전체 검색어 CSV 내려받기. 화면은 상위 50개만 보여주므로, 전수는 워커가 직접
     // 파일로 내려준다(BOM 포함이라 엑셀에서 한글이 안 깨짐).
-    const csvUrl = WORKER+'/?'+q()+'&tab=searchtermscsv';
+    const csvUrl = WORKER+'/?'+q()+'&tab=searchtermscsv'+authQS();
 
     let h=`<div class="section-block">
       <div class="section-block-head">
@@ -3348,33 +3362,33 @@ function drawRevenueTrend(){
   wrap.innerHTML=h;
 }
 
-// 비밀번호 게이트: 여기 'PASSWORD_HERE' 값을 원하는 비밀번호로 바꾸세요.
-// 주의: 이건 클라이언트 코드라 완벽한 보안은 아니고, 아무나 못 보게 막는 수준입니다.
-const DASHBOARD_PASSWORD = 'printbakery2026';
-
-function tryUnlock(){
-  const input = document.getElementById('authPw').value;
-  if(input === DASHBOARD_PASSWORD){
-    sessionStorage.setItem('pbg_authed','1');
-    document.getElementById('authGate').remove();
-    stateFromUrl();
+// 비밀번호 게이트. 비번은 워커 시크릿(DASH_PW)에만 있고 이 파일에는 없다.
+// 맞으면 워커가 12시간짜리 서명 토큰을 준다.
+function enterDashboard(){
+  document.getElementById('authGate').remove();
+  stateFromUrl();
   syncCmpEnabled();
   load();
   renderDataHealth();
-  } else {
-    document.getElementById('authErr').style.display='block';
+}
+async function tryUnlock(){
+  const btn=document.getElementById('authBtn'), err=document.getElementById('authErr');
+  const input=document.getElementById('authPw').value;
+  btn.disabled=true; err.style.display='none';
+  try{
+    await dashLogin(input);
+    enterDashboard();
+  }catch(e){
+    err.textContent=e.message||'비밀번호가 틀렸습니다.';
+    err.style.display='block';
+    btn.disabled=false;
   }
 }
 document.getElementById('authBtn').addEventListener('click', tryUnlock);
 document.getElementById('authPw').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryUnlock(); });
 
-if(sessionStorage.getItem('pbg_authed')==='1'){
-  document.getElementById('authGate').remove();
-  stateFromUrl();       // 주소에 담긴 설정을 컨트롤에 복원 (없으면 기본값 유지)
-  syncCmpEnabled();
-  load();
-  renderDataHealth();   // 수집이 멈춘 지표가 있으면 화면 맨 위에 경고
-}
+// 토큰이 남아 있으면 바로 들어간다. 만료됐으면 워커가 403 을 주고 화면에 오류가 뜬다.
+if(authToken()) enterDashboard();
 // 비밀번호 입력 전에는 위 조건에 안 걸려 load()가 호출되지 않음 (데이터 요청 자체가 안 나감)
 </script>
 </body>

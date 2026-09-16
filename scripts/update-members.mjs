@@ -19,7 +19,13 @@
 import fs from 'node:fs';
 
 const WORKER = process.env.WORKER_URL || 'https://proud-sea-35f9.sugim-386.workers.dev';
-const KEY    = process.env.DASHBOARD_KEY || 'pbg-secret-key-2026';
+// 워커 접근 키. 하드코딩 폴백을 두지 않는다 — 폴백이 있으면 시크릿을 안 넣어도
+// 그럴듯하게 돌다가, 그 키가 소스에 남아 공개된다(예전에 그랬다).
+const KEY    = process.env.DASHBOARD_KEY;
+if (!KEY) {
+  console.error('[FAIL] DASHBOARD_KEY 가 없다. GitHub Secrets 에 등록하고 워크플로 env 로 넘겨라.');
+  process.exit(1);
+}
 const PATH   = process.env.REVENUE_PATH || 'revenue-daily.json';
 
 const pad = (n) => String(n).padStart(2, '0');
