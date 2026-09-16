@@ -1,0 +1,3130 @@
+{
+ "_설명": "카페24 공급사코드 → 담당자·브랜드 매핑. 워커 tab=suppliersales 결과와 조인한다.",
+ "_출처": "[이커머스] 거래처 LIST — (아트)/(라이프)/카페 24 등록 공급사 탭",
+ "_비고": "아트 탭 65행 이후(개인 원화 작가 일괄 등록분)는 「아트 공통」으로 묶음. mgr=null 은 거래처 LIST에 담당자가 없는 공급사.",
+ "updatedAt": "2026-09-16",
+ "suppliers": {
+  "S0000BRW": {
+   "mgr": null,
+   "brand": "느린서재",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "code"
+  },
+  "S0000BVA": {
+   "mgr": null,
+   "brand": "차아",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "code"
+  },
+  "S0000BTL": {
+   "mgr": null,
+   "brand": "시호일",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "code"
+  },
+  "S0000BQZ": {
+   "mgr": null,
+   "brand": "뵤량",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "code"
+  },
+  "S0000BPM": {
+   "mgr": "홍영주",
+   "brand": "옅은 (장진서)",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "code"
+  },
+  "S0000CEP": {
+   "mgr": "이지혜",
+   "brand": "해브피피",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFK": {
+   "mgr": "이아롬",
+   "brand": "보노엠",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNO": {
+   "mgr": "홍영주",
+   "brand": "권녕미",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCM": {
+   "mgr": "홍영주",
+   "brand": "류종대",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMG": {
+   "mgr": "이아롬",
+   "brand": "오유우 OYW",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLZ": {
+   "mgr": "홍영주",
+   "brand": "툴프레스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZX": {
+   "mgr": "홍영주",
+   "brand": "나임포터리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BAH": {
+   "mgr": "이아롬",
+   "brand": "오어스 OWUS",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CEG": {
+   "mgr": "이아롬",
+   "brand": "로우리트 콜렉티브",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CED": {
+   "mgr": "홍영주",
+   "brand": "썬데이포터리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CDU": {
+   "mgr": "이아롬",
+   "brand": "이미지 리퍼블릭",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CBF": {
+   "mgr": "이지혜",
+   "brand": "메누하",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CBH": {
+   "mgr": "이지혜",
+   "brand": "럭럭",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CBJ": {
+   "mgr": "이지혜",
+   "brand": "브룬",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CAR": {
+   "mgr": "이아롬",
+   "brand": "무화",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZP": {
+   "mgr": "홍영주",
+   "brand": "누보피에스타",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZM": {
+   "mgr": "홍영주",
+   "brand": "오든크래프트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZD": {
+   "mgr": "홍영주",
+   "brand": "제도세라믹",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZG": {
+   "mgr": "이지혜",
+   "brand": "푸치스킨즈",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BYZ": {
+   "mgr": "이아롬",
+   "brand": "전태형",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BYT": {
+   "mgr": "이아롬",
+   "brand": "퀴부",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BXW": {
+   "mgr": "이지혜",
+   "brand": "셀렉티도",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BXM": {
+   "mgr": "이지혜",
+   "brand": "언차티드에스테틱퀘스트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BXD": {
+   "mgr": "이아롬",
+   "brand": "쾨어퍼 KÖRPER",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BXB": {
+   "mgr": "홍영주",
+   "brand": "위켄드인",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BWI": {
+   "mgr": "이지혜",
+   "brand": "소프트 썸네일",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BWG": {
+   "mgr": "이지혜",
+   "brand": "키리키리리빙",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BVO": {
+   "mgr": "홍영주",
+   "brand": "부즈앤버즈미더리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BWL": {
+   "mgr": "홍영주",
+   "brand": "스튜디오 엠엔오",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BVR": {
+   "mgr": "이아롬",
+   "brand": "키민느",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BUT": {
+   "mgr": "이아롬",
+   "brand": "더 닷 THE DOT",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTG": {
+   "mgr": "이아롬",
+   "brand": "스타일지음",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTS": {
+   "mgr": "홍영주",
+   "brand": "안민주",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BWA": {
+   "mgr": "홍영주",
+   "brand": "줄라이오키드",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BSB": {
+   "mgr": "홍영주",
+   "brand": "오띠오",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTD": {
+   "mgr": "홍영주",
+   "brand": "콤",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTX": {
+   "mgr": "이아롬",
+   "brand": "케라피스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BSW": {
+   "mgr": "홍영주",
+   "brand": "소을크래프트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BSU": {
+   "mgr": "홍영주",
+   "brand": "각도와 커브",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BQS": {
+   "mgr": "이지혜",
+   "brand": "오고니아",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BRR": {
+   "mgr": "이아롬",
+   "brand": "블리츠웨이",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BPW": {
+   "mgr": "이지혜",
+   "brand": "깪",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOT": {
+   "mgr": "이아롬",
+   "brand": "손더스튜디오",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOR": {
+   "mgr": "이아롬",
+   "brand": "엘엘에스 LLS",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOX": {
+   "mgr": "홍영주",
+   "brand": "블랭크소일",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOM": {
+   "mgr": "이아롬",
+   "brand": "이구비원",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNI": {
+   "mgr": "홍영주",
+   "brand": "플레잇트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOV": {
+   "mgr": "이아롬",
+   "brand": "미브래",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNR": {
+   "mgr": "이지혜",
+   "brand": "오후의 활기",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLR": {
+   "mgr": "이아롬",
+   "brand": "손상우",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNT": {
+   "mgr": "이지혜",
+   "brand": "블루발코니",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLU": {
+   "mgr": "홍영주",
+   "brand": "워커비",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNA": {
+   "mgr": "홍영주",
+   "brand": "토끼굴",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMY": {
+   "mgr": "홍영주",
+   "brand": "고도미",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BQH": {
+   "mgr": "홍영주",
+   "brand": "채킴",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMB": {
+   "mgr": "홍영주",
+   "brand": "펌킨토스트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMM": {
+   "mgr": "이아롬",
+   "brand": "비즈니스 앤 플레저",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLS": {
+   "mgr": "홍영주",
+   "brand": "호랑",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLE": {
+   "mgr": "이아롬",
+   "brand": "평화의정원",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKE": {
+   "mgr": "이아롬",
+   "brand": "포에이치노트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMJ": {
+   "mgr": "홍영주",
+   "brand": "크래프트 프랙티스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKW": {
+   "mgr": "이지혜",
+   "brand": "스튜디오 아록",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BIR": {
+   "mgr": "이아롬",
+   "brand": "슈퍼마켓플라워",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BJN": {
+   "mgr": "이지혜",
+   "brand": "스테인베드",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BJZ": {
+   "mgr": "홍영주",
+   "brand": "오브오브제",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BIM": {
+   "mgr": "이아롬",
+   "brand": "에드가 플랜스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BID": {
+   "mgr": "이아롬",
+   "brand": "메디콤 토이",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BJQ": {
+   "mgr": "이아롬",
+   "brand": "발롱드파리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTE": {
+   "mgr": "이아롬",
+   "brand": "모모림",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BPL": {
+   "mgr": "홍영주",
+   "brand": "무아 크래프트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BGE": {
+   "mgr": "이아롬",
+   "brand": "트랜스페어런트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFQ": {
+   "mgr": "홍영주",
+   "brand": "메종다르",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMW": {
+   "mgr": "홍영주",
+   "brand": "김하윤",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BDX": {
+   "mgr": "이아롬",
+   "brand": "동키프로덕트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BGP": {
+   "mgr": "이지혜",
+   "brand": "자아 라이브러리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BEB": {
+   "mgr": "홍영주",
+   "brand": "무랄리아, 멜리에스, 이케우치 오가닉",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BJI": {
+   "mgr": "홍영주",
+   "brand": "오발 오브제",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLW": {
+   "mgr": "이지혜",
+   "brand": "스튜디오 우고",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BGL": {
+   "mgr": "홍영주",
+   "brand": "오큐멘터리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BDL": {
+   "mgr": "이아롬",
+   "brand": "포인티티 (구: 스티치치)",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BMX": {
+   "mgr": "홍영주",
+   "brand": "하루글라스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCJ": {
+   "mgr": "이아롬",
+   "brand": "박소리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BUU": {
+   "mgr": "이아롬",
+   "brand": "스튜디오 효시",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BJK": {
+   "mgr": "이아롬",
+   "brand": "에카 크라프트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S00000ZU": {
+   "mgr": "이아롬",
+   "brand": "제카코리아",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZU": {
+   "mgr": "이아롬",
+   "brand": "FE26",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKI": {
+   "mgr": "이아롬",
+   "brand": "나베나베페누아",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BQL": {
+   "mgr": "홍영주",
+   "brand": "온마르스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCG": {
+   "mgr": "이아롬",
+   "brand": "쉘위댄스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BUX": {
+   "mgr": "홍영주",
+   "brand": "김지원",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFZ": {
+   "mgr": "이아롬",
+   "brand": "메이우드",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CEY": {
+   "mgr": "이아롬",
+   "brand": "리을라이팅",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFR": {
+   "mgr": "홍영주",
+   "brand": "애호",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFG": {
+   "mgr": "홍영주",
+   "brand": "나박 NABAK",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCZ": {
+   "mgr": "이아롬",
+   "brand": "플랫츠",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CDC": {
+   "mgr": "이아롬",
+   "brand": "아틀리에 파이스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCQ": {
+   "mgr": "홍영주",
+   "brand": "온브릭스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCX": {
+   "mgr": "홍영주",
+   "brand": "아우스월",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFP": {
+   "mgr": "이지혜",
+   "brand": "세라보니또",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CDM": {
+   "mgr": "이아롬",
+   "brand": "사이 SAI",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFJ": {
+   "mgr": "이아롬",
+   "brand": "황아람",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CGO": {
+   "mgr": "이아롬",
+   "brand": "비믹스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CHB": {
+   "mgr": "이지혜",
+   "brand": "보니",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CGJ": {
+   "mgr": "이아롬",
+   "brand": "니트라이팅 NIIT",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFF": {
+   "mgr": "이지혜",
+   "brand": "콜잇바이유어네임, RUSLAN BAGINSKIY, PRINZ BERLIN, APRES SURF, MONT KIJI, 만수르가브리엘 MANSUR GAVRIEL",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CGR": {
+   "mgr": "홍영주",
+   "brand": "오르엠 Orem",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CBD": {
+   "mgr": "이지혜",
+   "brand": "플레이백",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJS": {
+   "mgr": "홍영주",
+   "brand": "예라믹.아트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJO": {
+   "mgr": "이지혜",
+   "brand": "그미",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CKC": {
+   "mgr": "이아롬",
+   "brand": "아고라이팅",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJJ": {
+   "mgr": "이아롬",
+   "brand": "다비데그로피",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJD": {
+   "mgr": "이아롬",
+   "brand": "렉슨",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CIW": {
+   "mgr": "이아롬",
+   "brand": "에스투스 AESTUS",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CIA": {
+   "mgr": "이아롬",
+   "brand": "알레시",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CLR": {
+   "mgr": "이아롬",
+   "brand": "에임빌라",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CKF": {
+   "mgr": "이아롬",
+   "brand": "행잉스터프",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJZ": {
+   "mgr": "홍영주",
+   "brand": "황희선",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CKM": {
+   "mgr": "홍영주",
+   "brand": "헤민세라믹스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJB": {
+   "mgr": "이아롬",
+   "brand": "앙고믈랑",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CGE": {
+   "mgr": "이아롬",
+   "brand": "플리터",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CKP": {
+   "mgr": "이지혜",
+   "brand": "림세샵",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CIJ": {
+   "mgr": "이아롬",
+   "brand": "평일야",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CLO": {
+   "mgr": "이아롬",
+   "brand": "루트세라믹",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CLU": {
+   "mgr": "이지혜",
+   "brand": "파이럿독스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CIP": {
+   "mgr": "이아롬",
+   "brand": "이성미",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CKI": {
+   "mgr": "홍영주",
+   "brand": "김재희",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CMP": {
+   "mgr": "홍영주",
+   "brand": "세라믹몽",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CMR": {
+   "mgr": "홍영주",
+   "brand": "커먼플래닛",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CNW": {
+   "mgr": "이아롬",
+   "brand": "일상이상",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000COH": {
+   "mgr": "홍영주",
+   "brand": "제니아테일러",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CMQ": {
+   "mgr": "홍영주",
+   "brand": "빈토블루",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CNQ": {
+   "mgr": "홍영주",
+   "brand": "조희연 도자",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CNR": {
+   "mgr": "홍영주",
+   "brand": "스튜디오 토림",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CMS": {
+   "mgr": "홍영주",
+   "brand": "한겨울 크래프트랩",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CQT": {
+   "mgr": "이아롬",
+   "brand": "비엘티워크샵",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CQW": {
+   "mgr": "이지혜",
+   "brand": "그로토 Grotto",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRC": {
+   "mgr": "이지혜",
+   "brand": "라이플페이퍼",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CQZ": {
+   "mgr": "이지혜",
+   "brand": "멍뭉",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRT": {
+   "mgr": "이지혜",
+   "brand": "우분트 UBUN'TU",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRQ": {
+   "mgr": "이지혜",
+   "brand": "비에스래빗",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CSE": {
+   "mgr": "이지혜",
+   "brand": "테일리 웨그 taily wag",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTH": {
+   "mgr": "이아롬",
+   "brand": "마버글라스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000COT": {
+   "mgr": "이지혜",
+   "brand": "필코스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CKB": {
+   "mgr": "홍영주",
+   "brand": "물터",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000COO": {
+   "mgr": "홍영주",
+   "brand": "스튜디오 보미제호",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRE": {
+   "mgr": "이지혜",
+   "brand": "마니푸리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRK": {
+   "mgr": "홍영주",
+   "brand": "스튜디오 오르후스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTK": {
+   "mgr": "홍영주",
+   "brand": "존잼",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTN": {
+   "mgr": "홍영주",
+   "brand": "넛디넛",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTQ": {
+   "mgr": "홍영주",
+   "brand": "진1937",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTT": {
+   "mgr": "홍영주",
+   "brand": "댄싱사이더",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CVX": {
+   "mgr": "이지혜",
+   "brand": "고프",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CWA": {
+   "mgr": "홍영주",
+   "brand": "브라운즈",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CWD": {
+   "mgr": "이지혜",
+   "brand": "사루루",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CWG": {
+   "mgr": "홍영주",
+   "brand": "매드바닐라",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTE": {
+   "mgr": "홍영주",
+   "brand": "바삭",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CPZ": {
+   "mgr": "이아롬",
+   "brand": "엔오피",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CYE": {
+   "mgr": "이아롬",
+   "brand": "락시저스페이퍼",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CXT": {
+   "mgr": "홍영주",
+   "brand": "크놀라",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFO": {
+   "mgr": "이아롬",
+   "brand": "김보경",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CSJ": {
+   "mgr": "이아롬",
+   "brand": "플로미",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CSM": {
+   "mgr": "이지혜",
+   "brand": "폼포라펫",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRW": {
+   "mgr": "이지혜",
+   "brand": "옐로멜로",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CNL": {
+   "mgr": "이아롬",
+   "brand": "이야이야앤프렌즈",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRN": {
+   "mgr": "홍영주",
+   "brand": "클램",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CSP": {
+   "mgr": "이아롬",
+   "brand": "포터리씨",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFI": {
+   "mgr": "홍영주",
+   "brand": "레 르와지와",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRF": {
+   "mgr": "홍영주",
+   "brand": "삼작소",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CSS": {
+   "mgr": "이지혜",
+   "brand": "꼬띠샵",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CHO": {
+   "mgr": "홍영주",
+   "brand": "레인하우스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CPY": {
+   "mgr": "홍영주",
+   "brand": "레오나르디",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CQM": {
+   "mgr": "홍영주",
+   "brand": "요이 yoi",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CSD": {
+   "mgr": "홍영주",
+   "brand": "아누",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJY": {
+   "mgr": "이지혜",
+   "brand": "파펠리나",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CYJ": {
+   "mgr": "이지혜",
+   "brand": "몽슈슈",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CYY": {
+   "mgr": "홍영주",
+   "brand": "미물즈",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DAQ": {
+   "mgr": "이지혜",
+   "brand": "데저트에센스",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DBQ": {
+   "mgr": "홍영주",
+   "brand": "나무사이로",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DBV": {
+   "mgr": "홍영주",
+   "brand": "나슬릭",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DDE": {
+   "mgr": "홍영주",
+   "brand": "풍기인삼상회",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DDH": {
+   "mgr": "홍영주",
+   "brand": "얄라",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DEV": {
+   "mgr": "홍영주",
+   "brand": "오페퍼",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DEW": {
+   "mgr": "홍영주",
+   "brand": "빠뜨드무슈",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DEX": {
+   "mgr": "홍영주",
+   "brand": "티노트",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DEY": {
+   "mgr": "홍영주",
+   "brand": "어프리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DFH": {
+   "mgr": "홍영주",
+   "brand": "박스걸 스튜디오",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DFT": {
+   "mgr": "홍영주",
+   "brand": "라떼르",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DFU": {
+   "mgr": "홍영주",
+   "brand": "스테디너리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DFZ": {
+   "mgr": "홍영주",
+   "brand": "넛츠앤버터",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCL": {
+   "mgr": "이아롬",
+   "brand": "용형준",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "code"
+  },
+  "S0000CEA": {
+   "mgr": "이지혜",
+   "brand": "킨필",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "code"
+  },
+  "S00000WQ": {
+   "mgr": "정윤희",
+   "brand": "허명욱",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BVW": {
+   "mgr": "송성이",
+   "brand": "이혜미",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BLO": {
+   "mgr": "정윤희",
+   "brand": "노은님 (벨류오브아트)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CBO": {
+   "mgr": "정윤희",
+   "brand": "류연희",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CAJ": {
+   "mgr": "정윤희",
+   "brand": "양유완 (주식회사 모와니)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S00000VI": {
+   "mgr": "정윤희",
+   "brand": "스튜디오 윤여동",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BSO": {
+   "mgr": "정윤희",
+   "brand": "방연당",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNE": {
+   "mgr": "정윤희",
+   "brand": "윤지훈",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNL": {
+   "mgr": "정윤희",
+   "brand": "이해진",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BPO": {
+   "mgr": "정윤희",
+   "brand": "심사영 (그레이스오브제)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CFW": {
+   "mgr": "정윤희",
+   "brand": "델라온",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CIG": {
+   "mgr": "정윤희",
+   "brand": "수토 (권은영 공방)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CJG": {
+   "mgr": "정윤희",
+   "brand": "임형묵",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CEL": {
+   "mgr": "정윤희",
+   "brand": "해비터스",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CTZ": {
+   "mgr": "정윤희",
+   "brand": "펠트로스튜디오",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKO": {
+   "mgr": "이유정",
+   "brand": "uwoa (김동우)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BYB": {
+   "mgr": "정윤희",
+   "brand": "uwoa (김동우)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTJ": {
+   "mgr": "정윤희",
+   "brand": "조연예",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BYW": {
+   "mgr": "송성이",
+   "brand": "정소혜",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCN": {
+   "mgr": "송성이",
+   "brand": "박성극",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCU": {
+   "mgr": "송성이",
+   "brand": "이은",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CIM": {
+   "mgr": "송성이",
+   "brand": "김쥬쥬스튜디오",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000COG": {
+   "mgr": "송성이",
+   "brand": "세로스튜디오",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CXA": {
+   "mgr": "송성이",
+   "brand": "대동여주도",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000DGH": {
+   "mgr": "정윤희",
+   "brand": "일상비일상의틈",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CAH": {
+   "mgr": "정윤희",
+   "brand": "갤러리82(빈센트 매킨도)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCK": {
+   "mgr": "이유정",
+   "brand": "그레타프리든",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CWL": {
+   "mgr": "송성이",
+   "brand": "김수아",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CYF": {
+   "mgr": "이유정",
+   "brand": "스튜디오이슬로",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BCK": {
+   "mgr": "정윤희",
+   "brand": "타셴",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BRT": {
+   "mgr": "이유정",
+   "brand": "윤형택",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CDK": {
+   "mgr": "이유정",
+   "brand": "파시호시",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BXZ": {
+   "mgr": "이유정",
+   "brand": "현라라",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BSS": {
+   "mgr": "이유정",
+   "brand": "헤르시 (솔라리움)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BQX": {
+   "mgr": "이유정",
+   "brand": "김옥정",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CHE": {
+   "mgr": "이유정",
+   "brand": "마담규",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CYR": {
+   "mgr": "이유정",
+   "brand": "정단금",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CWT": {
+   "mgr": "이유정",
+   "brand": "황다연(아티스트룸282)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CDO": {
+   "mgr": "정윤희",
+   "brand": "곱슬",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BVF": {
+   "mgr": "정윤희",
+   "brand": "프리즘 (구, 유니즌)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BFD": {
+   "mgr": "이유정",
+   "brand": "사치캣 / 하이다나 (스튜디오명 틴TIN)",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CAN": {
+   "mgr": "이유정",
+   "brand": "CCOC",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BQF": {
+   "mgr": "이유정",
+   "brand": "갤러리 콜론비",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CRJ": {
+   "mgr": "이유정",
+   "brand": "그릿시즌",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CNG": {
+   "mgr": "송성이",
+   "brand": "유앤어스",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "B0000DDT": {
+   "mgr": "이유정",
+   "brand": "김이수",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "B0000DAL": {
+   "mgr": "이유정",
+   "brand": "김영헌",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CYX": {
+   "mgr": "이유정",
+   "brand": "쿠나장롱",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "B0000CIF": {
+   "mgr": "이유정",
+   "brand": "김혜령",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CMI": {
+   "mgr": "아트 공통",
+   "brand": "박하",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CDR": {
+   "mgr": "아트 공통",
+   "brand": "원영단",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BPC": {
+   "mgr": "아트 공통",
+   "brand": "신보라",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCA": {
+   "mgr": "아트 공통",
+   "brand": "임지민",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOI": {
+   "mgr": "아트 공통",
+   "brand": "김현수",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S00000XW": {
+   "mgr": "아트 공통",
+   "brand": "환희",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S00000ZE": {
+   "mgr": "아트 공통",
+   "brand": "민지훈",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BGX": {
+   "mgr": "아트 공통",
+   "brand": "풀림",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BHX": {
+   "mgr": "아트 공통",
+   "brand": "서도이",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKR": {
+   "mgr": "아트 공통",
+   "brand": "민수연",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKK": {
+   "mgr": "아트 공통",
+   "brand": "이정민",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BNP": {
+   "mgr": "아트 공통",
+   "brand": "김민주",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BTN": {
+   "mgr": "아트 공통",
+   "brand": "예예",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BOK": {
+   "mgr": "아트 공통",
+   "brand": "서안나",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CCE": {
+   "mgr": "아트 공통",
+   "brand": "태우",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZS": {
+   "mgr": "아트 공통",
+   "brand": "유수지",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BGZ": {
+   "mgr": "아트 공통",
+   "brand": "다다즈",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BZV": {
+   "mgr": "아트 공통",
+   "brand": "배세진",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S00000WW": {
+   "mgr": "아트 공통",
+   "brand": "김창열",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKF": {
+   "mgr": "아트 공통",
+   "brand": "김환기",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BIN": {
+   "mgr": "아트 공통",
+   "brand": "김제언",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BDQ": {
+   "mgr": "아트 공통",
+   "brand": "우인영",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BKG": {
+   "mgr": "아트 공통",
+   "brand": "유영국",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CEO": {
+   "mgr": "아트 공통",
+   "brand": "임하리",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BHP": {
+   "mgr": "아트 공통",
+   "brand": "장욱진",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BBV": {
+   "mgr": "아트 공통",
+   "brand": "청신",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BJU": {
+   "mgr": "아트 공통",
+   "brand": "최혜지",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BVB": {
+   "mgr": "아트 공통",
+   "brand": "이희조",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000BAN": {
+   "mgr": "아트 공통",
+   "brand": "아이라최",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CNP": {
+   "mgr": "아트 공통",
+   "brand": "이왈종",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CPB": {
+   "mgr": "아트 공통",
+   "brand": "정영서",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000CEX": {
+   "mgr": "아트 공통",
+   "brand": "이내",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "B0000DAF": {
+   "mgr": "아트 공통",
+   "brand": "김지구",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "B0000DCQ": {
+   "mgr": "아트 공통",
+   "brand": "여온",
+   "cat": "아트",
+   "status": "입점",
+   "via": "code"
+  },
+  "S0000000": {
+   "mgr": "이아롬",
+   "brand": "자체공급",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S00000MK": {
+   "mgr": null,
+   "brand": "슈퍼도모",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000MT": {
+   "mgr": null,
+   "brand": "문앤썬컴퍼니",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000PX": {
+   "mgr": null,
+   "brand": "언글래마우스",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000RK": {
+   "mgr": null,
+   "brand": "본즈(VONZ)",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S00000VL": {
+   "mgr": null,
+   "brand": "혜원세라믹",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000WD": {
+   "mgr": null,
+   "brand": "로쳐코리아",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000WY": {
+   "mgr": null,
+   "brand": "아애우",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S00000XB": {
+   "mgr": null,
+   "brand": "고요패브릭스",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000XE": {
+   "mgr": null,
+   "brand": "푸에브코",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000XH": {
+   "mgr": "이아롬",
+   "brand": "베르판",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S00000XK": {
+   "mgr": null,
+   "brand": "BABT",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S00000XQ": {
+   "mgr": null,
+   "brand": "프린트베이커리",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000YB": {
+   "mgr": null,
+   "brand": "헤일로데이즈",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000YE": {
+   "mgr": null,
+   "brand": "루체플랜",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000YO": {
+   "mgr": null,
+   "brand": "빅슬립",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000YS": {
+   "mgr": null,
+   "brand": "최희주",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000ZQ": {
+   "mgr": null,
+   "brand": "스튜디오 마큐라",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S00000ZZ": {
+   "mgr": null,
+   "brand": "딜레탄트",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BAW": {
+   "mgr": null,
+   "brand": "롬버스랩",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BBB": {
+   "mgr": null,
+   "brand": "에프에프컬렉티브",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BBO": {
+   "mgr": null,
+   "brand": "구르메",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BDB": {
+   "mgr": null,
+   "brand": "만두카",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BEK": {
+   "mgr": null,
+   "brand": "드리아데",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BEQ": {
+   "mgr": null,
+   "brand": "루이스폴센",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BFF": {
+   "mgr": null,
+   "brand": "글로썸",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BFW": {
+   "mgr": null,
+   "brand": "메종스테디스테이트",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BGN": {
+   "mgr": null,
+   "brand": "드림즈코리아",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BHL": {
+   "mgr": null,
+   "brand": "HOME",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BHN": {
+   "mgr": null,
+   "brand": "박서보",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BHU": {
+   "mgr": null,
+   "brand": "놋몽",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BIA": {
+   "mgr": null,
+   "brand": "하베",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BIF": {
+   "mgr": null,
+   "brand": "이상엽 작가",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BII": {
+   "mgr": null,
+   "brand": "멤버십",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BIP": {
+   "mgr": null,
+   "brand": "이수미",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BIU": {
+   "mgr": null,
+   "brand": "소니",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BIX": {
+   "mgr": "이지혜",
+   "brand": "스테인베드",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000BIZ": {
+   "mgr": null,
+   "brand": "Pearl Lam Gallery",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BJG": {
+   "mgr": null,
+   "brand": "도요람 서울",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BJJ": {
+   "mgr": null,
+   "brand": "소백",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BJW": {
+   "mgr": "아트 공통",
+   "brand": "수린",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000BJX": {
+   "mgr": "아트 공통",
+   "brand": "김선우",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000BKC": {
+   "mgr": null,
+   "brand": "오류 엘리먼츠",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BKH": {
+   "mgr": null,
+   "brand": "헤어리버드박스",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BKL": {
+   "mgr": null,
+   "brand": "슬립타이트",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BKP": {
+   "mgr": null,
+   "brand": "리퍼브",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BKY": {
+   "mgr": null,
+   "brand": "MORI ART MUSEUM",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BKZ": {
+   "mgr": null,
+   "brand": "MOMA ART SHOP",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BLG": {
+   "mgr": null,
+   "brand": "GIRL(레이어)",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BLJ": {
+   "mgr": null,
+   "brand": "서울옥션",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BLM": {
+   "mgr": null,
+   "brand": "김햇살(사리야)",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BLX": {
+   "mgr": null,
+   "brand": "델픽",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BMO": {
+   "mgr": null,
+   "brand": "머지",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BMS": {
+   "mgr": null,
+   "brand": "이응세라믹",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BMV": {
+   "mgr": null,
+   "brand": "윔지버드",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BPA": {
+   "mgr": null,
+   "brand": "예스세라믹",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BPP": {
+   "mgr": null,
+   "brand": "룸퍼멘트",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BQB": {
+   "mgr": null,
+   "brand": "위키드와이프",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BQM": {
+   "mgr": null,
+   "brand": "스튜디오 카르쵸피",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BQQ": {
+   "mgr": null,
+   "brand": "자문밖문화재단",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BRF": {
+   "mgr": null,
+   "brand": "바카라 Baccarat",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BRH": {
+   "mgr": null,
+   "brand": "알로소",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BST": {
+   "mgr": null,
+   "brand": "성산아트컬처",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BTA": {
+   "mgr": null,
+   "brand": "키어",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000BTQ": {
+   "mgr": null,
+   "brand": "이상호",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BUC": {
+   "mgr": null,
+   "brand": "Artoyz Handcraft (아트토이즈 핸드크래프트)",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BUF": {
+   "mgr": null,
+   "brand": "Boyhood (보이후드)",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BUI": {
+   "mgr": null,
+   "brand": "AllRightsReserved (올 라잇스 리저브드, ARR)",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BUL": {
+   "mgr": null,
+   "brand": "마이티 잭스(Mighty Jaxx)",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BVD": {
+   "mgr": null,
+   "brand": "아트포푸디",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BVI": {
+   "mgr": null,
+   "brand": "섭섭",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BWB": {
+   "mgr": null,
+   "brand": "선데이 × 젠피젠피",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BWO": {
+   "mgr": null,
+   "brand": "파란",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BXH": {
+   "mgr": null,
+   "brand": "어벤져스와인",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BYH": {
+   "mgr": null,
+   "brand": "이악크래프트(전현지)",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BZJ": {
+   "mgr": null,
+   "brand": "셀린리",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000BZZ": {
+   "mgr": null,
+   "brand": "test",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CAB": {
+   "mgr": null,
+   "brand": "임수진",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CAK": {
+   "mgr": null,
+   "brand": "가나다",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CAV": {
+   "mgr": "아트 공통",
+   "brand": "좋은생각",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000CBA": {
+   "mgr": "아트 공통",
+   "brand": "우인영",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000CBB": {
+   "mgr": null,
+   "brand": "최희",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CBL": {
+   "mgr": null,
+   "brand": "조이헌터게임즈",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CBX": {
+   "mgr": null,
+   "brand": "이예린",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CBY": {
+   "mgr": null,
+   "brand": "이예린",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CCC": {
+   "mgr": null,
+   "brand": "키무",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CCH": {
+   "mgr": null,
+   "brand": "피스풀띵즈",
+   "cat": "라이프",
+   "status": "종료",
+   "via": "name"
+  },
+  "S0000CCP": {
+   "mgr": null,
+   "brand": "알보우",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CDI": {
+   "mgr": null,
+   "brand": "공급사테스트",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CDY": {
+   "mgr": null,
+   "brand": "김한나",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CEK": {
+   "mgr": null,
+   "brand": "문영서",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CEQ": {
+   "mgr": null,
+   "brand": "심주용",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CET": {
+   "mgr": null,
+   "brand": "살랭",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CEV": {
+   "mgr": null,
+   "brand": "백경",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CFN": {
+   "mgr": "홍영주",
+   "brand": "글래스폼즈",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CGW": {
+   "mgr": null,
+   "brand": "iGOO",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CHF": {
+   "mgr": "홍영주",
+   "brand": "오종보",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CHI": {
+   "mgr": "홍영주",
+   "brand": "차다현",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CHP": {
+   "mgr": null,
+   "brand": "이하승",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CHR": {
+   "mgr": null,
+   "brand": "이하승",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CHW": {
+   "mgr": null,
+   "brand": "test",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CIZ": {
+   "mgr": null,
+   "brand": "진혜린",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CJL": {
+   "mgr": null,
+   "brand": "이창민",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CLD": {
+   "mgr": "이지혜",
+   "brand": "김지용",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CLF": {
+   "mgr": "이지혜",
+   "brand": "김지용",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CLI": {
+   "mgr": null,
+   "brand": "변경수",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CLK": {
+   "mgr": null,
+   "brand": "박용식",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CMK": {
+   "mgr": null,
+   "brand": "수공당",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CMZ": {
+   "mgr": null,
+   "brand": "이규호도자기",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CNE": {
+   "mgr": null,
+   "brand": "윤정 도자기",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000COF": {
+   "mgr": null,
+   "brand": "머그",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000COR": {
+   "mgr": null,
+   "brand": "포레스트",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CPC": {
+   "mgr": null,
+   "brand": "정영서 jungyoungseo",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CPD": {
+   "mgr": null,
+   "brand": "정영서 Jung Young Seo",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CPW": {
+   "mgr": "이아롬",
+   "brand": "살림 아뜰리에",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CQI": {
+   "mgr": "이지혜",
+   "brand": "오이에",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000CQK": {
+   "mgr": "홍영주",
+   "brand": "미시사",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CRH": {
+   "mgr": null,
+   "brand": "르베를렌",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CRL": {
+   "mgr": "이지혜",
+   "brand": "씨오클",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000CRX": {
+   "mgr": "홍영주",
+   "brand": "백목 작업실",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CRZ": {
+   "mgr": "이지혜",
+   "brand": "폼포라펫",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000CSC": {
+   "mgr": null,
+   "brand": "아르망스유한회사",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CSH": {
+   "mgr": "이아롬",
+   "brand": "예누하",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CTB": {
+   "mgr": null,
+   "brand": "(주)하우스다인",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CTC": {
+   "mgr": null,
+   "brand": "사업개발팀",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CTY": {
+   "mgr": null,
+   "brand": "아르망스유한회사",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CWN": {
+   "mgr": null,
+   "brand": "어스름",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CWQ": {
+   "mgr": "송성이",
+   "brand": "김현성",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000CWY": {
+   "mgr": null,
+   "brand": "박연경 Park Yeon Kyung",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CXW": {
+   "mgr": null,
+   "brand": "마마콤마(엔오비컴퍼니㈜)",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CXY": {
+   "mgr": "홍영주",
+   "brand": "서지혜",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CYB": {
+   "mgr": "이지혜",
+   "brand": "일상직물",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000CYM": {
+   "mgr": null,
+   "brand": "조윤경",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000CYT": {
+   "mgr": null,
+   "brand": "양혜정",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DAG": {
+   "mgr": "아트 공통",
+   "brand": "김지구",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DAH": {
+   "mgr": "이아롬",
+   "brand": "호박포크아트갤러리",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DAK": {
+   "mgr": "이유정",
+   "brand": "김영헌",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DAO": {
+   "mgr": "아트 공통",
+   "brand": "이재민",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DAP": {
+   "mgr": "홍영주",
+   "brand": "맥파이앤타이거",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DAS": {
+   "mgr": null,
+   "brand": "김규태",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DAU": {
+   "mgr": null,
+   "brand": "수공당",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DAX": {
+   "mgr": null,
+   "brand": "하경아",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DBB": {
+   "mgr": "아트 공통",
+   "brand": "에디강",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DBC": {
+   "mgr": null,
+   "brand": "아셀아트컴퍼니",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DBE": {
+   "mgr": null,
+   "brand": "유엔에스스튜디오",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DBI": {
+   "mgr": "송성이",
+   "brand": "이소루",
+   "cat": "아트",
+   "status": "입점대기",
+   "via": "name"
+  },
+  "S0000DBN": {
+   "mgr": null,
+   "brand": "유엔에스스튜디오",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DBR": {
+   "mgr": null,
+   "brand": "바이크앤코",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DCB": {
+   "mgr": null,
+   "brand": "그리닝",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DCP": {
+   "mgr": "아트 공통",
+   "brand": "여온",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DCR": {
+   "mgr": "이아롬",
+   "brand": "드로터스",
+   "cat": "라이프",
+   "status": "대기",
+   "via": "name"
+  },
+  "S0000DCW": {
+   "mgr": null,
+   "brand": "ipteam",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DCX": {
+   "mgr": null,
+   "brand": "저작권팀",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DCY": {
+   "mgr": "이아롬",
+   "brand": "아템포코리아",
+   "cat": "라이프",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDD": {
+   "mgr": null,
+   "brand": "이정빈 작가",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DDM": {
+   "mgr": "정윤희",
+   "brand": "윤태성",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDS": {
+   "mgr": "이유정",
+   "brand": "김이수",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDU": {
+   "mgr": "아트 공통",
+   "brand": "정지숙",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDV": {
+   "mgr": "아트 공통",
+   "brand": "이유손",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDW": {
+   "mgr": "이유정",
+   "brand": "하이다나",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDX": {
+   "mgr": "아트 공통",
+   "brand": "수연",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DDY": {
+   "mgr": "이유정",
+   "brand": "김혜령",
+   "cat": "아트",
+   "status": "입점",
+   "via": "name"
+  },
+  "S0000DEC": {
+   "mgr": null,
+   "brand": "김보희",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DED": {
+   "mgr": null,
+   "brand": "권오상",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DEF": {
+   "mgr": null,
+   "brand": "심문섭",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DEH": {
+   "mgr": null,
+   "brand": "이강소",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  },
+  "S0000DEN": {
+   "mgr": null,
+   "brand": "르샤트라1802",
+   "cat": null,
+   "status": null,
+   "via": "none"
+  }
+ }
+}
