@@ -519,6 +519,7 @@ const TABS=[
   {id:'customer',name:'고객',      ready:true},   // 필요할 때: 획득·활성화·유지
   {id:'funnel',  name:'퍼널·페이지', ready:true},   // 필요할 때: 퍼널·페이지·스크롤
   {id:'product', name:'구좌·상품',   ready:true},   // 필요할 때: 구좌 성과·상품 성과
+  {id:'manager', name:'담당자',     ready:true},   // 필요할 때: 담당자별 판매 실적
 ];
 // 탭은 URL(?tab=) 이 있으면 그것을, 없으면 마지막으로 본 탭을 쓴다.
 // URL 이 우선인 이유: 북마크로 특정 탭을 바로 열 수 있어야 하기 때문.
@@ -809,6 +810,7 @@ async function load(){
   if(cur && !cur.ready){$('content').innerHTML=`<div class="soon-box"><b>${cur.name}</b> 탭은 준비 중입니다.<br>다음 단계에서 추가됩니다.</div>`;return;}
   if(TAB==='growth'){ await loadGrowthTab(); return; }
   if(TAB==='revenue'){ await loadRevenue(); return; }
+  if(TAB==='manager'){ await loadManagerTab(); return; }
   showLoading();
   try{
     const d = await wfetch(WORKER+'/?'+q());
@@ -2087,17 +2089,12 @@ function renderFunnel(d){
   h+='<p class="sec-desc">매출은 GA4 추적 기준 — 매출 탭 실매출과 다릅니다</p>';
   h+='<div id="utmWrap"><div class="funnel"><div class="state"><div class="spinner"></div>UTM 지표 불러오는 중…</div></div></div>';
 
-  h+='<h2 class="sec">담당자별 판매 실적</h2>';
-  h+='<p class="sec-desc">cafe24 주문의 공급사코드를 거래처 LIST의 담당자와 연결해 집계합니다 — 취소·반품 제외</p>';
-  h+='<div id="supplierWrap"><div class="funnel"><div class="state"><div class="spinner"></div>담당자별 실적 불러오는 중…</div></div></div>';
-
   $('content').innerHTML=h;
   loadSegmentFunnel();
   loadCartAnalysis();
   loadSearchTerms();
   loadScrollDepth();
   loadUtmPerformance();
-  loadSupplierSales();
 }
 
 // ===== 담당자별 판매 실적 =====
@@ -2115,70 +2112,92 @@ async function supplierMap(){
   }catch(e){ SUPMAP={}; }
   return SUPMAP;
 }
-async function loadSupplierSales(){
-  const wrap=$('supplierWrap');
-  if(!wrap) return;
+async function loadManagerTab(){
+  $('content').innerHTML='<div id="managerWrap"><div class="state"><div class="spinner"></div>담당자별 실적 불러오는 중…</div></div>';
+  const wrap=$('managerWrap');
+  const UNASSIGNED='(담당자 미지정)';
   try{
     const from=$('s').value, to=$('e').value;
     const [dd, map] = await Promise.all([
-      wfetch(WORKER+'/?'+q('tab=suppliersales&from='+from+'&to='+to)),
+      wfetch(WORKER+'/?'+q('tab=suppliersales')),
       supplierMap(),
     ]);
     if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
     const list=dd.suppliers||[];
     if(!list.length){ wrap.innerHTML='<div class="funnel"><div class="state">해당 기간 주문이 없습니다</div></div>'; return; }
 
-    const by={}, unknown=[];
-    let totQ=0, totA=0;
+    const by={};
+    let totQ=0, totA=0, totCQ=0, totCA=0, unmapped=0;
     for(const s0 of list){
       const info=map[s0.code];
-      const mgr=(info&&info.mgr)?info.mgr:'(담당자 미지정)';
-      if(!info||!info.mgr) unknown.push({code:s0.code, name:(info&&info.brand)||null, qty:s0.qty, amount:s0.amount});
+      const mgr=(info&&info.mgr)?info.mgr:UNASSIGNED;
+      if(!info) unmapped++;
       const o=by[mgr]||(by[mgr]={mgr, qty:0, amount:0, cq:0, ca:0, brands:[]});
       o.qty+=s0.qty; o.amount+=s0.amount; o.cq+=s0.canceledQty; o.ca+=s0.canceledAmount;
-      o.brands.push({name:(info&&info.brand)||s0.code, code:s0.code, qty:s0.qty, amount:s0.amount});
-      totQ+=s0.qty; totA+=s0.amount;
+      o.brands.push({name:(info&&info.brand)||s0.code, code:s0.code, cat:(info&&info.cat)||'',
+                     status:(info&&info.status)||'', qty:s0.qty, amount:s0.amount,
+                     cq:s0.canceledQty, ca:s0.canceledAmount, orders:s0.orderCount, products:s0.productCount});
+      totQ+=s0.qty; totA+=s0.amount; totCQ+=s0.canceledQty; totCA+=s0.canceledAmount;
     }
-    const rows=Object.values(by).sort((a,b)=>b.amount-a.amount);
-    const maxA=Math.max(...rows.map(r=>r.amount),1);
+    // 금액 내림차순. 담당자 미지정은 항상 맨 아래로 내린다.
+    const rows=Object.values(by).sort((a,b)=>{
+      if(a.mgr===UNASSIGNED) return 1;
+      if(b.mgr===UNASSIGNED) return -1;
+      return b.amount-a.amount;
+    });
+    const maxA=Math.max(...rows.filter(r=>r.mgr!==UNASSIGNED).map(r=>r.amount), 1);
+    const named=rows.filter(r=>r.mgr!==UNASSIGNED);
+    const namedA=named.reduce((a,r)=>a+r.amount,0);
 
+    const won=n=>fmt(Math.round(n/10000))+'만';
     let h='';
     if(dd.truncated) h+='<div class="notice">주문이 많아 일부만 집계했습니다. 기간을 좁혀서 다시 조회하세요.</div>';
+
+    h+='<h2 class="sec">담당자별 판매 실적</h2>';
+    h+='<p class="sec-desc">cafe24 주문의 공급사코드를 거래처 LIST의 담당자와 연결해 집계합니다 · 금액은 취소·반품 제외</p>';
+
+    // 요약
+    h+='<div class="section-block"><div class="slotbar-meta" style="line-height:1.9;">'
+      +`판매 <b>${won(totA)}</b> · 수량 ${fmt(totQ)}개 · 담당자 ${fmt(named.length)}명 · 공급사 ${fmt(list.length)}곳<br>`
+      +`취소·반품 ${fmt(totCQ)}개 (${won(totCA)}) · 담당자 확정분이 금액의 <b>${totA?(namedA/totA*100).toFixed(0):0}%</b>`
+      +(unmapped?` · 매핑 없는 공급사 ${fmt(unmapped)}곳`:'')
+      +'</div></div>';
+
+    // 담당자별 — 펼치면 그 담당자의 공급사 전부 (기존 rowItem/rowToggleBtn 패턴 재사용)
     h+='<div class="section-block">'+rows.map(r=>{
+      const dim=(r.mgr===UNASSIGNED);
       const w=Math.max(r.amount/maxA*100,3);
       const share=totA?(r.amount/totA*100):0;
-      const dim=(r.mgr==='(담당자 미지정)');
-      return `<div class="slotbar-row">
-        <div><span class="slotbar-name" style="cursor:default;${dim?'color:#8C8C86;':''}">${r.mgr}</span>
-          <div class="slotbar-meta">공급사 ${fmt(r.brands.length)}곳 · 수량 ${fmt(r.qty)} · 비중 ${share.toFixed(1)}%${r.cq?` · 취소 ${fmt(r.cq)}`:''}</div></div>
-        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;${dim?'background:#B9B9B4;':''}"></div></div>
-        <div><div class="slotbar-val">${fmt(Math.round(r.amount/10000))}</div><div class="slotbar-sub">만원</div></div>
+      const bs=r.brands.slice().sort((a,b)=>b.amount-a.amount);
+      const summary=`<div class="slotbar-row">
+        <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;${dim?'color:#8C8C86;':''}">${r.mgr}</span>${rowToggleBtn()}</div>
+          <div class="slotbar-meta">공급사 ${fmt(r.brands.length)}곳 · 수량 ${fmt(r.qty)}개 · 비중 ${share.toFixed(1)}%${r.cq?` · 취소 ${fmt(r.cq)}개 (${won(r.ca)})`:''}</div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${dim?'#B9B9B4':'#3182F6'};"></div></div>
+        <div><div class="slotbar-val">${won(r.amount)}</div><div class="slotbar-sub">${fmt(r.brands.length)}곳</div></div>
       </div>`;
+      const detail=bs.map(b=>`<div class="slotbar-row" style="min-height:0;padding:6px 0;border-bottom:0;">
+          <div><span class="slotbar-name" style="cursor:default;font-weight:400;">${b.name}</span>
+            <div class="slotbar-meta">${b.code}${b.cat?' · '+b.cat:''}${b.status?' · '+b.status:''} · 주문 ${fmt(b.orders)}건 · 상품 ${fmt(b.products)}종${b.cq?` · 취소 ${fmt(b.cq)}개`:''}</div></div>
+          <div class="slotbar-track sm"><div class="slotbar-fill" style="width:${Math.max(b.amount/(bs[0].amount||1)*100,3)}%;background:${dim?'#FF9500':'#8FB9F5'};"></div></div>
+          <div><div class="slotbar-val" style="font-size:13px;">${won(b.amount)}</div><div class="slotbar-sub">${fmt(b.qty)}개</div></div>
+        </div>`).join('');
+      return rowItem(summary, detail);
     }).join('')+'</div>';
 
-    // 담당자별 상위 공급사
-    h+='<h2 class="sec">담당자별 상위 공급사</h2>';
-    h+='<p class="sec-desc">금액 기준 상위 5곳</p>';
-    h+='<div class="section-block">'+rows.map(r=>{
-      const top=r.brands.sort((a,b)=>b.amount-a.amount).slice(0,5);
-      return `<div style="padding:10px 0;border-bottom:1px solid #EFEFEF;">
-        <div class="slotbar-name" style="cursor:default;">${r.mgr}</div>
-        <div class="slotbar-meta" style="margin-top:6px;">${top.map(b=>`${b.name} ${fmt(b.qty)}개 (${fmt(Math.round(b.amount/10000))}만)`).join(' · ')}</div>
-      </div>`;
-    }).join('')+'</div>';
-
-    if(unknown.length){
-      const u=unknown.sort((a,b)=>b.amount-a.amount).slice(0,15);
+    const un=by[UNASSIGNED];
+    if(un){
       h+='<h2 class="sec">담당자 미지정 공급사</h2>';
-      h+=`<p class="sec-desc">거래처 LIST에 담당자가 없는 공급사 ${fmt(unknown.length)}곳 — 등록하면 위 집계에 반영됩니다</p>`;
-      h+='<div class="section-block">'+u.map(x=>`<div class="slotbar-row">
-        <div><span class="slotbar-name" style="cursor:default;">${x.name||x.code}</span>
-          <div class="slotbar-meta">${x.code}</div></div>
-        <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.max(x.amount/(u[0].amount||1)*100,3)}%;background:#FF9500;"></div></div>
-        <div><div class="slotbar-val">${fmt(x.qty)}</div><div class="slotbar-sub">개</div></div>
+      h+=`<p class="sec-desc">거래처 LIST에 담당자가 없는 ${fmt(un.brands.length)}곳 — 여기 뜨는 공급사를 LIST에 채우면 위 집계로 올라갑니다</p>`;
+      const us=un.brands.slice().sort((a,b)=>b.amount-a.amount);
+      h+='<div class="section-block">'+us.map(x=>`<div class="slotbar-row">
+        <div><span class="slotbar-name" style="cursor:default;">${x.name}</span>
+          <div class="slotbar-meta">${x.code}${x.cat?' · '+x.cat:''} · 주문 ${fmt(x.orders)}건${x.cq?` · 취소 ${fmt(x.cq)}개`:''}</div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.max(x.amount/(us[0].amount||1)*100,3)}%;background:#FF9500;"></div></div>
+        <div><div class="slotbar-val">${won(x.amount)}</div><div class="slotbar-sub">${fmt(x.qty)}개</div></div>
       </div>`).join('')+'</div>';
     }
-    h+=`<p class="sec-desc" style="margin-top:14px;">기간 ${from} ~ ${to} · 주문 ${fmt(dd.orderCount)}건 · 품목 ${fmt(dd.lineCount)}행 · 공급사 ${fmt(list.length)}곳</p>`;
+    h+=`<p class="sec-desc" style="margin-top:14px;">기간 ${from} ~ ${to} · 주문 ${fmt(dd.orderCount)}건 · 품목 ${fmt(dd.lineCount)}행`
+      +`${dd.supplierUnresolved?` · 공급사 미해석 ${fmt(dd.supplierUnresolved)}행`:''}</p>`;
     wrap.innerHTML=h;
   }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">담당자별 실적을 불러오지 못했습니다</div></div>'; }
 }
