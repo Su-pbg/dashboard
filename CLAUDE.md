@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-09-14 03:40 KST
+마지막 갱신: 2026-09-21
 
 ---
 
@@ -44,16 +44,48 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 ```
 
 ### 워커 주요 엔드포인트
-`?bs=&be=&as=&ae=&key=pbg-secret-key-2026&tab=...`
+`?bs=&be=&as=&ae=&tab=...` + **인증 필요**
+- 사람: `POST /login` 에 비번 → 토큰 → `Authorization: Bearer` (파일 받기만 `?t=`)
+- 기계: `?key=<DASHBOARD_KEY>` (하드코딩 폴백 없음. 틀리면 403)
 `tab` = `overview`(기본) / `slots` / `cart` / `segfunnel` / `retention` / `acquisition` /
-`activeusers` / `events` / `metricscsv` / `membercount`
+`activeusers` / `events` / `metricscsv` / `membercount` / `suppliersales` / `probecustomers`(임시)
 **인식 못 하는 tab 은 조용히 overview 를 돌려준다** (디버깅 시 함정).
 
 ---
 
 ## 2. 지금 당장 열린 이슈 (우선순위 순)
 
-### [P0] 워커 `tab=membercount` 실패 — **원인 미확정. 03:05 에 "확정"이라 적었던 건 틀렸다**
+### [보류] 워커 `tab=membercount` 실패 — **원인 확정(2026-09-17), 작업은 중단(2026-09-21)**
+
+#### 결론 (probe 실측, 더 파지 말 것)
+```
+customers/count         + (헤더없음 / 2024-06-01 / 2026-03-01)  →  전부 404 "No API found"
+customersprivacy/count  + (헤더없음 / 2026-03-01)               →  403 insufficient_scope
+customersprivacy?limit=1                                        →  403 insufficient_scope
+customers?limit=1                                               →  422 "cellphone 또는 member_id 를 입력하라"
+```
+- `customers/count` 는 **이 앱에 존재하지 않는 엔드포인트다.** 버전을 바꿔도 안 된다.
+  → 9-16 에 넣은 "API 버전 자동탐색"(`resolveCustomerApiVersion`)은 **이 문제에 무효**다.
+- 아래 3번에 적어둔 대안 "목록 페이징" 도 **불가**. `/admin/customers` 는 목록이 아니라
+  cellphone/member_id 로 찾는 **조회 API** 라 파라미터 없이는 422 다.
+  `snapshot_new_members.py:138` 이 이 경로를 목록처럼 쓰고 있어서 파이썬도 같은 이유로 막혀 있다.
+- 되는 경로는 **`customersprivacy`** 다 (404 아니고 403 = 엔드포인트는 있고 스코프만 없음).
+
+#### 결정 (2026-09-21, Su) — **지표 자체를 폐기**
+**개인정보 스코프는 추가하지 않는다.** 그래서 회원수 API 자동화도 하지 않고,
+**대시보드에서 회원 지표를 내렸다.** 내린 것:
+- `index.html`: `loadMemberMetrics`(총 회원 수·순증·이탈률) · `memberTrendHTML`(월 추이) ·
+  `memberRangeInfo` · `fillMissingTotalMembers`(워커 `tab=membercount` 유일한 호출부) ·
+  건강검진의 `totalMembers` 항목 · `#memberWrap` — 전부 삭제.
+- 워크플로 `update-members` / `update-new-members`: **스케줄 주석 처리** (파일·수동실행은 남김).
+  되살리려면 각 파일의 `schedule:` 두 줄 주석만 풀면 된다.
+- 워커의 `tab=membercount` · `buildMemberCounts` 는 **아직 남아 있다** (호출부가 없어 동면 상태).
+- `revenue-daily.json` 의 기존 `totalMembers`(~2026-09-12) 와 `scripts/import-members-csv.mjs`
+  (CSV 수동 입력 경로)는 **지우지 않았다.** 나중에 되살릴 때 쓴다.
+
+#### (과거 조사 기록 — 결론은 위로 대체됨)
+
+### [P0-old] 2026-09-14 시점 기록
 
 #### [2026-09-14 03:25] 헤더 패치 배포했으나 안 고쳐졌다 — 반증 기록
 - `X-Cafe24-Api-Version: 2024-06-01` 패치를 실제로 배포 완료 (Cloudflare Active deployment ≈03:19).
@@ -185,7 +217,46 @@ body={"error":{"code":403,"message":"The permission necessary for access tokens 
 
 ---
 
+## 3-1. 2026-09-17 에 한 작업 (워커)
+
+### 워커를 CLI 로 배포할 수 있게 됨 — **편집기 붙여넣기 루프 끝**
+- Cloudflare 배포본을 API 로 내려받아 `worker.js` 를 프로덕션과 동기화했다.
+  (9-14 사본은 `worker.0914-old.bak.js` 로 백업. 레포의 worker.js 가 구버전이라는 기존 함정은 해소됨)
+- `wrangler.jsonc` 추가(gitignore 됨). 배포: `npx wrangler deploy`
+- **주의: `no_bundle: true` 다.** `worker.js` 는 이미 번들된 파일이라 다시 번들하면
+  esbuild 의 `__name` 헬퍼가 깨져 `ReferenceError` 로 업로드가 거부된다.
+  같은 이유로 파일 맨 위 두 줄(`__defProp` / `__name` 정의)을 **지우면 안 된다.**
+- 시크릿은 wrangler deploy 로 안 지워진다. KV 바인딩만 설정에 적혀 있다.
+
+### [고침] `CAFE24_API_VERSION` 2024-06-01 → 2026-03-01
+상품명·카테고리명 조회 3곳이 `X-Cafe24-Api-Version: 2024-06-01` 을 보내고 있었는데,
+이 버전은 **이제 이 앱에서 제공되지 않아 엔드포인트와 무관하게 400** 이 된다:
+```
+products?limit=1 + 2024-06-01 → 400 "2024-06-01 version you requested is not available"
+products?limit=1 + 2026-03-01 → 200
+```
+9-14 의 apiver 패치는 당시엔 맞았지만 그 사이 cafe24 가 그 버전을 내렸다.
+고친 뒤 `tab=slots` 에서 상품명 정상 조회 확인.
+
+### 임시 probe 가 워커에 남아 있다
+`?tab=probecustomers&paths=a|b&vers=-,2026-03-01&blen=3000` — 아무 admin 엔드포인트나
+상태코드/본문을 찍어보는 진단용. 인증된 요청만 가능. **다 쓰면 지울 것.**
+
+### `DASHBOARD_KEY` 교체함
+검증 호출이 필요해서 Cloudflare 시크릿을 새 값으로 돌렸다. 값은 `~/dashboard/.dashboard_key.local`.
+**GitHub Secret 쪽은 아직 옛 값** → `update-members` 액션이 403 으로 실패한다.
+맞추려면 GitHub Settings → Secrets → Actions 에 같은 값을 넣으면 된다.
+(su7aeng 계정은 이 레포에 read 권한뿐이라 CLI 로는 못 넣는다.)
+
+---
+
 ## 4. cafe24 API 함정 (반복해서 당했다)
+
+- **API 버전을 헤더에 박아두면 언젠가 전부 400 이 된다.** cafe24 가 옛 버전을 내리면
+  엔드포인트와 무관하게 `"...version you requested is not available"` 400 이 온다.
+  앱 기본값은 에러 메시지에 들어 있다(`The default value for the app version is ...`).
+- **404 와 403 을 구분할 것.** 404 "No API found" = 그 엔드포인트가 없는 것(버전 바꿔도 소용없음).
+  403 insufficient_scope = 엔드포인트는 있고 권한만 없는 것.
 
 - **인식 못 하는 쿼리 파라미터를 에러 없이 무시한다.**
   파라미터명이 틀리면 조건이 사라진 채 "전체 결과"가 그럴듯하게 돌아온다.

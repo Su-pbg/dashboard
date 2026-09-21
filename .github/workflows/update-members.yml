@@ -10,9 +10,14 @@
 
 name: update-members
 
+# [2026-09-21] 스케줄 중단. 회원 지표를 대시보드에서 폐기했고, 이 잡이 부르는
+# 워커 tab=membercount 는 애초에 동작하지 않는다 —
+# cafe24 /admin/customers/count 는 이 앱에 없는 엔드포인트라 버전 무관 404,
+# 대체 경로(customersprivacy)는 개인정보 스코프가 필요해 쓰지 않기로 했다.
+# 되살리려면 아래 schedule 두 줄의 주석만 풀면 된다.
 on:
-  schedule:
-    - cron: '13 22 * * *'    # KST 07:13 — 매출 수집(06:2x)이 그날 행을 만든 뒤에 돈다
+  # schedule:
+  #   - cron: '13 22 * * *'    # KST 07:13 — 매출 수집(06:2x)이 그날 행을 만든 뒤에 돈다
   workflow_dispatch:
     inputs:
       target_date:

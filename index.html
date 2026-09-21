@@ -908,8 +908,6 @@ async function renderDataHealth(){
   }
   const daily=(j&&j.daily)||[];
   if(!daily.length){ box.innerHTML=''; return; }
-  // 되메우기를 먼저 끝내야 아래 문구를 정확히 고를 수 있다 (채웠는지/거부했는지)
-  await fillMissingTotalMembers();
   const issues=[];
 
   // 1) 파일 자체가 갱신되고 있는가
@@ -937,21 +935,7 @@ async function renderDataHealth(){
       `마지막 정상 기록 ${lastOk||'없음'} · ${fixHint}`]);
   };
   // newMembers 는 폐기된 필드라 검사하지 않는다 (위 주석 참고).
-  // totalMembers 는 cafe24 누적 회원 수라 GA4 로 대체가 안 된다 — 이건 진짜 공백이다.
-  const mf = MEMBER_FILL;
-  const fillNote = (mf && mf.rejected)
-      ? `되짚어 계산해 봤지만 ${mf.anchor.date} 실측치와 ${mf.anchor.diffPct.toFixed(1)}% 차이가 나 `
-        + '값을 채우지 않고 비워 두었습니다. '
-    : (mf && mf.filled)
-      ? 'cafe24 회원 목록을 가입일 기준으로 되짚은 <b>추정값</b>으로 화면을 채워 두었습니다 — '
-        + '탈퇴자가 빠져 실제보다 약간 낮습니다. '
-      : '';
-  checkField('totalMembers','총 회원 수',
-    '유지 섹션의 총 회원 수·순증·월 이탈률의 원천 수집이 멈춘 상태입니다 '
-    + '(cafe24 회원 수를 revenue-daily.json 에 넣어주던 경로). '
-    + fillNote
-    + '어느 쪽이든 원천 수집을 되살리는 편이 낫습니다. '
-    + '(GA4 기반 \'신규 가입\' KPI 는 정상 — 이건 누적 회원 수만의 문제입니다)');
+  // [2026-09-21] totalMembers 도 검사하지 않는다 — 회원 지표 자체를 폐기했다.
 
   // 3) 카테고리 매핑 — 값은 있는데 전부 '미분류'면 이름 조회가 실패한 것
   const recent=daily.slice(-30).filter(r=>(r.categories||[]).length);
@@ -1011,158 +995,7 @@ async function revenueRangeSum(s0,e0){
   return {net,count,newMembers,gmv,refund,days,withdrawn,hasWithdrawn};
 }
 
-// ===== 총 회원 수 공백 메우기 (워커 tab=membercount) =====
-// [2026-09-08] totalMembers 는 2026-08-01부터 revenue-daily.json 에서 비어 있다.
-// cafe24 /admin/customers/count 에 가입일 상한을 걸면 "그 날짜까지 가입한 회원 수",
-// 즉 그 시점의 누적 회원 수를 과거까지 되짚어 구할 수 있다.
-//
-// [주의] 그 뒤 탈퇴한 회원은 지금 목록에 없으므로 과거로 갈수록 실제보다 낮게 나온다.
-// 그래서 워커가 마지막 실측일(예: 2026-07-31 = 37,697명)을 같은 방식으로 계산해
-// 오차율을 함께 돌려준다. reliable=false 면 값을 쓰지 않는다 —
-// 추정치를 조용히 정답처럼 채워 넣는 것이 이번 공백을 못 알아챈 원인이었다.
-let MEMBER_FILL = null;   // {filled, anchor, from, to} — 화면 안내용
-let MEMBER_FILL_RUN = false;
-async function fillMissingTotalMembers(){
-  if(MEMBER_FILL_RUN) return MEMBER_FILL;
-  MEMBER_FILL_RUN = true;
-  try{
-    const j = await ensureRevenue();
-    const daily = j.daily || [];
-    const withTotal = daily.filter(x=>x.totalMembers!=null);
-    if(!withTotal.length || !daily.length) return MEMBER_FILL;
 
-    const anchorRow = withTotal[withTotal.length-1];          // 마지막 실측값
-    const lastRow   = daily[daily.length-1];
-    if(anchorRow.date >= lastRow.date) return MEMBER_FILL;    // 공백 없음
-
-    const from = new Date(Date.parse(anchorRow.date+'T00:00:00Z')+86400000).toISOString().slice(0,10);
-    const to   = lastRow.date;
-    // q() 는 화면에서 고른 기간을 넣으므로 여기서는 쓰지 않는다 (파라미터가 겹친다).
-    const qs = `bs=${from}&be=${to}&as=${from}&ae=${to}`
-             + `&tab=membercount`
-             + `&anchorDate=${anchorRow.date}&anchorTotal=${anchorRow.totalMembers}`;
-    const dd = await wfetch(WORKER+'/?'+qs);
-    if(!dd || dd.error || !Array.isArray(dd.points)) return MEMBER_FILL;
-
-    // 오차가 크면 채우지 않는다. 무엇 때문에 비워두는지만 알린다.
-    if(dd.anchor && dd.anchor.reliable === false){
-      MEMBER_FILL = { filled:0, anchor:dd.anchor, from, to, rejected:true };
-      return MEMBER_FILL;
-    }
-    const byDate = {}; for(const r of daily) byDate[r.date] = r;
-    let filled = 0;
-    for(const pt of dd.points){
-      const row = byDate[pt.date];
-      if(row && row.totalMembers == null){
-        row.totalMembers = pt.total;
-        row.totalMembersEstimated = true;      // 실측과 구분해 둔다
-        filled++;
-      }
-    }
-    MEMBER_FILL = { filled, anchor:dd.anchor||null, from, to, rejected:false };
-  }catch(e){ /* 실패해도 기존 화면은 그대로 */ }
-  return MEMBER_FILL;
-}
-
-// 회원 지표 렌더: 총 회원 수 · 순증 · 이탈률 + 월별 추이
-// 탈퇴 데이터는 아직 자동 수집이 없어 특정 날짜까지만 존재한다. 없는 구간은 조용히 건너뛰고,
-// 데이터가 선택 기간보다 뒤처져 있으면 기준일을 함께 표시한다.
-async function loadMemberMetrics(){
-  const wrap=document.getElementById('memberWrap');
-  if(!wrap) return;
-  try{
-    const as=$('s').value, ae=$('e').value;
-    const cmpOn=$('cmp').checked;
-    await fillMissingTotalMembers();   // 비어 있는 구간을 먼저 메운 뒤 집계한다
-    const [sumA, sumB, infoA, infoB] = await Promise.all([
-      revenueRangeSum(as,ae),
-      cmpOn ? revenueRangeSum($('cs').value,$('ce').value) : Promise.resolve(null),
-      memberRangeInfo(as,ae),
-      cmpOn ? memberRangeInfo($('cs').value,$('ce').value) : Promise.resolve(null),
-    ]);
-    if(infoA.latestTotal==null){ wrap.innerHTML=''; return; }   // 회원 데이터가 아예 없으면 표시 안 함
-
-    const items=[{label:'총 회원 수', before:(infoB&&infoB.endTotal)||infoA.endTotal||infoA.latestTotal,
-                  after:infoA.endTotal||infoA.latestTotal, unit:'count'}];
-
-    if(sumA.hasWithdrawn){
-      const netA=sumA.newMembers-sumA.withdrawn;
-      const netB=(cmpOn&&sumB&&sumB.hasWithdrawn)? sumB.newMembers-sumB.withdrawn : netA;
-      items.push({label:'순증 (신규−탈퇴)', before:netB, after:netA, unit:'count'});
-      // 이탈률: 기간 탈퇴 ÷ 기간 시작 회원 수. 낮을수록 좋으므로 증감 색을 반대로.
-      const chA=infoA.startTotal? sumA.withdrawn/infoA.startTotal*100 : 0;
-      const chB=(cmpOn&&sumB&&infoB&&infoB.startTotal)? sumB.withdrawn/infoB.startTotal*100 : chA;
-      items.push({label:'이탈률', before:chB, after:chA, unit:'percent', lowerIsBetter:true});
-    }
-
-    let note='';
-    if(infoA.latestDate && infoA.latestDate < ae){
-      note=`<p class="sec-desc">회원 데이터는 ${infoA.latestDate} 까지 · 탈퇴 수집이 자동화되면 최신까지 채워집니다</p>`;
-    }
-    // 워커로 되짚어 채운 구간이 있으면 반드시 밝힌다. 추정치를 실측처럼 보이게 두지 않는다.
-    const mf = MEMBER_FILL;
-    if(mf && mf.rejected){
-      note += `<p class="sec-desc" style="color:var(--down);">${mf.from}~${mf.to} 구간은 비워 두었습니다 — `
-            + `되짚어 계산한 값이 ${mf.anchor.date} 실측치와 `
-            + `${mf.anchor.diffPct.toFixed(1)}% 차이가 나 신뢰할 수 없습니다.</p>`;
-    }else if(mf && mf.filled){
-      const acc = mf.anchor ? ` · ${mf.anchor.date} 실측치 대비 오차 ${mf.anchor.diffPct.toFixed(2)}%` : '';
-      note += `<p class="sec-desc">${mf.from}~${mf.to} ${mf.filled}일치는 <b>추정값</b>입니다 — `
-            + `cafe24 회원 목록을 가입일 기준으로 되짚어 계산했습니다. `
-            + `이후 탈퇴한 회원은 빠지므로 실제보다 약간 낮습니다${acc}.</p>`;
-    }
-    wrap.innerHTML = kpiHTML(items) + note + memberTrendHTML(await ensureRevenue());
-  }catch(e){ wrap.innerHTML=''; }
-}
-
-// 월별 회원 수 + 이탈률. 일별 이탈은 대부분 0이라 월 단위로만 의미가 있다.
-function memberTrendHTML(j){
-  const daily=(j.daily||[]).filter(x=>x.totalMembers!=null);
-  if(daily.length<60) return '';
-  const bym={};
-  for(const x of daily){
-    const m=x.date.slice(0,7);
-    if(!bym[m]) bym[m]={m, endTotal:0, startTotal:null, wd:0};
-    if(bym[m].startTotal==null) bym[m].startTotal=x.totalMembers;
-    bym[m].endTotal=x.totalMembers;                  // 잔액이라 마지막 값
-    bym[m].wd+=(x.withdrawnMembers||0);
-  }
-  const rows=Object.values(bym).sort((a,b)=>a.m.localeCompare(b.m)).slice(-13);
-  if(rows.length<3) return '';
-  const labels=rows.map(r=>`${r.m.slice(2,4)}/${Number(r.m.slice(5,7))}월`);
-  const totals=rows.map(r=>r.endTotal);
-  const churn=rows.map(r=>r.startTotal? r.wd/r.startTotal*100 : 0);
-  let h='<div class="section-title">회원 수 · 이탈률 추이<span class="badge">최근 13개월</span></div>';
-  h+='<div class="mini-chart-row">';
-  h+='<div class="funnel card-gap"><div class="mini-head"><span class="mini-dot" style="background:var(--d-ses)"></span>총 회원 수'
-    + `<span class="mini-total">${fmt(totals[totals.length-1])}명</span></div>`
-    + miniLineChart(labels, totals, '#00B26B', v=>fmt(Math.round(v))) + '</div>';
-  h+='<div class="funnel card-gap"><div class="mini-head"><span class="mini-dot" style="background:var(--d-ref)"></span>월 이탈률'
-    + `<span class="mini-total">${churn[churn.length-1].toFixed(3)}%</span></div>`
-    + miniLineChart(labels, churn, '#F04452', v=>v.toFixed(2)+'%') + '</div>';
-  h+='</div>';
-  return h;
-}
-
-// 회원 지표용 조회. totalMembers 는 잔액이라 합산하지 않고 시점 값을 읽는다.
-async function memberRangeInfo(s0,e0){
-  const j=await ensureRevenue();
-  const daily=j.daily||[];
-  const withTotal=daily.filter(x=>x.totalMembers!=null);
-  const latest=withTotal.length? withTotal[withTotal.length-1] : null;   // 데이터가 있는 마지막 날
-  let startTotal=null;                                   // 기간 시작 시점 회원 수 (이탈률 분모)
-  for(const x of withTotal){ if(x.date<s0) startTotal=x.totalMembers; else break; }
-  const inRange=withTotal.filter(x=>x.date>=s0 && x.date<=e0);
-  const endTotal=inRange.length? inRange[inRange.length-1].totalMembers : null;
-  if(startTotal==null && inRange.length) startTotal=inRange[0].totalMembers;
-  return {
-    latestDate: latest?latest.date:null,
-    latestTotal: latest?latest.totalMembers:null,
-    startTotal, endTotal,
-    covered: inRange.length,
-    rangeDays: daily.filter(x=>x.date>=s0 && x.date<=e0).length,
-  };
-}
 
 // ===== 목표 진행률 (개요 최상단) =====
 // [2026-08-03 재설계] 처음엔 '가장 큰 병목 하나'를 보여줬는데, 매주 볼 때마다 병목이
@@ -1198,26 +1031,25 @@ function goalValue(key, d){
     case 'cartRate':     return kpi('장바구니 전환율')?.after ?? null;
     case 'detailRate':   return kpi('상품조회 전환율')?.after ?? null;
     case 'aov':          return kpi('객단가')?.after ?? null;
-    case 'churn':        return kpi('이탈률')?.after ?? null;
+    // [2026-09-21] churn(월 이탈률)은 회원 지표 폐기와 함께 제거. 남은 goals.json 에 있어도 null 이 되어 조용히 빠진다.
     default:             return null;
   }
 }
 const GOAL_UNIT={ aov:'won' };
-const GOAL_LOWER_BETTER=new Set(['churn']);
+const GOAL_LOWER_BETTER=new Set();
 
 // 목표가 뒤처졌을 때 무엇을 하면 되는지. 대시보드 안에서 확인 가능한 것만 적는다.
 const GOAL_ACTION={
   orderToBuy:   '퍼널·페이지 탭 → 세그먼트 퍼널에서 <b>기기별</b>과 <b>신규/재방문</b>을 비교하세요. '
               + '모바일만 낮으면 결제창 문제, 신규만 낮으면 가입 강제가 원인입니다',
   sessionToBuy: '퍼널·페이지 탭 → <b>개선 기회</b> 순위에서 이탈 인원이 가장 많은 단계를 먼저 보세요',
-  returning:    '유지 섹션의 <b>이탈률</b>과 재구매를 함께 보세요. 한 번 산 사람이 돌아오지 않으면 '
+  returning:    '유지 섹션의 재구매를 보세요. 한 번 산 사람이 돌아오지 않으면 '
               + '매출이 광고비에 묶입니다',
   cartRate:     '구좌·상품 성과 탭에서 유입이 많은 자리와 실제 구매로 이어지는 자리를 비교하세요. '
               + '<b>2026.09.07 구매하기 버튼 분리</b> 이후에는 구매하기가 담기를 거치지 않으므로 '
               + '이 지표가 구조적으로 낮아집니다 — 목표치·기준선을 분리 이후 기준으로 다시 잡으세요',
   detailRate:   '획득 탭에서 유입 채널별 품질을 보세요. 유입은 많은데 상품을 안 보는 채널이 있습니다',
   aov:          '매출 탭 → <b>아트·라이프</b>와 <b>할인 종류별</b>을 보세요. 할인율이 객단가를 누르고 있을 수 있습니다',
-  churn:        '유지 섹션의 회원 수·이탈률 추이를 보세요. 탈퇴 사유는 cafe24 관리자에서 확인됩니다',
 };
 
 async function goalsHTML(d){
@@ -1356,7 +1188,6 @@ async function renderCustomer(d){
   
   h+='<h2 class="sec">③ 유지 (Retention)</h2><div id="auWrap" class="kpis"><div class="state" style="grid-column:1/-1;"><div class="spinner"></div>불러오는 중…</div></div>';
   h+=kpiHTML(byGroup('retention'));
-  h+='<div id="memberWrap"></div>';
 
   h+='<h2 class="sec">④ 수익 (Revenue)</h2><div id="revWrap">'+kpiHTML(byGroup('revenue'))+'</div>';
 
@@ -1418,10 +1249,11 @@ async function renderCustomer(d){
   // 신규가입자는 /admin/dashboard 의 '오늘 기준' 누적값을 자정 직전에 스냅샷으로 훔쳐오는
   // 방식이라, 실행이 자정을 넘기면 그날 값이 영구 손실된다(실제로 8/1~8/2 누락).
   // 값이 있는 날과 없는 날이 섞여 0 으로 표시되니 오히려 오해를 부른다.
-  // 수집 방식을 다시 잡은 뒤에 되살린다. 회원 수·이탈률은 아래 loadMemberMetrics 에서 표시.
+  // 수집 방식을 다시 잡은 뒤에 되살린다.
 
-  // 회원 지표 (총 회원 수·순증·이탈률 + 추이)
-  loadMemberMetrics();
+  // [2026-09-21] 회원 지표(총 회원 수·순증·이탈률·월 추이) 폐기.
+  // cafe24 에 누적 회원 수를 주는 API 가 없고(customers/count 는 404),
+  // 있는 경로(customersprivacy)는 개인정보 스코프가 필요해 쓰지 않기로 했다.
   // 유입 채널 상세 (예전 '획득' 탭 내용)
   loadAcquisitionSections();
 
