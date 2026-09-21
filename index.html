@@ -952,7 +952,9 @@ async function renderDataHealth(){
     const mapped=rows.reduce((a,r)=>a+(r.categories||[]).reduce((b,c)=>b+(c.amt||0),0),0);
     if(gmv>0 && mapped/gmv<0.7){
       issues.push(['카테고리 매핑이 매출의 일부만 덮고 있습니다',
-        `최근 30일 기준 매핑률 ${Math.round(mapped/gmv*100)}% — 나머지 주문은 카테고리 집계에서 빠집니다.`]);
+        `최근 30일 기준 매핑률 ${Math.round(mapped/gmv*100)}% — 나머지 주문은 카테고리 집계에서 빠집니다. `
+        + `이름(아트·라이프)은 화면에서 붙이고 있으므로, 남은 문제는 revenue-daily.json 을 만드는 `
+        + `slackbot 파이프라인이 주문의 일부만 카테고리로 집계한다는 점입니다.`]);
     }
   }
 
@@ -970,12 +972,77 @@ function healthCard(title, desc){
 
 // 매출 파일을 한 번만 읽어오는 공통 함수 (동시에 여러 곳에서 불려도 요청은 1번만 나감)
 let REVENUE_LOADING=null;
+// ===== 아트·라이프 축 되살리기 =====
+// [2026-09-21] revenue-daily.json 의 categories 가 전부 '미분류'로 들어온다. 이 파일을 만드는
+// slackbot 쪽이 카테고리 '이름'을 못 받아오기 때문이다 — 관리자 API /admin/categories 는 이 앱
+// 토큰에 스코프가 없어 403 이다. 그런데 같은 정보를 스토어프론트 API 가 client-id 만으로 내준다.
+// 그래서 화면에서 다시 나눈다: product-categories.json(상품→카테고리 번호) × 워커 tab=catnames
+// (카테고리 번호→최상위 분류). 원본 파일은 건드리지 않는다.
+//
+// [주의] 이 파일의 categories[].products 는 상위 몇 개만 담긴 목록이라 합이 c.amt 보다 작다.
+// 모자란 금액은 지어내지 않고 '미분류'로 남긴다.
+let CAT_AXIS_LOADING=null, PROD_CAT_LOADING=null;
+function ensureCatAxis(){
+  if(!CAT_AXIS_LOADING){
+    const d=new Date().toISOString().slice(0,10);   // 기간과 무관한 지도라 날짜는 고정값으로 — 캐시 키도 하나로 유지
+    CAT_AXIS_LOADING = wfetch(WORKER+`/?bs=${d}&be=${d}&as=${d}&ae=${d}&tab=catnames`)
+      .then(j=>j&&j.axis||null).catch(()=>null);
+  }
+  return CAT_AXIS_LOADING;
+}
+function ensureProductCats(){
+  if(!PROD_CAT_LOADING){
+    PROD_CAT_LOADING = fetch('./product-categories.json',{cache:'no-store'})
+      .then(r=>r.json()).then(j=>j&&j.products||null).catch(()=>null);
+  }
+  return PROD_CAT_LOADING;
+}
+const CAT_UNNAMED = n => !n || n==='미분류' || /^카테고리 \d+$/.test(n);
+async function relabelCategoryAxis(j){
+  const rows=(j.daily||[]).filter(r=>(r.categories||[]).some(c=>CAT_UNNAMED(c.name)));
+  if(!rows.length) return;
+  const [axis, pcat] = await Promise.all([ensureCatAxis(), ensureProductCats()]);
+  if(!axis || !pcat) return;                       // 하나라도 못 받으면 원본 그대로 둔다
+  const axesOf = pno => {
+    const p=pcat[String(pno)];
+    if(!p) return [];
+    const s=new Set();
+    (p.all||[]).forEach(c=>{ const t=axis[c]; if(t==='아트'||t==='라이프') s.add(t); });
+    return [...s];
+  };
+  for(const r of rows){
+    const keep=[], pool=[];
+    r.categories.forEach(c=> (CAT_UNNAMED(c.name)?pool:keep).push(c));
+    const made={}; let both=0;
+    const put=(name,amt,qty,prod)=>{
+      if(!made[name]) made[name]={name, amt:0, qty:0, orders:0, products:[]};
+      made[name].amt+=amt||0; made[name].qty+=qty||0;
+      if(prod) made[name].products.push(prod);
+    };
+    for(const c of pool){
+      let usedAmt=0, usedQty=0;
+      for(const p of (c.products||[])){
+        const ax=axesOf(p.pno);
+        if(ax.length>1) both++;
+        (ax.length?ax:['미분류']).forEach(t=>put(t, p.amt, p.qty, p));
+        usedAmt+=p.amt||0; usedQty+=p.qty||0;
+      }
+      // 목록에 없는 나머지 금액 — 어느 축인지 알 수 없으므로 미분류로 남긴다
+      const restA=(c.amt||0)-usedAmt, restQ=(c.qty||0)-usedQty;
+      if(restA>0 || restQ>0) put('미분류', Math.max(restA,0), Math.max(restQ,0), null);
+    }
+    r.categories = keep.concat(Object.values(made));
+    r.bothAxisProducts = (r.bothAxisProducts||0) + both;
+  }
+}
+
 async function ensureRevenue(){
   if(REVENUE_CACHE) return REVENUE_CACHE;
   if(!REVENUE_LOADING){
     REVENUE_LOADING = fetch('./revenue-daily.json',{cache:'no-store'})
       .then(r=>r.json())
-      .then(j=>{ REVENUE_CACHE=j; REVENUE_LOADING=null; return j; })
+      .then(async j=>{ try{ await relabelCategoryAxis(j); }catch(e){ /* 실패하면 원본 그대로 */ }
+                       REVENUE_CACHE=j; REVENUE_LOADING=null; return j; })
       .catch(e=>{ REVENUE_LOADING=null; throw e; });
   }
   return REVENUE_LOADING;

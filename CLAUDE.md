@@ -170,23 +170,29 @@ node scripts/import-members-csv.mjs <가입자.csv> <탈퇴자.csv> --write    #
 - **자동 아니다.** 사람이 내보내야 한다. 자동화하려면 API 경로를 고쳐야 한다.
 - 2026-09-14 실행 결과: 08-01 ~ 09-12 (43일) 기록. 09-12 = 38,757명.
 
-### [P0-b] 카테고리명 조회 403 insufficient_scope — **이번에 새로 발견**
-같은 로그에서:
+### [P0-b] ~~카테고리명 조회 403 insufficient_scope~~ — **해결 (2026-09-21)**
+관리자 API `/admin/categories/{no}` 는 이 앱 토큰에 스코프가 없어 403 이 맞다. 그런데
+**스토어프론트 API 가 같은 정보를 client-id 만으로 내준다** — 스코프 추가·재인증이 필요 없다.
 ```
-[카테고리명 조회 실패] cate_no=867 status=403
-body={"error":{"code":403,"message":"The permission necessary for access tokens is not included. (insufficient_scope)"}}
+GET https://{mall}.cafe24api.com/api/v2/categories/234
+헤더: X-Cafe24-Client-Id: <CAFE24_ADMIN_CLIENT_ID>   (Authorization 없음)
+→ 200 {"category":{"category_name":"오리지널","full_category_name":{"1":"아트","2":"오리지널",...}}}
 ```
-`/admin/categories/{no}` 가 **스코프 부족으로 전부 403.** (234·235·272·540·541·789·866·867 확인)
-→ 슬롯 이름 번들에 **"남은 카테고리 53개"** 가 계속 남아 있는 이유가 이것이다.
-→ 상품명(`/admin/products`)은 정상 200. **카테고리 읽기 권한만 없다.**
-→ 할 일: cafe24 앱 설정에서 카테고리 읽기 스코프 추가 후 refresh token 재발급.
-   (P1 '미분류' 와는 다른 건이지만 같은 뿌리일 수 있으니 같이 볼 것.)
+- `fetchCategoryName` 을 이 경로로 바꿨다 → 슬롯 이름 번들의 "남은 카테고리 N개" 가 풀린다.
+- `tab=catnames` 신설: 전체 카테고리(483개)의 `cate_no → 최상위 분류명` 지도. KV 하루 캐시.
+- **주의:** `CAFE24_FRONT_KEY` 시크릿으로는 안 된다 (`invalid_grant / Invalid client_id`).
+  되는 건 **관리자 client-id** 다.
 
-### [P1] 카테고리 100% '미분류' — 아트/라이프 매출 분해 불가
-- `product-categories.json`: `products` 1,097개는 정상, **`names` 가 0개**.
-- 이 파일은 **slackbot 레포**가 생성해서 push 한다. dashboard 에서는 못 고친다.
-- 매핑률도 42% 밖에 안 된다 (나머지 주문은 카테고리 집계에서 빠짐).
-- → slackbot 레포의 카테고리 이름 조회 로직을 봐야 한다.
+### [P1] 카테고리 '미분류' — **화면 쪽은 해결, 원천은 남음 (2026-09-21)**
+- `revenue-daily.json` 의 `categories` 는 여전히 전부 `미분류` 로 들어온다(slackbot 이 만든다).
+  대신 **대시보드가 화면에서 다시 나눈다**: `product-categories.json`(상품→카테고리 번호)
+  × `tab=catnames`(번호→아트/라이프) → `relabelCategoryAxis()` in `index.html`.
+  원본 파일은 안 건드린다. 실측(최근 30일): 아트 125.4M · 라이프 37.3M · 미분류 7.6M.
+- **남은 문제: 매핑률 41~49%.** categories 합계가 GMV 의 절반도 안 된다 —
+  slackbot 파이프라인이 주문의 일부만 카테고리로 집계한다. 이건 그쪽 레포를 봐야 한다.
+- `categories[].products` 는 상위 몇 개만 담긴 목록이라 합이 `amt` 보다 작다.
+  모자란 금액은 지어내지 않고 '미분류'로 남긴다.
+
 
 ### [P2] 등록됐지만 트래픽 0 인 구좌 45개
 - ART 23개 (807~812, 734~739, 740~744 등), LIFE 22개 (723~727, 718~721 등).
@@ -257,6 +263,9 @@ products?limit=1 + 2026-03-01 → 200
   앱 기본값은 에러 메시지에 들어 있다(`The default value for the app version is ...`).
 - **404 와 403 을 구분할 것.** 404 "No API found" = 그 엔드포인트가 없는 것(버전 바꿔도 소용없음).
   403 insufficient_scope = 엔드포인트는 있고 권한만 없는 것.
+- **관리자 API 가 403 이면 스토어프론트 API 를 먼저 보라.** `/api/v2/{resource}` 를
+  `X-Cafe24-Client-Id: <관리자 client-id>` 로 부르면 토큰·스코프 없이 열리는 게 있다
+  (카테고리가 그랬다). 스코프 추가·재인증보다 훨씬 싸다.
 
 - **인식 못 하는 쿼리 파라미터를 에러 없이 무시한다.**
   파라미터명이 틀리면 조건이 사라진 채 "전체 결과"가 그럴듯하게 돌아온다.
