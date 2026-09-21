@@ -898,9 +898,20 @@ async function trafficRangeSum(s0,e0){
 // 여기서 경고를 띄우면 멀쩡한 상태를 고장으로 오해하게 만든다.
 const HEALTH_STALE_HOURS = 36;   // 매출 파일이 이 시간 넘게 안 갱신되면 경고
 const HEALTH_LOOKBACK    = 7;    // 최근 며칠을 보고 '수집 멈춤'으로 판단할지
+// [2026-09-21] 데이터 점검은 파이프라인을 고칠 사람만 보면 된다. 다른 사람에게는
+// 고칠 수도 없는 경고가 화면 맨 위에 계속 떠 있을 뿐이라 기본은 숨긴다.
+//   켜기 ?health=1  ·  끄기 ?health=0   — 한 번 켜면 그 브라우저는 계속 보인다.
+const HEALTH_ON = (()=>{
+  const v=new URLSearchParams(location.search).get('health');
+  try{
+    if(v!=null){ localStorage.setItem('pbg_health', v==='1'?'1':'0'); return v==='1'; }
+    return localStorage.getItem('pbg_health')==='1';
+  }catch(e){ return v==='1'; }
+})();
 async function renderDataHealth(){
   const box=document.getElementById('dataHealth');
   if(!box) return;
+  if(!HEALTH_ON){ box.innerHTML=''; return; }
   let j;
   try{ j=await ensureRevenue(); }catch(e){
     box.innerHTML=healthCard('매출 데이터(revenue-daily.json)를 불러오지 못했습니다','대시보드의 매출·회원 지표가 전부 비어 보입니다.');
