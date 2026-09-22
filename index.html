@@ -3107,9 +3107,9 @@ function renderRevenue(d){
   // 더해서 합계가 거래액을 넘었고, 그게 왜 안 맞는지 매번 설명해야 했다.
   // 거래액(정가 기준)과 매출액(할인·결제 반영)을 나란히 둔다.
   h+='<h2 class="sec">아트 · 라이프 판매</h2>';
-  const AXIS_COLOR={'아트':'#3182F6','라이프':'#00B26B','중복':'#8B5CF6','미분류':'#B0B8C1'};
-  const axisOf=c=> c.axis || (c.name==='중복'?'중복':(c.name.indexOf('라이프')===0?'라이프':(c.name==='아트'?'아트':'미분류')));
-  const AXIS_ORDER={'아트':0,'라이프':1,'중복':2,'미분류':3};
+  const AXIS_COLOR={'아트':'#3182F6','라이프':'#00B26B','중복':'#8B5CF6','오프라인':'#F59E0B','미분류':'#B0B8C1'};
+  const axisOf=c=> c.axis || (c.name==='중복'?'중복':(c.name.indexOf('오프라인')===0?'오프라인':(c.name.indexOf('라이프')===0?'라이프':(c.name==='아트'?'아트':'미분류'))));
+  const AXIS_ORDER={'아트':0,'라이프':1,'중복':2,'오프라인':3,'미분류':4};
   const cats=Object.values(a.categories||{}).sort((x,y)=>
     ((AXIS_ORDER[axisOf(x)]??9)-(AXIS_ORDER[axisOf(y)]??9)) || (y.amt-x.amt));
   const catsPrev=a.categories? (b.categories||{}) : {};
@@ -3117,6 +3117,7 @@ function renderRevenue(d){
     const hasNet=cats.some(c=>(c.net||0)>0);
     h+='<p class="sec-desc">거래액 = 정가 기준 · 매출액 = 할인·결제 반영분'
       + (cats.some(c=>c.name==='중복') ? ' · 아트·라이프 양쪽에 걸린 상품은 <b>중복</b>으로 따로 뺐습니다(합계가 겹치지 않습니다)' : '')
+      + (cats.some(c=>axisOf(c)==='오프라인') ? ' · <b>오프라인</b>은 매장에서 받아 온라인으로 넣은 주문입니다(매출에는 포함, 아트·라이프에는 안 섞습니다)' : '')
       + '</p>';
     const maxC=Math.max(...cats.map(c=>c.amt),1);
     h+='<div class="section-block">'+cats.map(c=>{
