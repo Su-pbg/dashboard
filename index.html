@@ -983,77 +983,12 @@ function healthCard(title, desc){
 
 // 매출 파일을 한 번만 읽어오는 공통 함수 (동시에 여러 곳에서 불려도 요청은 1번만 나감)
 let REVENUE_LOADING=null;
-// ===== 아트·라이프 축 되살리기 =====
-// [2026-09-21] revenue-daily.json 의 categories 가 전부 '미분류'로 들어온다. 이 파일을 만드는
-// slackbot 쪽이 카테고리 '이름'을 못 받아오기 때문이다 — 관리자 API /admin/categories 는 이 앱
-// 토큰에 스코프가 없어 403 이다. 그런데 같은 정보를 스토어프론트 API 가 client-id 만으로 내준다.
-// 그래서 화면에서 다시 나눈다: product-categories.json(상품→카테고리 번호) × 워커 tab=catnames
-// (카테고리 번호→최상위 분류). 원본 파일은 건드리지 않는다.
-//
-// [주의] 이 파일의 categories[].products 는 상위 몇 개만 담긴 목록이라 합이 c.amt 보다 작다.
-// 모자란 금액은 지어내지 않고 '미분류'로 남긴다.
-let CAT_AXIS_LOADING=null, PROD_CAT_LOADING=null;
-function ensureCatAxis(){
-  if(!CAT_AXIS_LOADING){
-    const d=new Date().toISOString().slice(0,10);   // 기간과 무관한 지도라 날짜는 고정값으로 — 캐시 키도 하나로 유지
-    CAT_AXIS_LOADING = wfetch(WORKER+`/?bs=${d}&be=${d}&as=${d}&ae=${d}&tab=catnames`)
-      .then(j=>j&&j.axis||null).catch(()=>null);
-  }
-  return CAT_AXIS_LOADING;
-}
-function ensureProductCats(){
-  if(!PROD_CAT_LOADING){
-    PROD_CAT_LOADING = fetch('./product-categories.json',{cache:'no-store'})
-      .then(r=>r.json()).then(j=>j&&j.products||null).catch(()=>null);
-  }
-  return PROD_CAT_LOADING;
-}
-const CAT_UNNAMED = n => !n || n==='미분류' || /^카테고리 \d+$/.test(n);
-async function relabelCategoryAxis(j){
-  const rows=(j.daily||[]).filter(r=>(r.categories||[]).some(c=>CAT_UNNAMED(c.name)));
-  if(!rows.length) return;
-  const [axis, pcat] = await Promise.all([ensureCatAxis(), ensureProductCats()]);
-  if(!axis || !pcat) return;                       // 하나라도 못 받으면 원본 그대로 둔다
-  const axesOf = pno => {
-    const p=pcat[String(pno)];
-    if(!p) return [];
-    const s=new Set();
-    (p.all||[]).forEach(c=>{ const t=axis[c]; if(t==='아트'||t==='라이프') s.add(t); });
-    return [...s];
-  };
-  for(const r of rows){
-    const keep=[], pool=[];
-    r.categories.forEach(c=> (CAT_UNNAMED(c.name)?pool:keep).push(c));
-    const made={}; let both=0;
-    const put=(name,amt,qty,prod)=>{
-      if(!made[name]) made[name]={name, amt:0, qty:0, orders:0, products:[]};
-      made[name].amt+=amt||0; made[name].qty+=qty||0;
-      if(prod) made[name].products.push(prod);
-    };
-    for(const c of pool){
-      let usedAmt=0, usedQty=0;
-      for(const p of (c.products||[])){
-        const ax=axesOf(p.pno);
-        if(ax.length>1) both++;
-        (ax.length?ax:['미분류']).forEach(t=>put(t, p.amt, p.qty, p));
-        usedAmt+=p.amt||0; usedQty+=p.qty||0;
-      }
-      // 목록에 없는 나머지 금액 — 어느 축인지 알 수 없으므로 미분류로 남긴다
-      const restA=(c.amt||0)-usedAmt, restQ=(c.qty||0)-usedQty;
-      if(restA>0 || restQ>0) put('미분류', Math.max(restA,0), Math.max(restQ,0), null);
-    }
-    r.categories = keep.concat(Object.values(made));
-    r.bothAxisProducts = (r.bothAxisProducts||0) + both;
-  }
-}
-
 async function ensureRevenue(){
   if(REVENUE_CACHE) return REVENUE_CACHE;
   if(!REVENUE_LOADING){
     REVENUE_LOADING = fetch('./revenue-daily.json',{cache:'no-store'})
       .then(r=>r.json())
-      .then(async j=>{ try{ await relabelCategoryAxis(j); }catch(e){ /* 실패하면 원본 그대로 */ }
-                       REVENUE_CACHE=j; REVENUE_LOADING=null; return j; })
+      .then(j=>{ REVENUE_CACHE=j; REVENUE_LOADING=null; return j; })
       .catch(e=>{ REVENUE_LOADING=null; throw e; });
   }
   return REVENUE_LOADING;
@@ -3058,14 +2993,14 @@ async function loadRevenue(){
       rows.forEach(r=>{
         Object.entries(r.discounts||{}).forEach(([k,v])=>{ agg.discounts[k]=(agg.discounts[k]||0)+v; });
         (r.categories||[]).forEach(c=>{
-          if(!agg.categories[c.name]) agg.categories[c.name]={name:c.name, amt:0, qty:0, orders:0, prods:{}};
+          if(!agg.categories[c.name]) agg.categories[c.name]={name:c.name, axis:c.axis||null, amt:0, net:0, qty:0, orders:0, prods:{}};
           const t=agg.categories[c.name];
-          t.amt+=c.amt; t.qty+=c.qty; t.orders+=(c.orders||0);
+          t.amt+=c.amt; t.net+=(c.net||0); t.qty+=c.qty; t.orders+=(c.orders||0);
           // 축 안의 상품별 합산 (상품명 함께 보기)
           (c.products||[]).forEach(p=>{
             const k=String(p.pno);
-            if(!t.prods[k]) t.prods[k]={pno:p.pno, name:p.name, amt:0, qty:0};
-            t.prods[k].amt+=p.amt; t.prods[k].qty+=p.qty;
+            if(!t.prods[k]) t.prods[k]={pno:p.pno, name:p.name, amt:0, net:0, qty:0};
+            t.prods[k].amt+=p.amt; t.prods[k].net+=(p.net||0); t.prods[k].qty+=p.qty;
           });
         });
         agg.bothAxis=(agg.bothAxis||0)+(r.bothAxisProducts||0);
@@ -3166,25 +3101,35 @@ function renderRevenue(d){
 
   // ===== 카테고리별 =====
   h+='<h2 class="sec">아트 · 라이프 거래액</h2>';
-  const AXIS_COLOR={'아트':'#3182F6','라이프':'#00B26B','미분류':'#B0B8C1'};
-  const cats=Object.values(a.categories||{}).sort((x,y)=>y.amt-x.amt);
+  // ===== 카테고리별 =====
+  // [2026-09-22] 구성 변경. 아트는 통으로, 라이프는 중카테고리별로 쪼개고,
+  // 아트·라이프 양쪽에 걸린 상품은 '중복' 버킷 하나로 뺀다 — 예전에는 두 축에 모두
+  // 더해서 합계가 거래액을 넘었고, 그게 왜 안 맞는지 매번 설명해야 했다.
+  // 거래액(정가 기준)과 매출액(할인·결제 반영)을 나란히 둔다.
+  h+='<h2 class="sec">아트 · 라이프 판매</h2>';
+  const AXIS_COLOR={'아트':'#3182F6','라이프':'#00B26B','중복':'#8B5CF6','미분류':'#B0B8C1'};
+  const axisOf=c=> c.axis || (c.name==='중복'?'중복':(c.name.indexOf('라이프')===0?'라이프':(c.name==='아트'?'아트':'미분류')));
+  const AXIS_ORDER={'아트':0,'라이프':1,'중복':2,'미분류':3};
+  const cats=Object.values(a.categories||{}).sort((x,y)=>
+    ((AXIS_ORDER[axisOf(x)]??9)-(AXIS_ORDER[axisOf(y)]??9)) || (y.amt-x.amt));
   const catsPrev=a.categories? (b.categories||{}) : {};
   if(cats.length){
-    // 상품이 아트·라이프 양쪽에 속하면 두 축에 모두 계상돼 합계가 GMV 를 넘는다.
-    // 숫자가 안 맞아 보이는 이유이므로 중복 상품 수를 함께 알린다.
-    if(a.bothAxis) h+=`<p class="sec-desc">양쪽에 모두 속한 상품 ${fmt(a.bothAxis)}종은 두 축에 중복 계상돼 합계가 거래액을 넘습니다</p>`;
+    const hasNet=cats.some(c=>(c.net||0)>0);
+    h+='<p class="sec-desc">거래액 = 정가 기준 · 매출액 = 할인·결제 반영분'
+      + (cats.some(c=>c.name==='중복') ? ' · 아트·라이프 양쪽에 걸린 상품은 <b>중복</b>으로 따로 뺐습니다(합계가 겹치지 않습니다)' : '')
+      + '</p>';
     const maxC=Math.max(...cats.map(c=>c.amt),1);
     h+='<div class="section-block">'+cats.map(c=>{
       const w=Math.max(c.amt/maxC*100,3);
-      const color=AXIS_COLOR[c.name]||'#8B95A1';
+      const color=AXIS_COLOR[axisOf(c)]||'#8B95A1';
       let cmpHtml='';
       if(cmpOn){
         const p=catsPrev[c.name]; const pv=p?p.amt:0; const dv=delta(pv,c.amt);
         cmpHtml=`<div class="slotbar-meta">비교 ${won(pv)} <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span></div>`;
       }
       const unit = c.qty? Math.round(c.amt/c.qty) : 0;
-      // 축 안에서 무엇이 팔렸는지 — 펼치면 상품명별 내역
-      const prods=Object.values(c.prods||{}).sort((x,y)=>y.amt-x.amt).slice(0,10);
+      // 펼치면 그 버킷에서 팔린 상품 '전부' (예전엔 상위 10종만 보였다)
+      const prods=Object.values(c.prods||{}).sort((x,y)=>y.amt-x.amt);
       let detail='';
       if(prods.length){
         const maxP=Math.max(...prods.map(p=>p.amt),1);
@@ -3193,18 +3138,19 @@ function renderRevenue(d){
           return `<div class="cp-row">
             <div class="cp-name">${p.name||`<span style="color:var(--muted);">#${p.pno}</span>`}</div>
             <div class="cp-track"><div class="cp-fill" style="width:${pw}%;background:${color};"></div></div>
-            <div class="cp-val">${won(p.amt)}<span class="cp-cnt">${fmt(p.qty)}개</span></div>
+            <div class="cp-val">${won(p.amt)}<span class="cp-cnt">${hasNet?`매출 ${won(p.net||0)} · `:''}${fmt(p.qty)}개</span></div>
           </div>`;
         }).join('')+'</div>';
       }
       const summary=`<div class="slotbar-row">
         <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${c.name}</span>${detail?rowToggleBtn():''}</div>
-          <div class="slotbar-meta">${fmt(c.qty)}개 판매 · 개당 ${won(unit)}${prods.length?` · 상품 ${prods.length}종`:''}</div>${cmpHtml}</div>
+          <div class="slotbar-meta">${fmt(c.qty)}개 판매 · 개당 ${won(unit)}${prods.length?` · 상품 ${fmt(prods.length)}종`:''}${c.orders?` · 주문 ${fmt(c.orders)}건`:''}</div>${cmpHtml}</div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
-        <div><div class="slotbar-val">${won(c.amt)}</div><div class="slotbar-sub">거래액</div></div>
+        <div><div class="slotbar-val">${won(c.amt)}</div><div class="slotbar-sub">${hasNet?`매출 ${won(c.net||0)}`:'거래액'}</div></div>
       </div>`;
       return rowItem(summary, detail);
     }).join('')+'</div>';
+
   } else {
     h+='<div class="section-block"><div class="state">아직 데이터가 없어요.<br><span style="font-size:12px;">build_revenue_daily.py 최신본이 분류 트리로 아트·라이프를 판정하면 이 자리에 표시됩니다.</span></div></div>';
   }
