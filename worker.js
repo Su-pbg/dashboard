@@ -77,7 +77,10 @@ var worker_default = {
         if (!q.get(k)) return json({ error: `\uB204\uB77D\uB41C \uD30C\uB77C\uBBF8\uD130: ${k}` }, 400);
       }
       const cacheKV = env.CAFE24_TOKEN_KV;
-      const cacheKeyParts = ["bs", "be", "as", "ae", "tab", "excl", "autoExclLowEngagement", "cmp", "country"].map((k) => `${k}=${q.get(k) || ""}`).join("&");
+      // [2026-09-22] paths·vers·client 등 탭별 파라미터도 캐시 키에 넣는다.
+      // 안 넣었더니 tab=slotfunnel 을 구좌 1개로 부른 응답이, 구좌 9개로 부른 요청에
+      // 그대로 돌아왔다(같은 키). 응답 내용을 바꾸는 파라미터는 전부 키에 있어야 한다.
+      const cacheKeyParts = ["bs", "be", "as", "ae", "tab", "excl", "autoExclLowEngagement", "cmp", "country", "paths", "vers", "client", "blen", "from", "to", "format", "anchorDate", "anchorTotal"].map((k) => `${k}=${q.get(k) || ""}`).join("&");
       const cacheKey = "resp:v2:" + cacheKeyParts;
       const bypassCache = q.get("nocache") === "1";
       const todayKst = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
