@@ -3131,11 +3131,16 @@ function renderRevenue(d){
     const axisRows=Object.values(axisTot).sort((x,y)=>(AXIS_ORDER[x.axis]??9)-(AXIS_ORDER[y.axis]??9));
     const axisMax=Math.max(...axisRows.map(t=>t.amt),1);
     const totAmt=axisRows.reduce((s,t)=>s+t.amt,0);
+    const totNet=axisRows.reduce((s,t)=>s+t.net,0);
+    const totQty=axisRows.reduce((s,t)=>s+t.qty,0);
+    // 전체를 먼저 박아둔다 — '몇 개 중 몇 개' 를 읽으려면 분모가 화면에 있어야 한다.
+    h+=`<p class="sec-desc">이 기간 <b>${fmt(totQty)}개</b> 판매 · 거래액 ${won(totAmt)}`
+      +`${hasNet?` · 매출액 ${won(totNet)}`:''}</p>`;
     h+='<div class="section-block">'+axisRows.map(t=>{
       const color=AXIS_COLOR[t.axis]||'#8B95A1';
       return `<div class="slotbar-row">
         <div><span class="slotbar-name" style="cursor:default;font-weight:600;">${t.axis}</span>
-          <div class="slotbar-meta">${fmt(t.qty)}개 · 전체의 ${totAmt?(t.amt/totAmt*100).toFixed(0):0}%${t.n>1?` · 세부 ${fmt(t.n)}개`:''}</div></div>
+          <div class="slotbar-meta"><b>${fmt(t.qty)}개</b> / ${fmt(totQty)}개 (${totQty?(t.qty/totQty*100).toFixed(0):0}%) · 금액 비중 ${totAmt?(t.amt/totAmt*100).toFixed(0):0}%${t.n>1?` · 세부 ${fmt(t.n)}개`:''}</div></div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.max(t.amt/axisMax*100,3)}%;background:${color};"></div></div>
         <div><div class="slotbar-val">${won(t.amt)}</div><div class="slotbar-sub">${hasNet?`매출 ${won(t.net)}`:'거래액'}</div></div>
       </div>`;
@@ -3166,7 +3171,7 @@ function renderRevenue(d){
       }
       const summary=`<div class="slotbar-row">
         <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${c.name}</span>${detail?rowToggleBtn():''}</div>
-          <div class="slotbar-meta">${fmt(c.qty)}개 판매 · 개당 ${won(unit)}${prods.length?` · 상품 ${fmt(prods.length)}종`:''}${c.orders?` · 주문 ${fmt(c.orders)}건`:''}</div>${cmpHtml}</div>
+          <div class="slotbar-meta">${fmt(c.qty)}개 (전체의 ${totQty?(c.qty/totQty*100).toFixed(0):0}%) · 개당 ${won(unit)}${prods.length?` · 상품 ${fmt(prods.length)}종`:''}${c.orders?` · 주문 ${fmt(c.orders)}건`:''}</div>${cmpHtml}</div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
         <div><div class="slotbar-val">${won(c.amt)}</div><div class="slotbar-sub">${hasNet?`매출 ${won(c.net||0)}`:'거래액'}</div></div>
       </div>`;
