@@ -2993,14 +2993,16 @@ async function loadRevenue(){
       rows.forEach(r=>{
         Object.entries(r.discounts||{}).forEach(([k,v])=>{ agg.discounts[k]=(agg.discounts[k]||0)+v; });
         (r.categories||[]).forEach(c=>{
-          if(!agg.categories[c.name]) agg.categories[c.name]={name:c.name, axis:c.axis||null, amt:0, net:0, qty:0, orders:0, prods:{}};
+          if(!agg.categories[c.name]) agg.categories[c.name]={name:c.name, axis:c.axis||null, amt:0, net:0, qty:0, cancelAmt:0, cancelQty:0, orders:0, prods:{}};
           const t=agg.categories[c.name];
           t.amt+=c.amt; t.net+=(c.net||0); t.qty+=c.qty; t.orders+=(c.orders||0);
+          t.cancelAmt+=(c.cancelAmt||0); t.cancelQty+=(c.cancelQty||0);
           // 축 안의 상품별 합산 (상품명 함께 보기)
           (c.products||[]).forEach(p=>{
             const k=String(p.pno);
-            if(!t.prods[k]) t.prods[k]={pno:p.pno, name:p.name, amt:0, net:0, qty:0};
+            if(!t.prods[k]) t.prods[k]={pno:p.pno, name:p.name, amt:0, net:0, qty:0, cancelQty:0};
             t.prods[k].amt+=p.amt; t.prods[k].net+=(p.net||0); t.prods[k].qty+=p.qty;
+            t.prods[k].cancelQty+=(p.cancelQty||0);
           });
         });
         agg.bothAxis=(agg.bothAxis||0)+(r.bothAxisProducts||0);
@@ -3171,7 +3173,7 @@ function renderRevenue(d){
       }
       const summary=`<div class="slotbar-row">
         <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${c.name}</span>${detail?rowToggleBtn():''}</div>
-          <div class="slotbar-meta">${fmt(c.qty)}개 (전체의 ${totQty?(c.qty/totQty*100).toFixed(0):0}%) · 개당 ${won(unit)}${prods.length?` · 상품 ${fmt(prods.length)}종`:''}${c.orders?` · 주문 ${fmt(c.orders)}건`:''}</div>${cmpHtml}</div>
+          <div class="slotbar-meta">${fmt(c.qty)}개 (전체의 ${totQty?(c.qty/totQty*100).toFixed(0):0}%) · 개당 ${won(unit)}${prods.length?` · 상품 ${fmt(prods.length)}종`:''}${c.orders?` · 주문 ${fmt(c.orders)}건`:''}${c.cancelQty?` · <span style="color:var(--down);">취소 ${fmt(c.cancelQty)}개 (${won(c.cancelAmt||0)})</span>`:''}</div>${cmpHtml}</div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${color};"></div></div>
         <div><div class="slotbar-val">${won(c.amt)}</div><div class="slotbar-sub">${hasNet?`매출 ${won(c.net||0)}`:'거래액'}</div></div>
       </div>`;
