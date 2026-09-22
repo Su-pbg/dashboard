@@ -228,6 +228,23 @@ var worker_default = {
       if (q.get("tab") === "catnames") {
         return jsonCached({ axis: await resolveCategoryAxis(env) }, 200);
       }
+      if (q.get("tab") === "slotfunnel") {
+        // [2026-09-22] 구좌 성과를 '클릭 세션'이 아니라 '구매까지 떨어진 수'로 본다.
+        // GA4 에 view_item_list / select_item 이 없어서(측정 안 함) 아이템리스트 귀속은 못 쓴다.
+        // 대신 퍼널 리포트 API(v1alpha)로 "그 구좌 페이지를 본 사용자" 를 1단계로 놓고
+        // 상품조회 → 담기 → 구매 까지 이어지는 수를 센다. 구좌당 한 번씩 호출한다.
+        const paths = (q.get("paths") || "").split("|").filter(Boolean).slice(0, 14);
+        if (!paths.length) return json({ error: "paths 가 필요합니다" }, 400);
+        const out = [];
+        for (const p of paths) {
+          try {
+            out.push({ path: p, steps: await runFunnel(propertyId, token, ranges.after.start, ranges.after.end, p) });
+          } catch (e) {
+            out.push({ path: p, error: String(e && e.message || e).slice(0, 200) });
+          }
+        }
+        return jsonCached({ period: `${ranges.after.start} ~ ${ranges.after.end}`, slots: out }, 200);
+      }
       if (q.get("tab") === "membercount") {
         try {
           const mc = await buildMemberCounts(
@@ -596,6 +613,35 @@ async function runReport(propertyId, token, body) {
   return data.rows || [];
 }
 __name(runReport, "runReport");
+// [2026-09-22] GA4 퍼널 리포트(v1alpha). 구좌 페이지를 본 사용자가 상품조회·담기·구매까지
+// 얼마나 떨어지는지 본다. runReport 로는 못 한다 — 이벤트 지표는 '그 이벤트가 난 페이지'에
+// 귀속되므로 구매(주문완료 페이지)를 구좌에 연결할 수 없기 때문이다.
+async function runFunnel(propertyId, token, startDate, endDate, path) {
+  const body = {
+    dateRanges: [{ startDate, endDate }],
+    funnel: {
+      steps: [
+        { name: "구좌 조회", filterExpression: { funnelFieldFilter: { fieldName: "pagePathPlusQueryString", stringFilter: { matchType: "CONTAINS", value: path } } } },
+        { name: "상품 조회", filterExpression: { funnelEventFilter: { eventName: "view_item" } } },
+        { name: "담기", filterExpression: { funnelEventFilter: { eventName: "add_to_cart" } } },
+        { name: "구매", filterExpression: { funnelEventFilter: { eventName: "purchase" } } }
+      ]
+    },
+    funnelVisualizationType: "STANDARD_FUNNEL"
+  };
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1alpha/properties/${propertyId}:runFunnelReport`,
+    { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error("GA4 funnel: " + data.error.message);
+  const rows = (data.funnelTable && data.funnelTable.rows) || [];
+  return rows.map((r) => ({
+    step: (r.dimensionValues[0] && r.dimensionValues[0].value) || "",
+    users: Number((r.metricValues[0] && r.metricValues[0].value) || 0)
+  }));
+}
+__name(runFunnel, "runFunnel");
 async function buildSlots(propertyId, token, ranges, exclRaw, autoExclLowEngagement) {
   let badPairs = [], badCampaigns = [];
   if (autoExclLowEngagement) {
@@ -966,6 +1012,31 @@ async function buildSupplierSales(env, from, to, debug) {
     orderCount: a.orders.size,
     productCount: a.products.size
   })).sort((x, y) => y.qty - x.qty);
+  // [2026-09-22] 구좌(카테고리) 매출을 내려면 상품 단위 금액이 필요하다.
+  // revenue-daily.json 의 products 는 하루 상위 10종뿐이라 전수 집계가 안 된다.
+  const byProduct = {};
+  for (const l of lines) {
+    if (l.product_no == null) continue;
+    const k = String(l.product_no);
+    const b = byProduct[k] || (byProduct[k] = { pno: l.product_no, qty: 0, amount: 0, canceledQty: 0, canceledAmount: 0, orders: /* @__PURE__ */ new Set() });
+    if (l.canceled) {
+      b.canceledQty += l.qty;
+      b.canceledAmount += l.amount;
+    } else {
+      b.qty += l.qty;
+      b.amount += l.amount;
+    }
+    b.orders.add(l.order_id);
+  }
+  const products = Object.values(byProduct).map((b) => ({
+    pno: b.pno,
+    name: bundle[String(b.pno)] && bundle[String(b.pno)].name || null,
+    qty: b.qty,
+    amount: b.amount,
+    canceledQty: b.canceledQty,
+    canceledAmount: b.canceledAmount,
+    orderCount: b.orders.size
+  })).sort((x, y) => y.amount - x.amount);
   return {
     from,
     to,
@@ -978,6 +1049,7 @@ async function buildSupplierSales(env, from, to, debug) {
     productLookupFetched: fetched,
     productLookupRemaining: Math.max(0, need.length - fetched),
     suppliers,
+    products,
     note: "qty/amount \uB294 \uCDE8\uC18C\xB7\uBC18\uD488 \uC81C\uC678\uBD84. canceledQty/canceledAmount \uB294 \uCDE8\uC18C\xB7\uBC18\uD488\uBD84. truncated=true \uBA74 \uAE30\uAC04\uC744 \uCABC\uAC1C\uC11C \uB2E4\uC2DC \uBD80\uB974\uC138\uC694. productLookupRemaining \uC774 0 \uC774 \uC544\uB2C8\uBA74 \uAC19\uC740 \uAE30\uAC04\uC744 \uD55C \uBC88 \uB354 \uBD80\uB974\uBA74 \uCE90\uC2DC\uAC00 \uCC44\uC6CC\uC9D1\uB2C8\uB2E4."
   };
 }
@@ -2338,9 +2410,15 @@ async function buildData(propertyId, token, ranges, exclRaw, autoExclLowEngageme
     }
     return false;
   }, "isExcl");
-  const homeMatch = /* @__PURE__ */ __name((path, side) => {
-    if (side === "after") return path.startsWith("/art.html") || path.startsWith("/life.html");
-    return path === "/" || path.startsWith("/main") || path.startsWith("/index");
+  // [2026-09-22] 예전에는 '어느 쪽 기간인가(side)'로 메인 경로를 판정했다.
+  //   before → "/" · "/main" · "/index"   (개편 전 메인)
+  //   after  → "/art.html" · "/life.html" (개편 후 메인)
+  // 개편 전후를 비교할 때는 맞지만, 최근 두 주를 비교하면 비교기간만 옛 경로로 세어
+  // 방문이 통째로 어긋난다. 실제로 09-07~13 3,894 vs 09-14~20 7,491 (+92%) 이 나왔고,
+  // 이걸 분모로 쓰는 상품조회·장바구니·가입·결제 전환율이 전부 틀어졌다(상품조회 288%).
+  // 기간과 무관하게 옛 메인·새 메인을 모두 '메인'으로 센다. 합집합이라 이중 계상은 없다.
+  const homeMatch = /* @__PURE__ */ __name((path) => {
+    return path === "/" || path.startsWith("/main") || path.startsWith("/index") || path.startsWith("/art.html") || path.startsWith("/life.html");
   }, "homeMatch");
   const KW = [
     // [2026-08-03] 회원가입 완료 페이지 추가.
@@ -2415,7 +2493,7 @@ async function buildData(propertyId, token, ranges, exclRaw, autoExclLowEngageme
       const path = r.dimensionValues[0].value, sm = r.dimensionValues[1].value, country = r.dimensionValues[2].value;
       if (isExcl(sm, country)) continue;
       const v = Number(r.metricValues[0].value), u = Number(r.metricValues[1].value), se = Number(r.metricValues[2].value);
-      if (homeMatch(path, side)) {
+      if (homeMatch(path)) {
         add("home", v, u, se);
         continue;
       }
