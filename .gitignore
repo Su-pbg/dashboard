@@ -1,6 +1,4 @@
-worker.js
 worker.patched.js
-.dashboard_key.local
-wrangler.jsonc
-.wrangler/
 worker.*.bak.js
+.dashboard_key.local
+.wrangler/

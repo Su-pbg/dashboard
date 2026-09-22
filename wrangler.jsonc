@@ -1,0 +1,15 @@
+{
+  // 배포된 워커를 로컬에서 그대로 올리기 위한 설정.
+  // 시크릿(DASHBOARD_KEY·DASH_PW·DASH_SECRET·CAFE24_*·GA_SA_KEY)은 Cloudflare 에만 있고
+  // wrangler deploy 는 그것들을 건드리지 않는다. 여기엔 KV 바인딩만 적는다.
+  "name": "proud-sea-35f9",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-14",
+  // worker.js 는 Cloudflare 에서 내려받은 '이미 번들된' 파일이다.
+  // 다시 번들하면 esbuild 의 __name 헬퍼가 깨져서 배포가 거부된다(ReferenceError).
+  "no_bundle": true,
+  "observability": { "enabled": true },
+  "kv_namespaces": [
+    { "binding": "CAFE24_TOKEN_KV", "id": "58e3e3a76f9d408ea0536cdac1b3c783" }
+  ]
+}

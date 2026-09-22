@@ -19,19 +19,29 @@
 
 ## 1. 시스템 구성
 
-세 덩어리이고, **하나만 Git 에 있다.**
+네 덩어리. **2026-09-21 부터 워커도 Git 에 있다.**
 
 | 구성요소 | 위치 | Git |
 |---|---|---|
-| 프론트엔드 `index.html` (~170KB 단일 파일) | `su-pbg/dashboard` | O |
+| 프론트엔드 `index.html` (~200KB 단일 파일) | `su-pbg/dashboard` | O |
 | 데이터 수집 `scripts/*.mjs` + `.github/workflows/*` | `su-pbg/dashboard` | O |
-| **Cloudflare Worker** `proud-sea-35f9.sugim-386.workers.dev` | Cloudflare 편집기 | **X** |
-| 매출/카테고리 수집 `snapshot_new_members.py` 등 | `Su-pbg/slackbot` | 별도 레포 |
+| **Cloudflare Worker** `proud-sea-35f9.sugim-386.workers.dev` | `su-pbg/dashboard` 의 `worker.js` | **O** |
+| 매출/카테고리 수집 `build_revenue_daily.py` 등 | `Su-pbg/slackbot` | 별도 레포 |
 
-### 워커가 Git 에 없다는 뜻
-워커를 고치려면 **전체 파일을 만들어서 Su 가 Cloudflare 편집기에 덮어쓰기** 해야 한다.
-그래서 **워커 수정은 최소화**하고, 가능하면 프론트엔드(`index.html`)에서 처리하는 게 합의된 방향이다.
-예: 미등록 구좌 탐지는 프론트에서 하도록 만들어서, 구좌가 늘어도 워커를 안 건드리게 했다.
+### 워커 고치는 법 (편집기 붙여넣기는 끝났다)
+```bash
+# worker.js 를 고친 뒤
+node --check worker.js
+npx wrangler deploy          # wrangler.jsonc 사용. 시크릿은 건드리지 않는다
+```
+- **`no_bundle: true` 다.** `worker.js` 는 Cloudflare 에서 내려받은 '이미 번들된' 파일이라
+  다시 번들하면 esbuild 의 `__name` 헬퍼가 깨져 업로드가 거부된다(`ReferenceError`).
+  파일 맨 위 두 줄(`__defProp` / `__name` 정의)을 **지우면 안 된다.**
+- 배포본이 로컬과 어긋났다 싶으면 API 로 현재 배포본을 그대로 받아올 수 있다:
+  `GET /accounts/{acct}/workers/services/proud-sea-35f9/environments/production/content` (multipart)
+- 비밀은 전부 Cloudflare 시크릿이라 **소스에 평문 비밀이 없다** — 그래서 커밋한다.
+  (2026-09-16 인증 개편 전에는 접근키가 소스에 박혀 있어 커밋 금지였다.)
+
 
 ### 데이터 흐름
 ```
@@ -228,7 +238,7 @@ GET https://{mall}.cafe24api.com/api/v2/categories/234
 ### 워커를 CLI 로 배포할 수 있게 됨 — **편집기 붙여넣기 루프 끝**
 - Cloudflare 배포본을 API 로 내려받아 `worker.js` 를 프로덕션과 동기화했다.
   (9-14 사본은 `worker.0914-old.bak.js` 로 백업. 레포의 worker.js 가 구버전이라는 기존 함정은 해소됨)
-- `wrangler.jsonc` 추가(gitignore 됨). 배포: `npx wrangler deploy`
+- `wrangler.jsonc` 추가. 배포: `npx wrangler deploy` (2026-09-21 부터 `worker.js` 와 함께 커밋됨)
 - **주의: `no_bundle: true` 다.** `worker.js` 는 이미 번들된 파일이라 다시 번들하면
   esbuild 의 `__name` 헬퍼가 깨져 `ReferenceError` 로 업로드가 거부된다.
   같은 이유로 파일 맨 위 두 줄(`__defProp` / `__name` 정의)을 **지우면 안 된다.**
@@ -312,4 +322,7 @@ products?limit=1 + 2026-03-01 → 200
   워커 주석에 그렇게 적혀 있었는데 안 읽고 세 번 연속 엉뚱한 원인을 짚었다.
   → **가설 세우기 전에 코드 주석과 커밋 히스토리를 먼저 읽는다.**
 - 헬스 배너에 폐기된 지표 체크를 넣지 말 것 (오탐 발생했었음).
-- 워커 파일을 레포에 커밋하지 말 것 (`.gitignore` 에 있음).
+- ~~워커 파일을 레포에 커밋하지 말 것~~ — **2026-09-21 폐기.** 소스에 평문 비밀이 있던 시절의
+  규칙이다. 지금은 비밀이 전부 Cloudflare 시크릿이고, 워커가 Git 밖에 있어서 **어제 세션의
+  워커 소스가 디스크에서 통째로 사라지는** 일이 실제로 있었다. `worker.js` 는 커밋한다.
+  대신 **`.dashboard_key.local` 과 `worker.patched.js`·`worker.*.bak.js` 는 계속 무시**한다.
