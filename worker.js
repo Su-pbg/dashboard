@@ -266,6 +266,31 @@ var worker_default = {
           }, 200);
         }
       }
+      if (q.get("tab") === "discountaudit") {
+        // [2026-09-22] '기타' 할인의 정체를 찾는다. 기타는 잔차라서
+        // (거래액 - 결제 - 환불) - (알고 있는 할인 합) 이 그대로 들어간다.
+        // 주문·품목의 모든 금액 필드를 합산해 어떤 키가 그 잔차를 설명하는지 본다.
+        const r = await buildSupplierSales(env, q.get("from") || ranges.after.start, q.get("to") || ranges.after.end, "raw");
+        if (!r || !r.rawOrders) return json({ error: "주문을 받지 못했습니다" }, 200);
+        const sum = {}, itemSum = {};
+        let gmv = 0, paid = 0;
+        for (const o of r.rawOrders) {
+          const i = o.initial_order_amount || {}, a = o.actual_order_amount || {};
+          gmv += Number(i.order_price_amount || 0) + Number(i.shipping_fee || 0);
+          paid += Number(a.payment_amount || 0) + Number(o.naver_point || 0);
+          for (const [k, v] of Object.entries(i)) {
+            const n = Number(v);
+            if (!isNaN(n) && n) sum[k] = (sum[k] || 0) + n;
+          }
+          for (const it of o.items || []) {
+            for (const [k, v] of Object.entries(it)) {
+              const n = Number(v);
+              if (!isNaN(n) && n && /discount|price|amount/i.test(k)) itemSum[k] = (itemSum[k] || 0) + n;
+            }
+          }
+        }
+        return jsonCached({ period: `${r.from} ~ ${r.to}`, orders: r.rawOrders.length, gmv, paid, totalDiscount: gmv - paid, orderFields: sum, itemFields: itemSum }, 200);
+      }
       if (q.get("tab") === "suppliersales") {
         try {
           const r = await buildSupplierSales(
@@ -937,6 +962,7 @@ async function buildSupplierSales(env, from, to, debug) {
     if (arr.length < ORDER_PAGE) break;
     if (p === ORDER_MAX_PAGES - 1) truncated = true;
   }
+  if (debug === "raw") return { from, to, rawOrders: orders };
   if (debug) return { from, to, orderCount: orders.length, pages, sample: orders[0] || null };
   if (!orders.length) return { from, to, orderCount: 0, suppliers: [], note: "\uD574\uB2F9 \uAE30\uAC04 \uC8FC\uBB38 \uC5C6\uC74C" };
   const lines = [];

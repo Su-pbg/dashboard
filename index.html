@@ -997,15 +997,15 @@ async function ensureRevenue(){
 async function revenueRangeSum(s0,e0){
   const j=await ensureRevenue();
   const daily=j.daily||[];
-  let net=0,count=0,newMembers=0,gmv=0,refund=0,days=0,withdrawn=0,hasWithdrawn=false;
+  let net=0,count=0,newMembers=0,gmv=0,refund=0,unpaid=0,days=0,withdrawn=0,hasWithdrawn=false;
   for(const x of daily){
     if(x.date>=s0 && x.date<=e0){
       net+=x.net||0; count+=x.count||0; newMembers+=x.newMembers||0;
-      gmv+=x.gmv||0; refund+=x.refund||0; days++;
+      gmv+=x.gmv||0; refund+=x.refund||0; unpaid+=x.unpaid||0; days++;
       if(x.withdrawnMembers!=null){ withdrawn+=x.withdrawnMembers; hasWithdrawn=true; }
     }
   }
-  return {net,count,newMembers,gmv,refund,days,withdrawn,hasWithdrawn};
+  return {net,count,newMembers,gmv,refund,unpaid,days,withdrawn,hasWithdrawn};
 }
 
 
@@ -3032,14 +3032,19 @@ function renderRevenue(d){
 
   // 거래액(GMV) → 할인 → 환불 → 실매출(net) 흐름으로 봄
   // cafe24 기준: 최초결제액 = net + refund 이므로, 할인액 = gmv - (net + refund)
-  const discB = Math.max(0, b.gmv - (b.net + b.refund));
-  const discA = Math.max(0, a.gmv - (a.net + a.refund));
+  // [2026-09-22] 미입금(입금 대기 잔액)을 할인에서 뺀다.
+  // 예전에는 거래액 - (실매출 + 환불) 을 통째로 '할인' 으로 봤는데, 무통장 입금 대기분이
+  // 거기 섞여 있었다. 실측(9/14): '기타 할인' 3,478,000 = 그날 total_amount_due 합계.
+  // 그것 때문에 9/14 할인율이 39% 로 찍혔다.
+  const discB = Math.max(0, b.gmv - (b.net + b.refund + (b.unpaid||0)));
+  const discA = Math.max(0, a.gmv - (a.net + a.refund + (a.unpaid||0)));
   const rows=[
     {label:'거래액(GMV)', b:b.gmv, a:a.gmv},
     {label:'할인액',  b:discB, a:discA, lower:true},
     {label:'할인율',  b:b.gmv?discB/b.gmv*100:0, a:a.gmv?discA/a.gmv*100:0, unit:'percent', lower:true},
     {label:'환불액',  b:b.refund, a:a.refund, lower:true},
     {label:'환불율',  b:b.gmv?b.refund/b.gmv*100:0, a:a.gmv?a.refund/a.gmv*100:0, unit:'percent', lower:true},
+    ...(((a.unpaid||0)+(b.unpaid||0))>0 ? [{label:'미입금',  b:b.unpaid||0, a:a.unpaid||0, lower:true}] : []),
     {label:'실매출(net)', b:b.net, a:a.net},
     {label:'주문 건수', b:b.count, a:a.count, unit:'count'},
     {label:'객단가',   b:b.aov, a:a.aov},
