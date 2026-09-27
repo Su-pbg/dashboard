@@ -2007,18 +2007,19 @@ function supDetailHTML(x){
       </div>`).join('')
     : '<div class="slotbar-meta" style="padding:6px 0;">이 기간에 팔린 상품 정보가 없습니다</div>';
   const more=(x.productCount>ps.length)?`<div class="slotbar-meta" style="padding:4px 0;">총 ${fmt(x.productCount)}종 중 금액 상위 ${ps.length}종</div>`:'';
-  return `<div class="sup-products">${list}${more}</div>
-    <div class="sup-edit">
+  // 입력칸은 담당자가 없는 공급사에만 붙인다. 이미 지정된 곳까지 폼을 띄우면
+  // 목록이 폼 범벅이 된다 — 고칠 일이 있으면 매핑 파일 쪽이 맞다.
+  const form = x.mgr ? '' : `<div class="sup-edit">
       <select class="sup-cat">
         <option value="">팀 구분 선택</option>
         <option value="아트"${x.cat==='아트'?' selected':''}>아트</option>
         <option value="라이프"${x.cat==='라이프'?' selected':''}>라이프</option>
       </select>
-      <input class="sup-mgr" list="mgrCandidates" placeholder="담당자 (비우면 미지정)" value="${x.mgr||''}">
+      <input class="sup-mgr" list="mgrCandidates" placeholder="담당자">
       <button class="row-toggle" onclick="saveSupplier(this,'${x.code}')">저장</button>
-      ${x.edited?`<button class="row-toggle" onclick="saveSupplier(this,'${x.code}',true)">원래대로</button>`:''}
       <span class="sup-msg"></span>
     </div>`;
+  return `<div class="sup-products">${list}${more}</div>${form}`;
 }
 
 // 미지정 공급사에 담당자·구분을 지정한다. 빈 값으로 저장하면 지정이 풀린다.
@@ -2063,6 +2064,7 @@ async function loadManagerTab(){
       const o=by[mgr]||(by[mgr]={mgr, qty:0, amount:0, cq:0, ca:0, brands:[]});
       o.qty+=s0.qty; o.amount+=s0.amount; o.cq+=s0.canceledQty; o.ca+=s0.canceledAmount;
       o.brands.push({name:(info&&info.brand)||s0.code, code:s0.code, cat:(info&&info.cat)||'',
+                     mgr:(info&&info.mgr)||null, edited:(info&&info.edited)||null,
                      status:(info&&info.status)||'', qty:s0.qty, amount:s0.amount,
                      cq:s0.canceledQty, ca:s0.canceledAmount, orders:s0.orderCount,
                      productCount:s0.productCount, products:s0.products||[]});
