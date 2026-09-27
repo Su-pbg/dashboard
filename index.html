@@ -156,6 +156,11 @@
   .row-toggle .chev{display:inline-block;transition:transform .15s;}
   .slotbar-item.open .row-toggle .chev{transform:rotate(180deg);}
   .row-detail{display:none;padding:0 0 10px 0;}
+  .sup-line>.sup-edit,.sup-line>.sup-products{display:none;}
+  .sup-line.open>.sup-edit{display:flex;}
+  .sup-line.open>.sup-products{display:block;}
+  .sup-line.open .chev{transform:rotate(180deg);}
+  .sup-products{padding:4px 0 2px 10px;border-left:2px solid var(--hair);margin:4px 0 0;}
   .sup-edit{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0 4px;}
   .sup-edit input,.sup-edit select{font-size:13px;font-family:var(--sans);border:1px solid var(--hair);
     background:var(--surface);border-radius:var(--r-ctrl);padding:7px 10px;min-width:120px;}
@@ -1979,16 +1984,45 @@ async function supplierMap(force){
   for(const [k,v] of Object.entries(base)) SUPMAP[k]={...v};
   for(const [k,v] of Object.entries(over)){
     const b=SUPMAP[k]||(SUPMAP[k]={});
-    if(v.mgr) b.mgr=v.mgr;
-    if(v.cat) b.cat=v.cat;
+    // null 도 그대로 덮는다. 빈 값 = '지정 없음' 이고, 정적 파일에 잘못 붙은
+    // 담당자를 화면에서 떼려면 이 덮어쓰기가 되어야 한다.
+    b.mgr=v.mgr||null;
+    b.cat=v.cat||null;
     b.edited=v.at||true;
   }
   SUPMGRS=[...new Set(Object.values(SUPMAP).map(v=>v.mgr).filter(Boolean))].sort();
   return SUPMAP;
 }
 
+// 공급사 한 곳의 '자세히' 안에 들어가는 내용 — 무엇이 팔렸는지(상품)와 담당 지정 폼.
+// 팀 구분을 먼저 고르고 그 다음 담당자를 넣는다 (팀이 정해져야 담당자가 정해지므로).
+function supDetailHTML(x){
+  const ps=(x.products||[]).slice().sort((a,b)=>b.amount-a.amount);
+  const maxP=Math.max(...ps.map(p=>p.amount),1);
+  const list=ps.length
+    ? ps.map(p=>`<div class="slotbar-row" style="min-height:0;padding:5px 0;border-bottom:0;">
+        <div><span class="slotbar-name" style="cursor:default;font-weight:400;font-size:13px;">${p.name||('상품번호 '+p.pno)}</span></div>
+        <div class="slotbar-track sm"><div class="slotbar-fill" style="width:${Math.max(p.amount/maxP*100,3)}%;background:#8B95A1;opacity:.5;"></div></div>
+        <div><div class="slotbar-val" style="font-size:13px;">${fmt(Math.round(p.amount/10000))}만</div><div class="slotbar-sub">${fmt(p.qty)}개</div></div>
+      </div>`).join('')
+    : '<div class="slotbar-meta" style="padding:6px 0;">이 기간에 팔린 상품 정보가 없습니다</div>';
+  const more=(x.productCount>ps.length)?`<div class="slotbar-meta" style="padding:4px 0;">총 ${fmt(x.productCount)}종 중 금액 상위 ${ps.length}종</div>`:'';
+  return `<div class="sup-products">${list}${more}</div>
+    <div class="sup-edit">
+      <select class="sup-cat">
+        <option value="">팀 구분 선택</option>
+        <option value="아트"${x.cat==='아트'?' selected':''}>아트</option>
+        <option value="라이프"${x.cat==='라이프'?' selected':''}>라이프</option>
+      </select>
+      <input class="sup-mgr" list="mgrCandidates" placeholder="담당자 (비우면 미지정)" value="${x.mgr||''}">
+      <button class="row-toggle" onclick="saveSupplier(this,'${x.code}')">저장</button>
+      ${x.edited?`<button class="row-toggle" onclick="saveSupplier(this,'${x.code}',true)">원래대로</button>`:''}
+      <span class="sup-msg"></span>
+    </div>`;
+}
+
 // 미지정 공급사에 담당자·구분을 지정한다. 빈 값으로 저장하면 지정이 풀린다.
-async function saveSupplier(btn, code){
+async function saveSupplier(btn, code, remove){
   const box=btn.closest('.sup-edit');
   const mgr=box.querySelector('.sup-mgr').value.trim();
   const cat=box.querySelector('.sup-cat').value.trim();
@@ -1997,7 +2031,7 @@ async function saveSupplier(btn, code){
   try{
     const r=await fetch(WORKER+'/supplier-map',{method:'POST',
       headers:{'Content-Type':'application/json',...authHeaders()},
-      body:JSON.stringify({code,mgr,cat})});
+      body:JSON.stringify(remove?{code,remove:true}:{code,mgr,cat})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok||j.error) throw new Error(j.error||'저장 실패');
     await supplierMap(true);
@@ -2030,7 +2064,8 @@ async function loadManagerTab(){
       o.qty+=s0.qty; o.amount+=s0.amount; o.cq+=s0.canceledQty; o.ca+=s0.canceledAmount;
       o.brands.push({name:(info&&info.brand)||s0.code, code:s0.code, cat:(info&&info.cat)||'',
                      status:(info&&info.status)||'', qty:s0.qty, amount:s0.amount,
-                     cq:s0.canceledQty, ca:s0.canceledAmount, orders:s0.orderCount, products:s0.productCount});
+                     cq:s0.canceledQty, ca:s0.canceledAmount, orders:s0.orderCount,
+                     productCount:s0.productCount, products:s0.products||[]});
       totQ+=s0.qty; totA+=s0.amount; totCQ+=s0.canceledQty; totCA+=s0.canceledAmount;
     }
     // 금액 내림차순. 담당자 미지정은 항상 맨 아래로 내린다.
@@ -2091,12 +2126,19 @@ async function loadManagerTab(){
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${dim?'#B9B9B4':color};"></div></div>
         <div><div class="slotbar-val">${won(r.amount)}</div><div class="slotbar-sub">${fmt(r.brands.length)}곳</div></div>
       </div>`;
-      const detail=bs.map(b=>`<div class="slotbar-row" style="min-height:0;padding:6px 0;border-bottom:0;">
-          <div><span class="slotbar-name" style="cursor:default;font-weight:400;">${b.name}</span>
-            <div class="slotbar-meta">${b.code}${b.cat?' · '+b.cat:''}${b.status?' · '+b.status:''} · 주문 ${fmt(b.orders)}건 · 상품 ${fmt(b.products)}종${b.cq?` · 취소 ${fmt(b.cq)}개`:''}</div></div>
+      // 공급사 한 줄마다 담당자·구분을 여기서 바로 고칠 수 있다.
+      // 정적 매핑이 이름으로 잘못 붙는 경우가 있어서(S0000000 '자체공급' 이 특정 담당자에게
+      // 붙어 그 팀 실적의 절반 이상을 차지했다) 미지정 목록뿐 아니라 여기서도 떼야 한다.
+      const detail=bs.map(b=>`<div class="sup-line">
+        <div class="slotbar-row" style="min-height:0;padding:6px 0;border-bottom:0;">
+          <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;font-weight:400;">${b.name}</span>
+            <button class="row-toggle" onclick="this.closest('.sup-line').classList.toggle('open')">자세히 <span class="chev">▾</span></button></div>
+            <div class="slotbar-meta">${b.code}${b.cat?' · '+b.cat:''}${b.status?' · '+b.status:''} · 주문 ${fmt(b.orders)}건 · 상품 ${fmt(b.productCount)}종${b.cq?` · 취소 ${fmt(b.cq)}개`:''}${b.edited?' · <span style="color:#3182F6;">화면에서 수정함</span>':''}</div></div>
           <div class="slotbar-track sm"><div class="slotbar-fill" style="width:${Math.max(b.amount/(bs[0].amount||1)*100,3)}%;background:${dim?'#FF9500':color};opacity:.55;"></div></div>
           <div><div class="slotbar-val" style="font-size:13px;">${won(b.amount)}</div><div class="slotbar-sub">${fmt(b.qty)}개</div></div>
-        </div>`).join('');
+        </div>
+        ${supDetailHTML(b)}
+      </div>`).join('');
       return rowItem(summary, detail);
     };
 
@@ -2133,16 +2175,7 @@ async function loadManagerTab(){
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.max(x.amount/(us[0].amount||1)*100,3)}%;background:#FF9500;"></div></div>
         <div><div class="slotbar-val">${won(x.amount)}</div><div class="slotbar-sub">${fmt(x.qty)}개</div></div>
       </div>`;
-        const edit=`<div class="sup-edit">
-          <input class="sup-mgr" list="mgrCandidates" placeholder="담당자" value="${x.mgr||''}">
-          <select class="sup-cat">
-            <option value="">구분 선택</option>
-            <option value="아트"${x.cat==='아트'?' selected':''}>아트</option>
-            <option value="라이프"${x.cat==='라이프'?' selected':''}>라이프</option>
-          </select>
-          <button class="row-toggle" onclick="saveSupplier(this,'${x.code}')">저장</button>
-          <span class="sup-msg"></span>
-        </div>`;
+        const edit=supDetailHTML(x);
         return rowItem(summary, edit);
       }).join('')+'</div>';
     }

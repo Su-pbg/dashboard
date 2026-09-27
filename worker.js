@@ -95,7 +95,12 @@ var worker_default = {
           const cat = String(b.cat || "").trim().slice(0, 20);
           const raw = await kv0.get(SUPMAP_KEY);
           const map = raw ? JSON.parse(raw) : {};
-          if (!mgr && !cat) delete map[code];
+          // 빈 값 저장은 '지정 없음'을 뜻한다 — 오버레이를 지우는 것과 다르다.
+          // 정적 파일에 잘못 붙은 담당자(예: S0000000 자체공급 → 이름 매칭으로 특정
+          // 담당자에게 붙어 그 팀 실적의 63% 를 차지했다)를 화면에서 떼려면
+          // '비어 있음'을 명시적으로 덮어쓸 수 있어야 한다.
+          // 정적 파일 값으로 되돌리려면 remove:true 로 보낸다.
+          if (b.remove === true) delete map[code];
           else map[code] = { mgr: mgr || null, cat: cat || null, at: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10) };
           await kv0.put(SUPMAP_KEY, JSON.stringify(map));
           return json({ ok: true, code, saved: map[code] || null, count: Object.keys(map).length });
@@ -786,7 +791,20 @@ async function buildSupplierSales(env, from, to, debug) {
     } catch (e) {
     }
   }
-  const need = [...new Set(lines.filter((l) => !l.supplier && l.product_no != null).map((l) => String(l.product_no)))].filter((n) => bundle[n] === void 0);
+  // [2026-09-28] 예전에는 '공급사 코드가 없는 상품' 만 조회했다. 그래서 대부분의 상품은
+  // bundle 에 이름이 null 로 남아, 공급사 상세에 상품번호만 나왔다.
+  // 공급사 해석용(코드 없음) + 이름 채우기용(이름 없음, 금액 큰 순)을 같이 받는다.
+  const needCode = lines.filter((l) => !l.supplier && l.product_no != null).map((l) => String(l.product_no));
+  const amtByPno = {};
+  for (const l of lines) {
+    if (l.product_no == null) continue;
+    const k = String(l.product_no);
+    amtByPno[k] = (amtByPno[k] || 0) + l.amount;
+  }
+  const needName = Object.keys(amtByPno).sort((a, b) => amtByPno[b] - amtByPno[a]);
+  const need = [...new Set([...needCode, ...needName])].filter(
+    (n) => bundle[n] === void 0 || bundle[n].name == null
+  );
   let fetched = 0;
   const SUP_BATCHES = 6;
   for (let i = 0; i < need.length && i / BATCH_SIZE < SUP_BATCHES; i += BATCH_SIZE) {
@@ -833,15 +851,7 @@ async function buildSupplierSales(env, from, to, debug) {
     a.orders.add(l.order_id);
     if (l.product_no != null) a.products.add(l.product_no);
   }
-  const suppliers = Object.values(agg).map((a) => ({
-    code: a.code,
-    qty: a.qty,
-    amount: a.amount,
-    canceledQty: a.canceledQty,
-    canceledAmount: a.canceledAmount,
-    orderCount: a.orders.size,
-    productCount: a.products.size
-  })).sort((x, y) => y.qty - x.qty);
+  const aggList = Object.values(agg);
   // [2026-09-22] 구좌(카테고리) 매출을 내려면 상품 단위 금액이 필요하다.
   // revenue-daily.json 의 products 는 하루 상위 10종뿐이라 전수 집계가 안 된다.
   const byProduct = {};
@@ -867,6 +877,27 @@ async function buildSupplierSales(env, from, to, debug) {
     canceledAmount: b.canceledAmount,
     orderCount: b.orders.size
   })).sort((x, y) => y.amount - x.amount);
+  // 공급사별 상품 목록. 화면에서 공급사 한 줄을 펼치면 무엇이 팔렸는지 바로 보여야 한다.
+  // 금액 큰 순 상위 20종만 싣는다 (전 종목을 실으면 응답이 커진다).
+  const suppliers = aggList.map((a) => ({
+    code: a.code,
+    qty: a.qty,
+    amount: a.amount,
+    canceledQty: a.canceledQty,
+    canceledAmount: a.canceledAmount,
+    orderCount: a.orders.size,
+    productCount: a.products.size,
+    products: [...a.products].map((pno) => {
+      const b = byProduct[String(pno)];
+      return {
+        pno,
+        name: bundle[String(pno)] && bundle[String(pno)].name || null,
+        qty: b ? b.qty : 0,
+        amount: b ? b.amount : 0,
+        canceledQty: b ? b.canceledQty : 0
+      };
+    }).sort((x, y) => y.amount - x.amount).slice(0, 20)
+  })).sort((x, y) => y.qty - x.qty);
   return {
     from,
     to,
