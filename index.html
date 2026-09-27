@@ -1974,12 +1974,13 @@ function renderFunnel(d){
 // [2026-09-28] supplier-managers.json 은 정적 파일이라 화면에서 못 고친다.
 // 거래처 LIST 가 채워지기를 기다리는 대신, 대시보드에서 입력한 값을 워커 KV 에 얹고
 // 읽을 때 정적 파일 위에 덮어쓴다. 원본 파일은 그대로 둔다.
-let SUPMAP=null, SUPMGRS=[];
+let SUPMAP=null, SUPMGRS=[], SUPOVER={}, SUPBASE={};
 async function supplierMap(force){
   if(SUPMAP && !force) return SUPMAP;
   let base={}, over={};
   try{ base=(await (await fetch('supplier-managers.json',{cache:'no-store'})).json()).suppliers||{}; }catch(e){}
   try{ over=(await (await fetch(WORKER+'/supplier-map',{cache:'no-store',headers:authHeaders()})).json()).overrides||{}; }catch(e){}
+  SUPBASE=base; SUPOVER=over;
   SUPMAP={};
   for(const [k,v] of Object.entries(base)) SUPMAP[k]={...v};
   for(const [k,v] of Object.entries(over)){
@@ -2024,11 +2025,11 @@ function supDetailHTML(x){
 
 // 미지정 공급사에 담당자·구분을 지정한다. 빈 값으로 저장하면 지정이 풀린다.
 async function saveSupplier(btn, code, remove){
-  const box=btn.closest('.sup-edit');
-  const mgr=box.querySelector('.sup-mgr').value.trim();
-  const cat=box.querySelector('.sup-cat').value.trim();
+  const box=btn.closest('.sup-edit')||btn.parentElement;
+  const mgr=box.querySelector('.sup-mgr')?box.querySelector('.sup-mgr').value.trim():'';
+  const cat=box.querySelector('.sup-cat')?box.querySelector('.sup-cat').value.trim():'';
   const msg=box.querySelector('.sup-msg');
-  btn.disabled=true; msg.textContent='저장 중…'; msg.style.color='#8B95A1';
+  btn.disabled=true; if(msg){msg.textContent='저장 중…'; msg.style.color='#8B95A1';}
   try{
     const r=await fetch(WORKER+'/supplier-map',{method:'POST',
       headers:{'Content-Type':'application/json',...authHeaders()},
@@ -2038,7 +2039,7 @@ async function saveSupplier(btn, code, remove){
     await supplierMap(true);
     await loadManagerTab();
   }catch(e){
-    btn.disabled=false; msg.textContent=e.message||'저장 실패'; msg.style.color='#F04452';
+    btn.disabled=false; if(msg){msg.textContent=e.message||'저장 실패'; msg.style.color='#F04452';}
   }
 }
 async function loadManagerTab(){
@@ -2181,6 +2182,29 @@ async function loadManagerTab(){
         return rowItem(summary, edit);
       }).join('')+'</div>';
     }
+    // 화면에서 넣은 값이 어디에 쌓이는지 볼 곳이 필요하다. 워커에 저장되지만
+    // supplier-managers.json 원본은 그대로라, 둘을 나란히 보여주고 되돌릴 수 있게 한다.
+    const ovs=Object.entries(SUPOVER);
+    if(ovs.length){
+      h+='<h2 class="sec">화면에서 수정한 공급사</h2>';
+      h+=`<p class="sec-desc">${fmt(ovs.length)}곳 · 워커에 저장돼 대시보드를 보는 모두에게 적용됩니다`
+        +` · supplier-managers.json 원본은 그대로라 거래처 LIST 를 다시 뽑아도 이 값이 유지됩니다</p>`;
+      h+='<div class="section-block">'+ovs.map(([code,v])=>{
+        const b=SUPBASE[code]||{};
+        const was=(b.mgr||b.cat)?`${b.cat||'구분없음'} · ${b.mgr||'담당자없음'}`:'매핑 없음';
+        const now=`${v.cat||'구분없음'} · ${v.mgr||'담당자없음'}`;
+        return `<div class="slotbar-row" style="min-height:0;">
+          <div><span class="slotbar-name" style="cursor:default;">${b.brand||code}</span>
+            <div class="slotbar-meta">${code}${v.at?' · '+v.at:''}</div></div>
+          <div class="slotbar-meta" style="white-space:normal;">
+            <span style="color:#8C8C86;text-decoration:line-through;">${was}</span>
+            &nbsp;→&nbsp;<b style="color:#3182F6;">${now}</b></div>
+          <div><button class="row-toggle" onclick="saveSupplier(this,'${code}',true)">되돌리기</button>
+            <span class="sup-msg"></span></div>
+        </div>`;
+      }).join('')+'</div>';
+    }
+
     h+=`<p class="sec-desc" style="margin-top:14px;">기간 ${from} ~ ${to} · 주문 ${fmt(dd.orderCount)}건 · 품목 ${fmt(dd.lineCount)}행`
       +`${dd.supplierUnresolved?` · 공급사 미해석 ${fmt(dd.supplierUnresolved)}행`:''}</p>`;
     wrap.innerHTML=h;
