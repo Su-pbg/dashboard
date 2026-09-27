@@ -2008,7 +2008,14 @@ async function loadManagerTab(){
     const named=rows.filter(r=>r.mgr!==UNASSIGNED);
     const namedA=named.reduce((a,r)=>a+r.amount,0);
 
-    const won=n=>fmt(Math.round(n/10000))+'만';
+    // [2026-09-28] 팀 총액이 담당자 합과 1만원씩 어긋난다는 피드백.
+    // 원인은 반올림 자리다 — 항목은 각각 만원으로 반올림해 찍고, 팀 총액은 원 단위 합을
+    // 반올림했다. 그래서 담당자가 3명이면 최대 ±1.5만원까지 벌어진다.
+    // 화면에서 손으로 더해 검산하는 용도라, 합계도 '찍힌 값'을 더한 것으로 맞춘다.
+    // (실제 합과의 차이는 표시 단위인 만원 미만이라 의미가 없다)
+    const wonNum=n=>Math.round(n/10000);
+    const won=n=>fmt(wonNum(n))+'만';
+    const wonRows=rs=>fmt(rs.reduce((a,r)=>a+wonNum(r.amount),0))+'만';
     let h='';
     if(dd.truncated) h+='<div class="notice">주문이 많아 일부만 집계했습니다. 기간을 좁혀서 다시 조회하세요.</div>';
 
@@ -2017,7 +2024,7 @@ async function loadManagerTab(){
 
     // 요약
     h+='<div class="section-block"><div class="slotbar-meta" style="line-height:1.9;">'
-      +`판매 <b>${won(totA)}</b> · 수량 ${fmt(totQ)}개 · 담당자 ${fmt(named.length)}명 · 공급사 ${fmt(list.length)}곳<br>`
+      +`판매 <b>${wonRows(rows)}</b> · 수량 ${fmt(totQ)}개 · 담당자 ${fmt(named.length)}명 · 공급사 ${fmt(list.length)}곳<br>`
       +`취소·반품 ${fmt(totCQ)}개 (${won(totCA)}) · 담당자 확정분이 금액의 <b>${totA?(namedA/totA*100).toFixed(0):0}%</b>`
       +(unmapped?` · 매핑 없는 공급사 ${fmt(unmapped)}곳`:'')
       +'</div></div>';
@@ -2066,7 +2073,7 @@ async function loadManagerTab(){
       const sup=rs.reduce((a,r)=>a+r.brands.length,0);
       const color=TEAM_COLOR[t]||'#8B95A1';
       h+=`<h2 class="sec"><span style="color:${color};">●</span> ${t} 팀`
-        +`<span class="badge" style="margin-left:8px;">${won(amt)}</span></h2>`;
+        +`<span class="badge" style="margin-left:8px;">${wonRows(rs)}</span></h2>`;
       h+=`<p class="sec-desc">담당자 ${fmt(rs.length)}명 · 공급사 ${fmt(sup)}곳 · 수량 ${fmt(qty)}개`
         +`${cq?` · 취소 ${fmt(cq)}개`:''} · 전체 판매의 ${totA?(amt/totA*100).toFixed(0):0}%</p>`;
       h+='<div class="section-block">'+rs.map(r=>mgrRow(r,color)).join('')+'</div>';
@@ -2075,11 +2082,15 @@ async function loadManagerTab(){
     const un=by[UNASSIGNED];
     if(un){
       h+='<h2 class="sec">담당자 미지정 공급사</h2>';
-      h+=`<p class="sec-desc">거래처 LIST에 담당자가 없는 ${fmt(un.brands.length)}곳 — 여기 뜨는 공급사를 LIST에 채우면 위 집계로 올라갑니다</p>`;
+      const noCat=un.brands.filter(b=>!b.cat).length;
+      h+=`<p class="sec-desc">거래처 LIST에 담당자가 없는 ${fmt(un.brands.length)}곳 · <b>${won(un.amount)}</b>`
+        +` (전체 판매의 ${totA?(un.amount/totA*100).toFixed(1):0}%)`
+        +`${noCat?` · 이 중 ${fmt(noCat)}곳은 아트/라이프 구분도 없습니다`:''}`
+        +` — 거래처 LIST에 담당자와 구분을 채우면 위 팀 집계로 올라갑니다</p>`;
       const us=un.brands.slice().sort((a,b)=>b.amount-a.amount);
       h+='<div class="section-block">'+us.map(x=>`<div class="slotbar-row">
         <div><span class="slotbar-name" style="cursor:default;">${x.name}</span>
-          <div class="slotbar-meta">${x.code}${x.cat?' · '+x.cat:''} · 주문 ${fmt(x.orders)}건${x.cq?` · 취소 ${fmt(x.cq)}개`:''}</div></div>
+          <div class="slotbar-meta">${x.code} · ${x.cat||'<span style="color:#FF9500;">구분 미지정</span>'} · 주문 ${fmt(x.orders)}건${x.cq?` · 취소 ${fmt(x.cq)}개`:''}</div></div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.max(x.amount/(us[0].amount||1)*100,3)}%;background:#FF9500;"></div></div>
         <div><div class="slotbar-val">${won(x.amount)}</div><div class="slotbar-sub">${fmt(x.qty)}개</div></div>
       </div>`).join('')+'</div>';
