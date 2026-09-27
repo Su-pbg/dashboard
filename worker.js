@@ -749,6 +749,21 @@ async function cafe24Get(mallId, tok, path, _retried, env, _retried401) {
 }
 __name(cafe24Get, "cafe24Get");
 var isCanceledStatus = /* @__PURE__ */ __name((st) => /^[CRE]/i.test(String(st || "")), "isCanceledStatus");
+// [2026-09-28] 개인결제창은 상품 판매가 아니라 결제 링크다. 타 조직 건이 자체공급에
+// 섞여 담당자 실적을 부풀리고 있었다. 규칙은 CLAUDE.md '개인결제창 제외' 와 같다 —
+// 이커머스 조직 건만 남긴다.
+//   남긴다: '이커머스팀 /' · '커머스 /' · 'E /' 접두, 접두 없는 '개인결제창 - OOO님'
+//   뺀다  : COM · HQ · IP · PB'S · PBG결제 · 커뮤니티(팀) · 판교 · 운영기획팀 · 저작권사업팀
+// 목록을 나열하는 대신 '접두가 붙어 있으면 타 조직' 으로 본다. 새 조직이 생겨도 자동으로
+// 빠진다(나열 방식은 새 이름이 그대로 들어온다).
+var PAYWIN_KEEP = /^\s*(이커머스팀|커머스|E)\s*\//;
+function isExcludedPaywin(name) {
+  if (!name || name.indexOf("개인결제") < 0) return false;
+  if (PAYWIN_KEEP.test(name)) return false;
+  return name.indexOf("/") >= 0;
+}
+__name(isExcludedPaywin, "isExcludedPaywin");
+
 async function buildSupplierSales(env, from, to, debug) {
   const tok = await getCafe24AccessToken(env);
   if (!tok) return { error: "cafe24 \uC778\uC99D \uC2E4\uD328 (Gist/\uD1A0\uD070 \uD655\uC778)" };
@@ -834,6 +849,17 @@ async function buildSupplierSales(env, from, to, debug) {
     } catch (e) {
     }
   }
+  // 상품명이 채워진 뒤에 개인결제창을 뺀다 (이름이 있어야 판정할 수 있다)
+  let paywinExcluded = 0, paywinAmount = 0;
+  const kept = [];
+  for (const l of lines) {
+    const nm = bundle[String(l.product_no)] && bundle[String(l.product_no)].name || null;
+    if (isExcludedPaywin(nm)) { paywinExcluded++; paywinAmount += l.amount; continue; }
+    kept.push(l);
+  }
+  lines.length = 0;
+  for (const l of kept) lines.push(l);
+
   const agg = {};
   let unresolved = 0;
   for (const l of lines) {
@@ -909,6 +935,8 @@ async function buildSupplierSales(env, from, to, debug) {
     supplierUnresolved: unresolved,
     productLookupFetched: fetched,
     productLookupRemaining: Math.max(0, need.length - fetched),
+    paywinExcluded,
+    paywinExcludedAmount: paywinAmount,
     suppliers,
     products,
     note: "qty/amount \uB294 \uCDE8\uC18C\xB7\uBC18\uD488 \uC81C\uC678\uBD84. canceledQty/canceledAmount \uB294 \uCDE8\uC18C\xB7\uBC18\uD488\uBD84. truncated=true \uBA74 \uAE30\uAC04\uC744 \uCABC\uAC1C\uC11C \uB2E4\uC2DC \uBD80\uB974\uC138\uC694. productLookupRemaining \uC774 0 \uC774 \uC544\uB2C8\uBA74 \uAC19\uC740 \uAE30\uAC04\uC744 \uD55C \uBC88 \uB354 \uBD80\uB974\uBA74 \uCE90\uC2DC\uAC00 \uCC44\uC6CC\uC9D1\uB2C8\uB2E4."
