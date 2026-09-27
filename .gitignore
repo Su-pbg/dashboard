@@ -2,3 +2,5 @@ worker.patched.js
 worker.*.bak.js
 .dashboard_key.local
 .wrangler/
+node_modules/
+PBG_주간회의_*.pptx

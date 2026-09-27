@@ -12,8 +12,9 @@
 //   --sup-*     워커 tab=suppliersales 응답 파일. 있으면 팀·담당자 슬라이드가 붙고,
 //               없으면 그 슬라이드를 건너뛴다(자료가 아예 안 나오는 것보다 낫다).
 //
-// 비교 기준은 전년 동월이 아니라 '전월 같은 일수' 와 '직전 주' 다.
-// revenue-daily.json 이 2026-06-24 부터라 전년 데이터가 아예 없다.
+// 비교는 전월 같은 일수 · 직전 주 · 전년 동월 세 가지.
+// revenue-daily.json 은 slackbot 이 최근 95일만 남기고 재생성하므로, 과거분은
+// revenue-daily-archive.json 에서 합쳐 읽는다 (화면의 ensureRevenue 와 같은 방식).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,8 +33,17 @@ const OUT = arg('--out') || path.join(ROOT, `PBG_주간회의_${MEET}.pptx`);
 // ── 기간 잡기 ────────────────────────────────────────────────────────────
 // 주간: 회의일 직전 월요일부터 일요일까지. 월간: 회의일이 속한 달의 1일부터.
 // 데이터가 아직 없는 날은 뒤에서 잘라낸다(매출 수집이 하루 늦게 붙는다).
-const daily = JSON.parse(fs.readFileSync(path.join(ROOT, 'revenue-daily.json'), 'utf8')).daily;
-const rows = Object.fromEntries(daily.map((r) => [r.date, r]));
+const _cur = JSON.parse(fs.readFileSync(path.join(ROOT, 'revenue-daily.json'), 'utf8')).daily;
+let _arch = null;
+try { _arch = JSON.parse(fs.readFileSync(path.join(ROOT, 'revenue-daily-archive.json'), 'utf8')); } catch (e) {}
+const _by = {};
+if (_arch) for (const r of _arch.daily || []) _by[r.date] = { ...r };
+for (const r of _cur) _by[r.date] = { ..._by[r.date], ...r };
+if (_arch) for (const [d, v] of Object.entries(_arch.members || {})) {
+  if (_by[d]) for (const [k, val] of Object.entries(v)) if (_by[d][k] == null) _by[d][k] = val;
+}
+const daily = Object.keys(_by).sort().map((d) => _by[d]);
+const rows = _by;
 const lastData = daily[daily.length - 1].date;
 
 const dow = new Date(MEET + 'T00:00:00Z').getUTCDay();           // 0=일
@@ -84,6 +94,13 @@ function teamAgg(file) {
   const d = JSON.parse(fs.readFileSync(file, 'utf8'));
   const mapPath = path.join(ROOT, 'supplier-managers.json');
   const m = JSON.parse(fs.readFileSync(mapPath, 'utf8')).suppliers;
+  // 화면에서 고친 값(워커 KV 오버레이)을 같이 얹는다. 안 얹으면 자료가 대시보드와 어긋난다
+  // — 자체공급(S0000000)처럼 담당자를 화면에서 옮긴 건이 여기서만 옛 값으로 잡힌다.
+  const ovf = arg('--overlay');
+  if (ovf && fs.existsSync(ovf)) {
+    const ov = JSON.parse(fs.readFileSync(ovf, 'utf8')).overrides || {};
+    for (const [code, v] of Object.entries(ov)) m[code] = { ...(m[code] || {}), mgr: v.mgr, cat: v.cat };
+  }
   const by = {};
   for (const s of d.suppliers || []) {
     const i = m[s.code] || {};
@@ -102,6 +119,10 @@ function teamAgg(file) {
   return { teams, mgrs: Object.entries(by).map(([k, v]) => [k, v.amt]).sort((a, b) => b[1] - a[1]) };
 }
 const TC = teamAgg(arg('--sup-cur')), TP = teamAgg(arg('--sup-prev'));
+
+// 검색 개편 현황 (없으면 해당 슬라이드를 건너뛴다)
+const SRfile = arg('--search');
+const SR = SRfile && fs.existsSync(SRfile) ? JSON.parse(fs.readFileSync(SRfile, 'utf8')) : null;
 
 // ── 슬라이드 ─────────────────────────────────────────────────────────────
 const INK = '1B1E23', MUTE = '8B95A1', LINE = 'E5E8EB', BG = 'F7F8F9';
@@ -204,6 +225,79 @@ function statCard(s, x, y, w, label, value, delta, note) {
        showValue: false, showLegend: true, legendPos: 'b', legendFontSize: 11,
        catAxisLabelColor: MUTE, valAxisLabelColor: MUTE, catAxisLabelFontSize: 10, valAxisLabelFontSize: 10,
        valGridLine: { color: LINE, size: 1 }, catGridLine: { style: 'none' } });
+}
+
+// 3-2. 검색 개편 현황
+if (SR) {
+  const s = pres.addSlide();
+  s.background = { color: BG };
+  title(s, '검색 개편 현황', `${SR.revampDate} 전환  ·  개편 전(${SR.before.label}) vs 개편 후(${SR.after.label})`);
+
+  const ms = Object.entries(SR.monthly);
+  s.addChart(pres.ChartType.bar, [
+    { name: '새 검색', labels: ms.map((m) => m[0]), values: ms.map((m) => m[1].new) },
+    { name: '기존 검색', labels: ms.map((m) => m[0]), values: ms.map((m) => m[1].old) },
+  ], { x: 0.7, y: 1.75, w: 6.6, h: 4.3, barDir: 'col', barGrouping: 'stacked',
+       chartColors: [ART, 'C9D2DB'], showTitle: true, title: '검색 페이지뷰 (월별)',
+       titleFontSize: 13, titleColor: INK, showValue: true, dataLabelPosition: 'ctr',
+       dataLabelFontSize: 9, dataLabelColor: 'FFFFFF', showLegend: true, legendPos: 'b', legendFontSize: 11,
+       catAxisLabelColor: MUTE, valAxisLabelColor: MUTE, catAxisLabelFontSize: 11, valAxisLabelFontSize: 10,
+       valGridLine: { color: LINE, size: 1 }, catGridLine: { style: 'none' } });
+
+  const B = SR.before, A = SR.after;
+  const items = [
+    ['검색 결과 조회', B.searchEvents, A.searchEvents],
+    ['검색한 사용자', B.searchUsers, A.searchUsers],
+    ['고유 검색어', B.uniqueTerms, A.uniqueTerms],
+    ['전체 세션', B.sessions, A.sessions],
+  ];
+  let y = 1.9;
+  for (const [lab, x1, y1] of items) {
+    const p = pct(y1, x1);
+    s.addText(lab, { x: 7.7, y, w: 2.3, h: 0.3, fontSize: 14, color: INK, fontFace: 'Calibri',
+                     isTextBox: true, margin: 0 });
+    s.addText(`${x1.toLocaleString('ko-KR')} → ${y1.toLocaleString('ko-KR')}`,
+      { x: 7.7, y: y + 0.32, w: 3.2, h: 0.3, fontSize: 12, color: MUTE, fontFace: 'Calibri',
+        isTextBox: true, margin: 0 });
+    s.addText(sign(p), { x: 11.0, y: y + 0.05, w: 1.6, h: 0.42, fontSize: 18, bold: true, align: 'right',
+      color: Math.abs(p) < 2 ? MUTE : (p >= 0 ? UP : DOWN), fontFace: 'Calibri', isTextBox: true, margin: 0 });
+    y += 0.95;
+  }
+  s.addText('세션은 그대로인데 검색만 줄었다 — 검색을 시작하는 사람이 줄어든 것이다.',
+    { x: 7.7, y: 5.75, w: 4.9, h: 0.5, fontSize: 12, color: INK, fontFace: 'Calibri', isTextBox: true, margin: 0 });
+  s.addNotes(`페이지뷰와 검색 이벤트 수가 일치해 측정 자체는 정상입니다. 실제로 검색량이 줄었습니다.`);
+}
+
+// 3-3. 검색 개편 이후 무엇이 달라졌나
+if (SR) {
+  const s = pres.addSlide();
+  s.background = { color: BG };
+  title(s, '검색 개편 이후', '줄어든 것과 좋아진 것을 같이 본다');
+  const B = SR.before, A = SR.after;
+  const w = 2.86, gap = 0.22;
+  [
+    ['광고 랜딩 검색', A.ad.toLocaleString('ko-KR'), pct(A.ad, B.ad), `전 ${B.ad.toLocaleString('ko-KR')}`],
+    ['실제 검색', A.real.toLocaleString('ko-KR'), pct(A.real, B.real), `전 ${B.real.toLocaleString('ko-KR')}`],
+    ['장바구니 담기', A.addToCart.toLocaleString('ko-KR'), pct(A.addToCart, B.addToCart), `전 ${B.addToCart.toLocaleString('ko-KR')}`],
+    ['구매', A.purchase.toLocaleString('ko-KR'), pct(A.purchase, B.purchase), `전 ${B.purchase.toLocaleString('ko-KR')}`],
+  ].forEach((c, i) => statCard(s, 0.7 + i * (w + gap), 1.75, w, ...c));
+
+  const perB = B.searchUsers ? B.searchEvents / B.searchUsers : 0;
+  const perA = A.searchUsers ? A.searchEvents / A.searchUsers : 0;
+  s.addText([
+    { text: `검색하는 사람은 줄었지만 1인당 검색 횟수는 ${perB.toFixed(1)}회 → ${perA.toFixed(1)}회로 늘었다.`,
+      options: { bullet: true, breakLine: true } },
+    { text: `고유 검색어는 ${B.uniqueTerms.toLocaleString('ko-KR')} → ${A.uniqueTerms.toLocaleString('ko-KR')} 로 거의 그대로다 — 찾는 대상이 좁아진 게 아니라 검색 진입이 줄었다.`,
+      options: { bullet: true, breakLine: true } },
+    { text: `장바구니 담기는 ${sign(pct(A.addToCart, B.addToCart))} 늘었다. 검색이 줄어든 만큼 다른 경로가 받쳐준 것으로 보인다.`,
+      options: { bullet: true } },
+  ], { x: 0.7, y: 4.0, w: 12, h: 1.7, fontSize: 14, color: INK, fontFace: 'Calibri',
+       isTextBox: true, paraSpaceAfter: 9, margin: 0 });
+
+  s.addText('실제 검색어 상위 (개편 전 → 후)', { x: 0.7, y: 5.75, w: 6, h: 0.3, fontSize: 12, bold: true,
+    color: MUTE, fontFace: 'Calibri', isTextBox: true, margin: 0 });
+  s.addText(`${B.topReal.slice(0, 5).join(' · ')}   →   ${A.topReal.slice(0, 5).join(' · ')}`,
+    { x: 0.7, y: 6.08, w: 12, h: 0.4, fontSize: 13, color: INK, fontFace: 'Calibri', isTextBox: true, margin: 0 });
 }
 
 // 4. 카테고리
