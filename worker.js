@@ -268,6 +268,34 @@ var worker_default = {
           }, 200);
         }
       }
+      // [2026-09-28] GA4 임의 조회 진단용. 화면 탭이 주는 집계로는 확인이 안 되는
+      // 교차(예: 랜딩페이지 × 캠페인)를 확인할 때 쓴다. 다 쓰면 지울 것.
+      //   ?tab=ga4probe&dims=landingPagePlusQueryString,sessionCampaignName&mets=sessions&contains=search
+      if (q.get("tab") === "ga4probe") {
+        const dims = (q.get("dims") || "landingPagePlusQueryString").split(",").map((n) => ({ name: n.trim() }));
+        const mets = (q.get("mets") || "sessions").split(",").map((n) => ({ name: n.trim() }));
+        const body = {
+          dateRanges: [{ startDate: ranges.after.start, endDate: ranges.after.end }],
+          dimensions: dims,
+          metrics: mets,
+          limit: Number(q.get("limit") || 50),
+          orderBys: [{ metric: { metricName: mets[0].name }, desc: true }]
+        };
+        const c = q.get("contains");
+        if (c) {
+          body.dimensionFilter = { filter: { fieldName: dims[0].name,
+            stringFilter: { matchType: "CONTAINS", value: c, caseSensitive: false } } };
+        }
+        try {
+          const rows = await runReport(propertyId, token, body);
+          return json({ dims: dims.map((d) => d.name), mets: mets.map((m) => m.name), count: rows.length,
+            rows: rows.map((r) => ({ d: (r.dimensionValues || []).map((v) => v.value),
+                                     m: (r.metricValues || []).map((v) => v.value) })) }, 200);
+        } catch (e) {
+          return json({ error: String(e && e.message || e) }, 200);
+        }
+      }
+
       if (q.get("tab") === "activeusers") {
         const au = await buildActiveUsers(propertyId, token, q.get("autoExclLowEngagement") === "1", q.get("excl"));
         return jsonCached(au, 200);
