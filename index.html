@@ -2247,26 +2247,54 @@ async function loadSearchTerms(){
     const cmpOn=$('cmp').checked && prev && prev.rows;
     const prevMap={}; if(cmpOn) prev.rows.forEach(p=>prevMap[p.term]=p);
 
-    const rows=cur.rows;
+    // [2026-09-28] 광고가 검색 결과 페이지를 랜딩으로 쓴다. 그래서 내부 검색의 상당수는
+    // 사용자가 친 검색이 아니라 광고가 만든 것이고, 둘을 섞으면 '많이 찾는 것' 이 캠페인
+    // 편성에 따라 흔들린다. 실측: 전체 1위 '일상이상' 은 광고 쪽 2,660 회가 만든 것이고
+    // 실제 검색에서는 3위로 내려간다. 상품 기획에 쓸 신호는 '실제 검색' 쪽이다.
+    const SRC_KEY='pbg_searchsrc';
+    let SRC='real';
+    try{ SRC=localStorage.getItem(SRC_KEY)||'real'; }catch(e){}
+    if(!cur[SRC] && SRC!=='all') SRC='all';                      // 워커가 옛 응답이면 전체로
+    const pick=(o)=> (SRC==='all'||!o||!o[SRC]) ? o : o[SRC];
+    const curP=pick(cur), prevP=cmpOn?pick(prev):null;
+    if(cmpOn && prevP && prevP.rows){ for(const k in prevMap) delete prevMap[k]; prevP.rows.forEach(p=>prevMap[p.term]=p); }
+
+    const rows=(curP&&curP.rows)||[];
+    if(!rows.length){
+      wrap.innerHTML='<div class="funnel"><div class="state">이 구분에는 검색어가 없습니다.</div></div>';
+      return;
+    }
     const maxV=Math.max(...rows.map(x=>x.searches),1);
-    const totSearch=cur.totalSearches||rows.reduce((a,b)=>a+b.searches,0);
-    const uniq=cur.uniqueTerms||rows.length;
+    const totSearch=(curP&&curP.totalSearches)||rows.reduce((a,b)=>a+b.searches,0);
+    const uniq=(curP&&curP.uniqueTerms)||rows.length;
 
     // 전체 검색어 CSV 내려받기. 화면은 상위 50개만 보여주므로, 전수는 워커가 직접
     // 파일로 내려준다(BOM 포함이라 엑셀에서 한글이 안 깨짐).
     const csvUrl = WORKER+'/?'+q()+'&tab=searchtermscsv'+authQS();
 
-    let h=`<div class="section-block">
+    const nAll=cur.totalSearches||0, nAd=(cur.ad&&cur.ad.totalSearches)||0, nReal=(cur.real&&cur.real.totalSearches)||0;
+    const TABS_SRC=[['real','실제 검색',nReal],['ad','광고 랜딩',nAd],['all','전체',nAll]];
+    let h='';
+    if(cur.ad||cur.real){
+      h+='<div class="preset-btns" id="searchSrcBtns" style="margin-bottom:12px;">'
+        + TABS_SRC.map(([k,lab,n])=>`<button data-src="${k}" class="${k===SRC?'active':''}">${lab} ${fmt(n)}회</button>`).join('')
+        + '</div>';
+      h+=`<p class="sec-desc" style="margin:-4px 0 12px;">광고가 검색 결과 페이지를 랜딩으로 씁니다. `
+        + `그래서 '광고 랜딩' 은 사용자가 친 검색이 아니라 캠페인이 만든 것입니다 — `
+        + `상품 기획에 쓸 신호는 '실제 검색' 쪽입니다.</p>`;
+    }
+    h+=`<div class="section-block">
       <div class="section-block-head">
-        <span class="section-dot" style="background:#3182F6;"></span>
-        <span class="section-block-title">검색어 상위 ${rows.length}개</span>
+        <span class="section-dot" style="background:${SRC==='ad'?'#FF9500':'#3182F6'};"></span>
+        <span class="section-block-title">${SRC==='ad'?'광고 랜딩':SRC==='all'?'전체':'실제 검색'} 상위 ${rows.length}개</span>
         <span class="section-block-total">검색 ${fmt(totSearch)}회 · 고유 검색어 ${fmt(uniq)}개</span>
-        <a class="csv-btn" href="${csvUrl}" download>전체 ${fmt(uniq)}개 엑셀 다운로드</a>
+        <a class="csv-btn" href="${csvUrl}" download>전체 ${fmt(cur.uniqueTerms||uniq)}개 엑셀 다운로드</a>
       </div>`;
 
     h+=rows.map(x=>{
       const w=Math.max(x.searches/maxV*100,3);
       const share=totSearch?(x.searches/totSearch*100):0;
+      const barC=(SRC==='ad')?'#FF9500':'#3182F6';
       let cmpHtml='';
       if(cmpOn){
         const p=prevMap[x.term];
@@ -2277,7 +2305,7 @@ async function loadSearchTerms(){
       return `<div class="slotbar-row">
         <div><span class="slotbar-name" style="cursor:default;">${esc(x.term)}</span>
           <div class="slotbar-meta">사용자 ${fmt(x.users)}명 · 점유 ${share.toFixed(1)}%</div>${cmpHtml}</div>
-        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:#3182F6;"></div></div>
+        <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${barC};"></div></div>
         <div><div class="slotbar-val">${fmt(x.searches)}</div><div class="slotbar-sub">검색</div></div>
       </div>`;
     }).join('');
@@ -2296,6 +2324,12 @@ async function loadSearchTerms(){
       h+='<p class="sec-desc">맞춤 측정기준 <b>customEvent:search_term</b> 기준으로 집계했습니다.</p>';
     }
     wrap.innerHTML=h;
+    const sb=document.getElementById('searchSrcBtns');
+    if(sb) sb.addEventListener('click',(e)=>{
+      const b=e.target.closest('button'); if(!b) return;
+      try{ localStorage.setItem(SRC_KEY, b.dataset.src); }catch(err){}
+      loadSearchTerms();
+    });
   }catch(e){ wrap.innerHTML='<div class="funnel"><div class="state">검색어를 불러오지 못했습니다</div></div>'; }
 }
 

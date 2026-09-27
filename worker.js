@@ -1892,7 +1892,7 @@ async function buildSearchTerms(propertyId, token, startDate, endDate, exclRaw, 
     try {
       rows = await runReport(propertyId, token, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: dim }],
+        dimensions: [{ name: dim }, { name: "sessionSourceMedium" }],
         metrics: [{ name: "eventCount" }, { name: "activeUsers" }],
         dimensionFilter: andFilters(exclFilter, eventFilter),
         orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
@@ -1903,21 +1903,43 @@ async function buildSearchTerms(propertyId, token, startDate, endDate, exclRaw, 
       console.log(`[\uAC80\uC0C9\uC5B4] ${dim} \uC870\uD68C \uC2E4\uD328: ` + (e && e.message || e));
       continue;
     }
-    const all = rows.map((r) => ({
-      term: (r.dimensionValues[0].value || "").trim(),
-      searches: Number(r.metricValues[0].value),
-      users: Number(r.metricValues[1].value)
-    })).filter((x) => x.term && x.term !== "(not set)" && x.term !== "(other)");
+    // [2026-09-28] 광고가 검색 결과 페이지를 랜딩으로 쓰기 때문에, 내부 검색의 절반 이상이
+    // 사용자가 친 검색이 아니라 광고가 만든 것이다(실측 51.8%). 둘을 섞으면 '많이 찾는 것' 이
+    // 캠페인 편성에 따라 흔들려 상품 기획 신호로 못 쓴다. 그래서 소스별로 나눠 함께 내려준다.
+    const bucketOf = (sm) => {
+      const x = (sm || "").toLowerCase();
+      return (x.includes("paid") || x.includes("cpc") || x.includes("ads")
+           || x.includes("display") || x.includes("brandmessage")) ? "ad" : "real";
+    };
+    const acc = {};
+    for (const r of rows) {
+      const term = (r.dimensionValues[0].value || "").trim();
+      if (!term || term === "(not set)" || term === "(other)") continue;
+      const b = bucketOf(r.dimensionValues[1].value);
+      const a = acc[term] || (acc[term] = { term, searches: 0, users: 0, ad: 0, real: 0 });
+      const ev = Number(r.metricValues[0].value), us = Number(r.metricValues[1].value);
+      a.searches += ev; a.users += us; a[b] += ev;
+    }
+    const all = Object.values(acc).sort((x, y) => y.searches - x.searches);
     if (!all.length) continue;
+    const adRows = all.filter((x) => x.ad > 0)
+      .map((x) => ({ term: x.term, searches: x.ad, users: x.users })).sort((x, y) => y.searches - x.searches);
+    const realRows = all.filter((x) => x.real > 0)
+      .map((x) => ({ term: x.term, searches: x.real, users: x.users })).sort((x, y) => y.searches - x.searches);
+    const sum = (a) => a.reduce((t, b) => t + b.searches, 0);
     console.log(`[\uAC80\uC0C9\uC5B4] ${dim} \uC0AC\uC6A9 \xB7 \uACE0\uC720 ${all.length}\uAC1C \xB7 \uCD1D ${all.reduce((a, b) => a + b.searches, 0)}\uD68C`);
     return {
       dimUsed: dim,
       rows: all.slice(0, cap),
       uniqueTerms: all.length,
-      totalSearches: all.reduce((a, b) => a + b.searches, 0)
+      totalSearches: all.reduce((a, b) => a + b.searches, 0),
+      ad: { rows: adRows.slice(0, cap), uniqueTerms: adRows.length, totalSearches: sum(adRows) },
+      real: { rows: realRows.slice(0, cap), uniqueTerms: realRows.length, totalSearches: sum(realRows) }
     };
   }
-  return { dimUsed: null, rows: [], uniqueTerms: 0, totalSearches: 0 };
+  return { dimUsed: null, rows: [], uniqueTerms: 0, totalSearches: 0,
+           ad: { rows: [], uniqueTerms: 0, totalSearches: 0 },
+           real: { rows: [], uniqueTerms: 0, totalSearches: 0 } };
 }
 __name(buildSearchTerms, "buildSearchTerms");
 async function buildAcquisition(propertyId, token, startDate, endDate, exclRaw, autoExclLowEngagement) {
