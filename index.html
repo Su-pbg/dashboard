@@ -991,14 +991,34 @@ function healthCard(title, desc){
 }
 
 // 매출 파일을 한 번만 읽어오는 공통 함수 (동시에 여러 곳에서 불려도 요청은 1번만 나감)
+//
+// [2026-09-28] revenue-daily.json 은 slackbot 자동 커밋이 최근 95일만 남기고 매일
+// 재생성한다. 2026-09-22 에 2025년 전체와 totalMembers 621일치가 그렇게 사라졌다.
+// 그 레포를 못 고치므로 과거분은 revenue-daily-archive.json 에 따로 보관하고,
+// 여기서 둘을 합쳐 쓴다. 이게 없으면 화면에서 전년 비교가 통째로 빈다.
+//   - daily  : 아카이브가 앞, 현재 파일이 뒤. 날짜가 겹치면 현재 파일이 이긴다(최신).
+//   - members: 회원 필드는 현재 파일에서 지워졌으므로 아카이브 값을 채워 넣는다.
+// 아카이브를 못 읽어도 현재 파일만으로 동작한다 (조회 범위만 좁아진다).
 let REVENUE_LOADING=null;
 async function ensureRevenue(){
   if(REVENUE_CACHE) return REVENUE_CACHE;
   if(!REVENUE_LOADING){
-    REVENUE_LOADING = fetch('./revenue-daily.json',{cache:'no-store'})
-      .then(r=>r.json())
-      .then(j=>{ REVENUE_CACHE=j; REVENUE_LOADING=null; return j; })
-      .catch(e=>{ REVENUE_LOADING=null; throw e; });
+    REVENUE_LOADING = Promise.all([
+      fetch('./revenue-daily.json',{cache:'no-store'}).then(r=>r.json()),
+      fetch('./revenue-daily-archive.json',{cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+    ]).then(([j,a])=>{
+      if(a){
+        const byDate={};
+        for(const r of (a.daily||[])) byDate[r.date]={...r};
+        for(const r of (j.daily||[])) byDate[r.date]={...(byDate[r.date]||{}), ...r};
+        const mem=a.members||{};
+        for(const [d,v] of Object.entries(mem)){
+          if(byDate[d]) for(const [k,val] of Object.entries(v)) if(byDate[d][k]==null) byDate[d][k]=val;
+        }
+        j={...j, daily:Object.keys(byDate).sort().map(d=>byDate[d]), archived:true};
+      }
+      REVENUE_CACHE=j; REVENUE_LOADING=null; return j;
+    }).catch(e=>{ REVENUE_LOADING=null; throw e; });
   }
   return REVENUE_LOADING;
 }
