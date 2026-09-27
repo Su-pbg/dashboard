@@ -69,6 +69,40 @@ var worker_default = {
       if (!keyOk && !tokOk) {
         return json({ error: "\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." }, 403);
       }
+      // ===== 공급사 담당자·구분 오버레이 =====
+      // [2026-09-28] supplier-managers.json 은 GitHub Pages 의 정적 파일이라 화면에서 고칠 수 없다.
+      // 거래처 LIST 를 사람이 채울 때까지 기다리는 대신, 대시보드에서 입력한 값을 KV 에 얹는다.
+      // 읽을 때 정적 파일 위에 이 오버레이를 덮어쓴다 — 원본 파일은 건드리지 않는다.
+      // 날짜 파라미터 검사와 응답 캐시보다 앞에 둔다. 기간과 무관하고, 저장 직후 바로 보여야 한다.
+      // ponytail: 맵 전체를 키 하나에 둔다. 동시에 두 사람이 저장하면 나중 것이 이긴다.
+      //           편집이 잦아지면 공급사코드별 키로 쪼갤 것.
+      if (url.pathname === "/supplier-map") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        const SUPMAP_KEY = "suppliermap:v1";
+        if (request.method === "GET") {
+          const raw = await kv0.get(SUPMAP_KEY);
+          return json({ overrides: raw ? JSON.parse(raw) : {} });
+        }
+        if (request.method === "POST") {
+          let b = {};
+          try { b = await request.json(); } catch (e) { /* 본문 없음 = 빈 요청 */ }
+          const code = String(b.code || "").trim();
+          if (!/^[A-Za-z0-9_-]{1,32}$/.test(code)) {
+            return json({ error: "공급사코드가 올바르지 않습니다" }, 400);
+          }
+          const mgr = String(b.mgr || "").trim().slice(0, 40);
+          const cat = String(b.cat || "").trim().slice(0, 20);
+          const raw = await kv0.get(SUPMAP_KEY);
+          const map = raw ? JSON.parse(raw) : {};
+          if (!mgr && !cat) delete map[code];
+          else map[code] = { mgr: mgr || null, cat: cat || null, at: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10) };
+          await kv0.put(SUPMAP_KEY, JSON.stringify(map));
+          return json({ ok: true, code, saved: map[code] || null, count: Object.keys(map).length });
+        }
+        return json({ error: "지원하지 않는 메서드" }, 405);
+      }
+
       const ranges = {
         before: { start: q.get("bs"), end: q.get("be") },
         after: { start: q.get("as"), end: q.get("ae") }

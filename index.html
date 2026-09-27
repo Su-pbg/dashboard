@@ -156,6 +156,10 @@
   .row-toggle .chev{display:inline-block;transition:transform .15s;}
   .slotbar-item.open .row-toggle .chev{transform:rotate(180deg);}
   .row-detail{display:none;padding:0 0 10px 0;}
+  .sup-edit{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0 4px;}
+  .sup-edit input,.sup-edit select{font-size:13px;font-family:var(--sans);border:1px solid var(--hair);
+    background:var(--surface);border-radius:var(--r-ctrl);padding:7px 10px;min-width:120px;}
+  .sup-edit .sup-msg{font-size:12px;color:var(--muted);}
   .slotbar-item.open .row-detail{display:block;}
   .row-detail .slotbar-meta{white-space:normal;overflow:visible;text-overflow:clip;}
   /* 쿠폰명별 내역 (할인 종류별 > 쿠폰 행을 펼쳤을 때) */
@@ -1962,14 +1966,45 @@ function renderFunnel(d){
 // 그 시트는 1~2월이 없고 달마다 탭 구조가 달라 기준이 흔들렸고, 브랜드명을 글자로
 // 맞추다 보니 담당 25개인 사람에게 42개가 붙는 식의 오탐도 났다.
 // 이제 cafe24 주문 품목의 supplier_code(유일값)로 바로 잇는다 — 글자 매칭이 없다.
-let SUPMAP=null;
-async function supplierMap(){
-  if(SUPMAP) return SUPMAP;
-  try{
-    const r=await fetch('supplier-managers.json',{cache:'no-store'});
-    SUPMAP=(await r.json()).suppliers||{};
-  }catch(e){ SUPMAP={}; }
+// [2026-09-28] supplier-managers.json 은 정적 파일이라 화면에서 못 고친다.
+// 거래처 LIST 가 채워지기를 기다리는 대신, 대시보드에서 입력한 값을 워커 KV 에 얹고
+// 읽을 때 정적 파일 위에 덮어쓴다. 원본 파일은 그대로 둔다.
+let SUPMAP=null, SUPMGRS=[];
+async function supplierMap(force){
+  if(SUPMAP && !force) return SUPMAP;
+  let base={}, over={};
+  try{ base=(await (await fetch('supplier-managers.json',{cache:'no-store'})).json()).suppliers||{}; }catch(e){}
+  try{ over=(await (await fetch(WORKER+'/supplier-map',{cache:'no-store',headers:authHeaders()})).json()).overrides||{}; }catch(e){}
+  SUPMAP={};
+  for(const [k,v] of Object.entries(base)) SUPMAP[k]={...v};
+  for(const [k,v] of Object.entries(over)){
+    const b=SUPMAP[k]||(SUPMAP[k]={});
+    if(v.mgr) b.mgr=v.mgr;
+    if(v.cat) b.cat=v.cat;
+    b.edited=v.at||true;
+  }
+  SUPMGRS=[...new Set(Object.values(SUPMAP).map(v=>v.mgr).filter(Boolean))].sort();
   return SUPMAP;
+}
+
+// 미지정 공급사에 담당자·구분을 지정한다. 빈 값으로 저장하면 지정이 풀린다.
+async function saveSupplier(btn, code){
+  const box=btn.closest('.sup-edit');
+  const mgr=box.querySelector('.sup-mgr').value.trim();
+  const cat=box.querySelector('.sup-cat').value.trim();
+  const msg=box.querySelector('.sup-msg');
+  btn.disabled=true; msg.textContent='저장 중…'; msg.style.color='#8B95A1';
+  try{
+    const r=await fetch(WORKER+'/supplier-map',{method:'POST',
+      headers:{'Content-Type':'application/json',...authHeaders()},
+      body:JSON.stringify({code,mgr,cat})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error) throw new Error(j.error||'저장 실패');
+    await supplierMap(true);
+    await loadManagerTab();
+  }catch(e){
+    btn.disabled=false; msg.textContent=e.message||'저장 실패'; msg.style.color='#F04452';
+  }
 }
 async function loadManagerTab(){
   $('content').innerHTML='<div id="managerWrap"><div class="state"><div class="spinner"></div>담당자별 실적 불러오는 중…</div></div>';
@@ -2088,12 +2123,28 @@ async function loadManagerTab(){
         +`${noCat?` · 이 중 ${fmt(noCat)}곳은 아트/라이프 구분도 없습니다`:''}`
         +` — 거래처 LIST에 담당자와 구분을 채우면 위 팀 집계로 올라갑니다</p>`;
       const us=un.brands.slice().sort((a,b)=>b.amount-a.amount);
-      h+='<div class="section-block">'+us.map(x=>`<div class="slotbar-row">
-        <div><span class="slotbar-name" style="cursor:default;">${x.name}</span>
+      // 여기서 바로 담당자·구분을 지정할 수 있다 (거래처 LIST 를 고치지 않아도 된다).
+      // 입력한 값은 워커 KV 에 저장돼 대시보드를 보는 모두에게 같이 적용된다.
+      h+=`<datalist id="mgrCandidates">${SUPMGRS.map(m=>`<option value="${m}">`).join('')}</datalist>`;
+      h+='<div class="section-block">'+us.map(x=>{
+        const summary=`<div class="slotbar-row">
+        <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${x.name}</span>${rowToggleBtn()}</div>
           <div class="slotbar-meta">${x.code} · ${x.cat||'<span style="color:#FF9500;">구분 미지정</span>'} · 주문 ${fmt(x.orders)}건${x.cq?` · 취소 ${fmt(x.cq)}개`:''}</div></div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${Math.max(x.amount/(us[0].amount||1)*100,3)}%;background:#FF9500;"></div></div>
         <div><div class="slotbar-val">${won(x.amount)}</div><div class="slotbar-sub">${fmt(x.qty)}개</div></div>
-      </div>`).join('')+'</div>';
+      </div>`;
+        const edit=`<div class="sup-edit">
+          <input class="sup-mgr" list="mgrCandidates" placeholder="담당자" value="${x.mgr||''}">
+          <select class="sup-cat">
+            <option value="">구분 선택</option>
+            <option value="아트"${x.cat==='아트'?' selected':''}>아트</option>
+            <option value="라이프"${x.cat==='라이프'?' selected':''}>라이프</option>
+          </select>
+          <button class="row-toggle" onclick="saveSupplier(this,'${x.code}')">저장</button>
+          <span class="sup-msg"></span>
+        </div>`;
+        return rowItem(summary, edit);
+      }).join('')+'</div>';
     }
     h+=`<p class="sec-desc" style="margin-top:14px;">기간 ${from} ~ ${to} · 주문 ${fmt(dd.orderCount)}건 · 품목 ${fmt(dd.lineCount)}행`
       +`${dd.supplierUnresolved?` · 공급사 미해석 ${fmt(dd.supplierUnresolved)}행`:''}</p>`;
