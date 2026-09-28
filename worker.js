@@ -296,6 +296,120 @@ var worker_default = {
         }
       }
 
+      // [2026-09-28] 이벤트 기반 퍼널. "검색한 사람이 샀는가" 처럼 세션 안의 순서를
+      // 봐야 하는 질문은 runReport 로 못 푼다(이벤트 스코프라 교집합이 안 나온다).
+      // runFunnelReport 는 단계별로 남은 사용자 수를 주므로 귀속 없이도 전환을 셀 수 있다.
+      //   ?tab=funnelprobe&steps=view_search_results,view_item,add_to_cart,purchase
+      if (q.get("tab") === "funnelprobe") {
+        const names = (q.get("steps") || "view_search_results,view_item,add_to_cart,purchase")
+          .split(",").map((x) => x.trim()).filter(Boolean);
+        const body = {
+          dateRanges: [{ startDate: ranges.after.start, endDate: ranges.after.end }],
+          funnel: { steps: names.map((n) => ({ name: n,
+            filterExpression: { funnelEventFilter: { eventName: n } } })) },
+          funnelVisualizationType: "STANDARD_FUNNEL"
+        };
+        // 같은 퍼널을 차원별로 쪼갠다. 유입 경로별 전환 차이를 보려면 이게 필요하다.
+        //   &by=sessionSourceMedium  ·  &by=deviceCategory  ·  &by=newVsReturning
+        const by = q.get("by");
+        if (by) body.funnelBreakdown = { breakdownDimension: { name: by }, limit: Number(q.get("bylimit") || 12) };
+        const r = await fetch(
+          `https://analyticsdata.googleapis.com/v1alpha/properties/${propertyId}:runFunnelReport`,
+          { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body) }
+        );
+        const j = await r.json();
+        if (j.error) return json({ error: "GA4 퍼널: " + j.error.message }, 200);
+        const rows = (j.funnelTable && j.funnelTable.rows) || [];
+        const out = rows.map((x) => ({
+          step: (x.dimensionValues || []).map((v) => v.value),
+          users: Number(((x.metricValues || [])[0] || {}).value || 0),
+          rate: Number(((x.metricValues || [])[1] || {}).value || 0)
+        }));
+        return json({ steps: names, by: by || null, rows: out }, 200);
+      }
+
+      // [2026-09-28] cate_no → 카테고리명 지도. GA4 itemCategory 가 카테고리 번호로
+      // 들어오는데 이름이 없어 작가관별 성과를 읽을 수 없었다. 스토어프론트 API 는
+      // client-id 만으로 카테고리를 내주므로 관리자 스코프가 필요 없다.
+      if (q.get("tab") === "catnames") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        const CKEY = "catnames:v1";
+        if (kv0 && q.get("nocache") !== "1") {
+          try {
+            const c = await kv0.get(CKEY);
+            if (c) return json({ cached: true, names: JSON.parse(c) }, 200);
+          } catch (e) {}
+        }
+        const cid = env.CAFE24_ADMIN_CLIENT_ID;
+        if (!cid) return json({ error: "CAFE24_ADMIN_CLIENT_ID 없음" }, 200);
+        const names = {};
+        let offset = 0;
+        for (let i = 0; i < 12; i++) {
+          const r = await fetch(
+            `https://${env.CAFE24_MALL_ID}.cafe24api.com/api/v2/categories?limit=100&offset=${offset}`,
+            { headers: { "X-Cafe24-Client-Id": cid, "Content-Type": "application/json" } }
+          );
+          if (!r.ok) {
+            return json({ error: `카테고리 조회 ${r.status}`, body: (await r.text()).slice(0, 200), names }, 200);
+          }
+          const j = await r.json();
+          const arr = j.categories || [];
+          for (const c of arr) {
+            const full = c.full_category_name && (c.full_category_name["1"] || "");
+            names[String(c.category_no)] = { name: c.category_name || "", top: full || "" };
+          }
+          if (arr.length < 100) break;
+          offset += 100;
+        }
+        if (kv0) { try { await kv0.put(CKEY, JSON.stringify(names), { expirationTtl: 86400 }); } catch (e) {} }
+        return json({ cached: false, count: Object.keys(names).length, names }, 200);
+      }
+
+      // [2026-09-28] 구매까지 간 사람을 '어떻게 왔는가' 로 나눠 보는 퍼널.
+      // runReport 로는 못 한다 — 이벤트 스코프라 "검색도 하고 구매도 한 사람" 의 교집합이
+      // 안 나온다. runFunnelReport 는 단계별로 남은 사용자를 세므로 귀속 없이 전환을 잰다.
+      //   search  : 검색 → 상품조회 → 담기 → 구매
+      //   browse  : 상품조회 → 담기 → 구매 (검색 단계 없음)
+      //   bySource: 검색 퍼널을 유입 경로별로 분해 (광고 랜딩 허수를 가려내기 위함)
+      if (q.get("tab") === "buyerpath") {
+        const runF = async (steps, by) => {
+          const body = {
+            dateRanges: [{ startDate: ranges.after.start, endDate: ranges.after.end }],
+            funnel: { steps: steps.map((n) => ({ name: n,
+              filterExpression: { funnelEventFilter: { eventName: n } } })) },
+            funnelVisualizationType: "STANDARD_FUNNEL"
+          };
+          if (by) body.funnelBreakdown = { breakdownDimension: { name: by }, limit: 15 };
+          const r = await fetch(
+            `https://analyticsdata.googleapis.com/v1alpha/properties/${propertyId}:runFunnelReport`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify(body) });
+          const j = await r.json();
+          if (j.error) throw new Error(j.error.message);
+          return ((j.funnelTable && j.funnelTable.rows) || []).map((x) => ({
+            d: (x.dimensionValues || []).map((v) => v.value),
+            users: Number(((x.metricValues || [])[0] || {}).value || 0)
+          }));
+        };
+        try {
+          const S = ["view_search_results", "view_item", "add_to_cart", "purchase"];
+          const B = ["view_item", "add_to_cart", "purchase"];
+          const [search, browse, bySrc] = await Promise.all([runF(S), runF(B), runF(S, "sessionSourceMedium")]);
+          const flat = (rows) => rows.map((r) => ({ step: r.d[0], users: r.users }));
+          const grp = {};
+          for (const r of bySrc) {
+            const step = r.d[0], src = r.d[1];
+            if (src === "RESERVED_TOTAL") continue;
+            (grp[src] || (grp[src] = {}))[step] = r.users;
+          }
+          return jsonCached({ period: `${ranges.after.start} ~ ${ranges.after.end}`,
+            search: flat(search), browse: flat(browse), bySource: grp }, 200);
+        } catch (e) {
+          return json({ error: "구매 경로 퍼널 실패: " + String(e && e.message || e) }, 200);
+        }
+      }
+
       if (q.get("tab") === "activeusers") {
         const au = await buildActiveUsers(propertyId, token, q.get("autoExclLowEngagement") === "1", q.get("excl"));
         return jsonCached(au, 200);
