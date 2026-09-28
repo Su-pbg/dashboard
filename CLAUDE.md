@@ -58,7 +58,8 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 - 사람: `POST /login` 에 비번 → 토큰 → `Authorization: Bearer` (파일 받기만 `?t=`)
 - 기계: `?key=<DASHBOARD_KEY>` (하드코딩 폴백 없음. 틀리면 403)
 `tab` = `overview`(기본) / `slots` / `cart` / `segfunnel` / `retention` / `acquisition` /
-`activeusers` / `events` / `metricscsv` / `membercount` / `suppliersales` / `probecustomers`(임시)
+`activeusers` / `events` / `metricscsv` / `membercount` / `suppliersales` / `buyerpath` /
+`catnames` / `cohort` · 진단용(다 쓰면 삭제): `ga4probe` `funnelprobe` `orderstatus` `probecustomers`
 **인식 못 하는 tab 은 조용히 overview 를 돌려준다** (디버깅 시 함정).
 
 ---
@@ -336,6 +337,20 @@ products?limit=1 + 2026-03-01 → 200
 - 워커 서브요청 한도: 무료 플랜 50개. `MEMBER_MAX_POINTS=31` 은 이것 때문.
 
 ---
+
+## 4-1. 대시보드 vs cafe24 관리자 숫자가 다를 때 (2026-09-28 규명)
+
+**셋 다 각자 다른 걸 센다. 버그가 아니라 정의 차이다.** 실측 예: 2026-09-21~27
+
+| 항목 | 차이 | 원인 |
+|---|---|---|
+| GMV | cafe24 가 346만 많음 | **개인결제창.** 대시보드는 타 조직 건을 뺀다(9번 규칙), 관리자는 전부 포함. 그 주 제외분 360만 |
+| 주문 건수 | cafe24 162 · 대시보드 164 · 워커 165 | **결제완료 기준 차이.** 실측 결제완료 163건 + 미결제 2건 = 165건. 관리자 표는 '결제완료 주문' 만 센다 |
+| 환불 | 워커 취소 882만 vs 관리자 환불 481만 | **취소 ≠ 환불.** 상태코드 `C40`(입금 전 취소)은 돈이 나간 적이 없어 환불로 안 잡힌다. `C47`·`C48` 만 실제 환불 |
+| 환불 (미확정) | 대시보드가 관리자보다 89만 적음 | 개인결제창 환불 제외분이거나 환불 인식 시점(주문일 vs 환불일) 차이. `revenue-daily.json` 은 slackbot 이 만들어 이 레포에서 로직을 못 본다 |
+
+- 주문 상태코드: `N**` 정상 진행 · `C**` 취소 · `R**` 반품 · `E**` 교환
+- 진단: `?tab=orderstatus&from=&to=` — 결제 상태별·품목 상태별 집계를 그대로 돌려준다
 
 ## 5. GA4 구좌 귀속 방식
 

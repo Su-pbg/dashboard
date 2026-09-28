@@ -454,6 +454,41 @@ var worker_default = {
         }
       }
 
+      // [2026-09-28] 주문 상태별 집계. cafe24 관리자 '주별 매출내역' 과 대시보드 숫자가
+      // 달라 원인을 가리기 위한 진단. 관리자 표는 '결제완료 주문' 만 세고, 취소와 환불도
+      // 다른 개념이다(결제 전 취소는 환불이 발생하지 않는다).
+      if (q.get("tab") === "orderstatus") {
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const mallId = env.CAFE24_MALL_ID;
+        const from = q.get("from") || ranges.after.start, to = q.get("to") || ranges.after.end;
+        let orders = [];
+        for (let p = 0; p < ORDER_MAX_PAGES; p++) {
+          const j = await cafe24Get(mallId, tok,
+            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=items`,
+            false, env);
+          const arr = j.orders || [];
+          orders = orders.concat(arr);
+          if (arr.length < ORDER_PAGE) break;
+        }
+        const byStatus = {}, byPayStatus = {};
+        let total = 0;
+        for (const o of orders) {
+          total++;
+          const pay = o.paid === "T" ? "결제완료" : (o.paid === "F" ? "미결제" : String(o.paid));
+          const pb = byPayStatus[pay] || (byPayStatus[pay] = { orders: 0, amount: 0 });
+          pb.orders++;
+          for (const it of o.items || []) {
+            const st = it.order_status || "(없음)";
+            const amt = Number(it.product_price || 0) * Number(it.quantity || 0);
+            const b = byStatus[st] || (byStatus[st] = { qty: 0, amount: 0, lines: 0 });
+            b.qty += Number(it.quantity || 0); b.amount += amt; b.lines++;
+            pb.amount += amt;
+          }
+        }
+        return json({ from, to, orderCount: total, byStatus, byPayStatus }, 200);
+      }
+
       if (q.get("tab") === "activeusers") {
         const au = await buildActiveUsers(propertyId, token, q.get("autoExclLowEngagement") === "1", q.get("excl"));
         return jsonCached(au, 200);
