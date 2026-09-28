@@ -303,10 +303,21 @@ var worker_default = {
       if (q.get("tab") === "funnelprobe") {
         const names = (q.get("steps") || "view_search_results,view_item,add_to_cart,purchase")
           .split(",").map((x) => x.trim()).filter(Boolean);
+        // 첫 단계에 유입 조건을 AND 로 걸면 퍼널 전체가 그 조건으로 좁혀진다.
+        // funnelBreakdown 은 차원 하나만 쓸 수 있어서, 광고 제외 × 신규/재방문 같은
+        // 교차를 보려면 한 축을 이렇게 필터로 고정해야 한다.
+        //   &notsrc=paid,cpc,brandmessage   해당 소스/매체를 제외
+        const notsrc = (q.get("notsrc") || "").split(",").map((x) => x.trim()).filter(Boolean);
+        const stepFilter = (n, first) => {
+          const ev = { funnelEventFilter: { eventName: n } };
+          if (!first || !notsrc.length) return ev;
+          return { andGroup: { expressions: [ev, ...notsrc.map((v) => ({
+            notExpression: { funnelFieldFilter: { fieldName: "sessionSourceMedium",
+              stringFilter: { matchType: "CONTAINS", value: v, caseSensitive: false } } } })) ] } };
+        };
         const body = {
           dateRanges: [{ startDate: ranges.after.start, endDate: ranges.after.end }],
-          funnel: { steps: names.map((n) => ({ name: n,
-            filterExpression: { funnelEventFilter: { eventName: n } } })) },
+          funnel: { steps: names.map((n, i) => ({ name: n, filterExpression: stepFilter(n, i === 0) })) },
           funnelVisualizationType: "STANDARD_FUNNEL"
         };
         // 같은 퍼널을 차원별로 쪼갠다. 유입 경로별 전환 차이를 보려면 이게 필요하다.
@@ -407,6 +418,39 @@ var worker_default = {
             search: flat(search), browse: flat(browse), bySource: grp }, 200);
         } catch (e) {
           return json({ error: "구매 경로 퍼널 실패: " + String(e && e.message || e) }, 200);
+        }
+      }
+
+      // [2026-09-28] 코호트 — 월별 신규 방문자가 이후 달에 돌아오는 비율.
+      // 아트는 재구매 주기가 길어 월간 매출만으로는 안 보이는 잔존이 있다.
+      //   ?tab=cohort&from=2026-05-01&months=5&metric=cohortActiveUsers
+      if (q.get("tab") === "cohort") {
+        const from = q.get("from") || "2026-05-01";
+        const months = Math.min(Number(q.get("months") || 5), 12);
+        const metric = q.get("metric") || "cohortActiveUsers";
+        const cohorts = [];
+        for (let i = 0; i < months; i++) {
+          const d = new Date(from + "T00:00:00Z");
+          d.setUTCMonth(d.getUTCMonth() + i);
+          const s0 = d.toISOString().slice(0, 10);
+          const e0 = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+          cohorts.push({ name: s0.slice(0, 7), dimension: "firstSessionDate", dateRange: { startDate: s0, endDate: e0 } });
+        }
+        try {
+          const rows = await runReport(propertyId, token, {
+            cohortSpec: { cohorts, cohortsRange: { granularity: "MONTHLY", startOffset: 0, endOffset: months - 1 } },
+            dimensions: [{ name: "cohort" }, { name: "cohortNthMonth" }],
+            metrics: [{ name: metric }],
+            limit: 500
+          });
+          const out = {};
+          for (const r of rows) {
+            const c = r.dimensionValues[0].value, nth = r.dimensionValues[1].value;
+            (out[c] || (out[c] = {}))[nth] = Number(r.metricValues[0].value);
+          }
+          return json({ metric, months, cohorts: out }, 200);
+        } catch (e) {
+          return json({ error: "코호트 실패: " + String(e && e.message || e) }, 200);
         }
       }
 
