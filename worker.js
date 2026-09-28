@@ -489,6 +489,52 @@ var worker_default = {
         return json({ from, to, orderCount: total, byStatus, byPayStatus }, 200);
       }
 
+      // [2026-09-28] 환불 최종값 동기화.
+      // slackbot 이 만드는 revenue-daily.json 은 '그날 발생한 환불' 만 적는다. 주문 이후에
+      // 환불되면 그 주문 날짜에 반영되지 않아 과거 순매출이 계속 과대 계상된다.
+      // 여기서는 cafe24 의 '현재 상태' 를 주문일 기준으로 다시 집계해 최종값을 돌려준다.
+      if (q.get("tab") === "refundsync") {
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const mallId = env.CAFE24_MALL_ID;
+        const from = q.get("from") || ranges.after.start, to = q.get("to") || ranges.after.end;
+        // cafe24 refunds API 는 주문일(order_date)과 환불일(refund_date)을 둘 다 준다.
+        // 환불일 기준으로 조회해서 주문일에 되돌려 붙이면, 나중에 난 환불도 원래 매출일에서
+        // 차감된다. slackbot 이 만드는 revenue-daily.json 은 그날 발생분만 적어 이게 안 된다.
+        // 환불은 주문 뒤 언제든 난다. 조회 기간 주문의 '최종' 환불을 보려면 환불일 범위를
+        // 주문 시작일부터 오늘까지로 넓게 잡고, 주문일로 걸러내야 한다.
+        const today = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
+        const rFrom = q.get("refundfrom") || from, rTo = q.get("refundto") || today;
+        let refunds = [];
+        for (let p = 0; p < 20; p++) {
+          const j = await cafe24Get(mallId, tok,
+            `refunds?start_date=${rFrom}&end_date=${rTo}&limit=100&offset=${p * 100}`, false, env);
+          const arr = j.refunds || [];
+          refunds = refunds.concat(arr);
+          if (arr.length < 100) break;
+        }
+        // 주문일이 조회 구간 안인 것만 남긴다
+        refunds = refunds.filter((r) => {
+          const od = String(r.order_date || "").slice(0, 10);
+          return od >= from && od <= to;
+        });
+        const num = (v) => Number(String(v == null ? 0 : v).replace(/,/g, "")) || 0;
+        const amountOf = (r) => num(r.refund_amount) || num(r.actual_refund_amount) ||
+                                num(r.total_refund_amount) || num(r.refund_price);
+        const byOrderDate = {}, byRefundDate = {};
+        for (const r of refunds) {
+          const od = String(r.order_date || "").slice(0, 10);
+          const rd = String(r.refund_date || r.accepted_refund_date || "").slice(0, 10);
+          const amt = amountOf(r);
+          if (od) { const b = byOrderDate[od] || (byOrderDate[od] = { count: 0, amount: 0 }); b.count++; b.amount += amt; }
+          if (rd) { const b = byRefundDate[rd] || (byRefundDate[rd] = { count: 0, amount: 0 }); b.count++; b.amount += amt; }
+        }
+        const total = refunds.reduce((a, r) => a + amountOf(r), 0);
+        return jsonCached({ from, to, refundWindow: `${rFrom} ~ ${rTo}`,
+          basis: "주문일이 from~to 인 주문의 환불 최종값 (환불일은 오늘까지 추적)",
+          count: refunds.length, total, byOrderDate, byRefundDate }, 200);
+      }
+
       if (q.get("tab") === "activeusers") {
         const au = await buildActiveUsers(propertyId, token, q.get("autoExclLowEngagement") === "1", q.get("excl"));
         return jsonCached(au, 200);
