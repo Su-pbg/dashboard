@@ -4,3 +4,4 @@ worker.*.bak.js
 .wrangler/
 node_modules/
 PBG_주간회의_*.pptx
+주간회의_*.md
