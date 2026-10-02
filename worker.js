@@ -547,6 +547,36 @@ var worker_default = {
           }
         }
         lines.sort((a, b) => a.date.localeCompare(b.date) || String(a.order_id).localeCompare(String(b.order_id)));
+        // 주문 단위 '실거래' 집계. 품목 합계로는 배송비·포인트·쿠폰이 빠져 실결제액과 안 맞는다.
+        // actual_order_amount 가 cafe24 가 실제로 받은 돈의 내역이다.
+        const itemNet = {}, itemSale = {}, itemCnt = {};
+        for (const l of lines) {
+          itemNet[l.order_id] = (itemNet[l.order_id] || 0) + l.net;
+          itemSale[l.order_id] = (itemSale[l.order_id] || 0) + l.sale;
+          itemCnt[l.order_id] = (itemCnt[l.order_id] || 0) + 1;
+        }
+        const ords = orders.map((o) => {
+          const a = o.actual_order_amount || {};
+          return {
+            date: String(o.order_date || "").slice(0, 10),
+            order_id: o.order_id,
+            lines: itemCnt[o.order_id] || 0,
+            item_sale: Math.round(itemSale[o.order_id] || 0),
+            item_net: Math.round(itemNet[o.order_id] || 0),
+            order_price: n(a.order_price_amount),
+            shipping_fee: n(a.shipping_fee),
+            shipping_discount: n(a.shipping_fee_discount_amount) + n(a.coupon_shipping_fee_amount),
+            points_spent: n(a.points_spent_amount) + n(a.credits_spent_amount),
+            coupon_discount: n(a.coupon_discount_price),
+            etc_discount: n(a.membership_discount_amount) + n(a.set_product_discount_amount)
+                        + n(a.app_discount_amount) + n(a.market_other_discount_amount),
+            payment_amount: n(o.payment_amount),
+            due: n(a.total_amount_due),
+            paid: o.paid === "T" ? "Y" : "N",
+            canceled: o.canceled === "T" ? "Y" : "N",
+            method: o.payment_method_name || ""
+          };
+        }).sort((x, y) => x.date.localeCompare(y.date) || String(x.order_id).localeCompare(String(y.order_id)));
         if (q.get("format") === "csv") {
           const rows = [["주문일", "주문번호", "상품번호", "상품명", "공급사코드", "공급사명", "수량", "판매가", "할인금액", "공급가액", "부가세", "매출합계", "세율", "주문상태", "결제", "취소", "개인결제창"]];
           for (const r of lines) rows.push([r.date, r.order_id, r.product_no, r.product_name,
@@ -555,8 +585,24 @@ var worker_default = {
             r.tax_rate, r.status, r.paid, r.canceled, r.paywin]);
           return csv(rows, 200, `주문상품_${from}_${to}.csv`);
         }
-        return json({ from, to, orderCount: orders.length, lineCount: lines.length, truncated, totals: tot,
-                      lines: q.get("full") === "1" ? lines : lines.slice(0, 20) }, 200);
+        if (q.get("level") === "order" && q.get("format") === "csv") {
+          const rows = [["주문일", "주문번호", "품목수", "상품정가", "상품매출", "배송비", "배송비할인",
+                         "포인트·예치금", "쿠폰할인", "기타할인", "실결제금액", "미결제액", "결제수단", "결제", "취소"]];
+          for (const r of ords) rows.push([r.date, r.order_id, r.lines, Math.round(r.order_price),
+            r.item_net, Math.round(r.shipping_fee), Math.round(r.shipping_discount),
+            Math.round(r.points_spent), Math.round(r.coupon_discount), Math.round(r.etc_discount),
+            Math.round(r.payment_amount), Math.round(r.due), r.method, r.paid, r.canceled]);
+          return csv(rows, 200, `주문별_${from}_${to}.csv`);
+        }
+        const otot = {};
+        for (const k of ["item_sale", "item_net", "order_price", "shipping_fee", "shipping_discount",
+                         "points_spent", "coupon_discount", "etc_discount", "payment_amount", "due"]) {
+          otot[k] = ords.reduce((x, o) => x + o[k], 0);
+        }
+        return json({ from, to, orderCount: orders.length, lineCount: lines.length, truncated,
+                      totals: tot, orderTotals: otot,
+                      lines: q.get("full") === "1" ? lines : lines.slice(0, 20),
+                      orders: q.get("full") === "1" ? ords : ords.slice(0, 20) }, 200);
       }
 
       // [2026-09-28] 환불 최종값 동기화.
