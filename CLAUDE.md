@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-09-21
+마지막 갱신: 2026-10-02
 
 ---
 
@@ -59,7 +59,19 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 - 기계: `?key=<DASHBOARD_KEY>` (하드코딩 폴백 없음. 틀리면 403)
 `tab` = `overview`(기본) / `slots` / `cart` / `segfunnel` / `retention` / `acquisition` /
 `activeusers` / `events` / `metricscsv` / `membercount` / `suppliersales` / `buyerpath` /
-`catnames` / `cohort` · 진단용(다 쓰면 삭제): `ga4probe` `funnelprobe` `orderstatus` `probecustomers`
+`catnames` / `cohort` / `orderitems` · 진단용(다 쓰면 삭제): `ga4probe` `funnelprobe` `orderstatus` `probecustomers`
+
+- `tab=orderitems&from=&to=[&format=csv][&full=1]` — 주문 **건별·상품별 원장**. 집계가 아니라 raw 행.
+  열: 주문일·주문번호·상품번호·상품명·수량·판매가·할인금액·공급가액·부가세·매출합계·세율·주문상태·결제·취소·개인결제창
+  - **`supply_price` 를 공급가액으로 쓰면 안 된다. 그건 매입원가다.**
+    실측: 판매 129,000 / supply_price 121,040 / 129,000÷1.1 = 117,272 — 셋 다 다르다.
+    공급가액은 `tax_rate` 로 역산한다. 면세(`product_tax_type=B`, rate 0)는 전액 공급가액.
+  - **미술품은 면세다.** 2026-08 실측: 과세 187.0M(1,233행) · 면세 170.4M(123행) → 실효 부가세율 5.0%.
+    부가세가 10% 가 아니라고 버그로 보지 말 것.
+  - `product_price`·`additional_discount_price` 는 **라인 합계**다. 수량을 또 곱하면 안 된다.
+  - 배송비는 주문 단위라 품목 행에 못 붙는다 → 합계가 GMV 와 다르다.
+  - 검증(2026-08): 취소·미결제 뺀 315,236,135 vs `revenue-daily.json` 8월 net 315,572,720 (0.11% 차,
+    환불 시차 범위). 취소 42.2M · 미결제 4.7M · 개인결제창 10.0M 는 행에 플래그로 남긴다(안 지운다).
 **인식 못 하는 tab 은 조용히 overview 를 돌려준다** (디버깅 시 함정).
 
 ---

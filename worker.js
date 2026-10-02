@@ -489,6 +489,73 @@ var worker_default = {
         return json({ from, to, orderCount: total, byStatus, byPayStatus }, 200);
       }
 
+      // [2026-10-02] 주문 건별·상품별 원장. 집계가 아니라 raw 행을 그대로 내보낸다.
+      // revenue-daily.json 은 일별 합계라 주문번호가 없어서 이 경로가 따로 필요하다.
+      //
+      // 금액 계산 (cafe24 함정 주의):
+      //   supply_price 는 '매입원가' 다. 부가세 제외 매출액(공급가액)이 아니다.
+      //   실측: 판매 129,000 / supply_price 121,040 / 129,000÷1.1 = 117,272 → 서로 다른 값.
+      //   그래서 공급가액은 tax_rate 로 직접 역산한다. 면세(rate 0)면 전액이 공급가액.
+      //   판매가·할인은 '라인 합계' 다 (단가 아님) — 수량을 또 곱하면 안 된다.
+      //   배송비는 주문 단위라 품목 행에 못 붙인다 → 합계가 GMV 와 다르다.
+      if (q.get("tab") === "orderitems") {
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const mallId = env.CAFE24_MALL_ID;
+        const from = q.get("from") || ranges.after.start, to = q.get("to") || ranges.after.end;
+        let orders = [], truncated = false;
+        for (let p = 0; p < ORDER_MAX_PAGES; p++) {
+          const j = await cafe24Get(mallId, tok,
+            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=items`,
+            false, env);
+          const arr = j.orders || [];
+          orders = orders.concat(arr);
+          if (arr.length < ORDER_PAGE) break;
+          if (p === ORDER_MAX_PAGES - 1) truncated = true;
+        }
+        const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+        const lines = [];
+        const tot = { sale: 0, disc: 0, net: 0, supply: 0, vat: 0, qty: 0 };
+        for (const o of orders) {
+          for (const it of o.items || []) {
+            const qty = n(it.quantity);
+            const sale = (n(it.product_price) + n(it.option_price)) * qty;
+            const disc = n(it.additional_discount_price) + n(it.coupon_discount_price)
+                       + n(it.app_item_discount_amount) + n(it.market_discount_amount);
+            const net = sale - disc;
+            const rate = n(it.tax_rate);
+            const supply = rate > 0 ? Math.round(net / (1 + rate / 100)) : net;
+            const vat = net - supply;
+            const row = {
+              date: String(o.order_date || "").slice(0, 10),
+              order_id: o.order_id,
+              product_no: it.product_no,
+              product_name: it.product_name || it.product_name_default || "",
+              qty, sale, disc, supply, vat, net,
+              tax_rate: rate,
+              tax_type: it.product_tax_type || "",
+              status: it.order_status || "",
+              paid: o.paid === "T" ? "Y" : "N",
+              canceled: isCanceledStatus(it.order_status) ? "Y" : "N",
+              paywin: isExcludedPaywin(it.product_name) ? "Y" : "N"
+            };
+            lines.push(row);
+            tot.qty += qty; tot.sale += sale; tot.disc += disc;
+            tot.net += net; tot.supply += supply; tot.vat += vat;
+          }
+        }
+        lines.sort((a, b) => a.date.localeCompare(b.date) || String(a.order_id).localeCompare(String(b.order_id)));
+        if (q.get("format") === "csv") {
+          const rows = [["주문일", "주문번호", "상품번호", "상품명", "수량", "판매가", "할인금액", "공급가액", "부가세", "매출합계", "세율", "주문상태", "결제", "취소", "개인결제창"]];
+          for (const r of lines) rows.push([r.date, r.order_id, r.product_no, r.product_name, r.qty,
+            Math.round(r.sale), Math.round(r.disc), r.supply, r.vat, Math.round(r.net),
+            r.tax_rate, r.status, r.paid, r.canceled, r.paywin]);
+          return csv(rows, 200, `주문상품_${from}_${to}.csv`);
+        }
+        return json({ from, to, orderCount: orders.length, lineCount: lines.length, truncated, totals: tot,
+                      lines: q.get("full") === "1" ? lines : lines.slice(0, 20) }, 200);
+      }
+
       // [2026-09-28] 환불 최종값 동기화.
       // slackbot 이 만드는 revenue-daily.json 은 '그날 발생한 환불' 만 적는다. 주문 이후에
       // 환불되면 그 주문 날짜에 반영되지 않아 과거 순매출이 계속 과대 계상된다.
