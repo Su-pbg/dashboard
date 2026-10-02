@@ -531,6 +531,8 @@ var worker_default = {
               order_id: o.order_id,
               product_no: it.product_no,
               product_name: it.product_name || it.product_name_default || "",
+              supplier_id: it.supplier_id || it.supplier_code || "",
+              supplier_name: it.supplier_name || "",
               qty, sale, disc, supply, vat, net,
               tax_rate: rate,
               tax_type: it.product_tax_type || "",
@@ -546,8 +548,9 @@ var worker_default = {
         }
         lines.sort((a, b) => a.date.localeCompare(b.date) || String(a.order_id).localeCompare(String(b.order_id)));
         if (q.get("format") === "csv") {
-          const rows = [["주문일", "주문번호", "상품번호", "상품명", "수량", "판매가", "할인금액", "공급가액", "부가세", "매출합계", "세율", "주문상태", "결제", "취소", "개인결제창"]];
-          for (const r of lines) rows.push([r.date, r.order_id, r.product_no, r.product_name, r.qty,
+          const rows = [["주문일", "주문번호", "상품번호", "상품명", "공급사코드", "공급사명", "수량", "판매가", "할인금액", "공급가액", "부가세", "매출합계", "세율", "주문상태", "결제", "취소", "개인결제창"]];
+          for (const r of lines) rows.push([r.date, r.order_id, r.product_no, r.product_name,
+            r.supplier_id, r.supplier_name, r.qty,
             Math.round(r.sale), Math.round(r.disc), r.supply, r.vat, Math.round(r.net),
             r.tax_rate, r.status, r.paid, r.canceled, r.paywin]);
           return csv(rows, 200, `주문상품_${from}_${to}.csv`);

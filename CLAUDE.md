@@ -62,7 +62,11 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 `catnames` / `cohort` / `orderitems` · 진단용(다 쓰면 삭제): `ga4probe` `funnelprobe` `orderstatus` `probecustomers`
 
 - `tab=orderitems&from=&to=[&format=csv][&full=1]` — 주문 **건별·상품별 원장**. 집계가 아니라 raw 행.
-  열: 주문일·주문번호·상품번호·상품명·수량·판매가·할인금액·공급가액·부가세·매출합계·세율·주문상태·결제·취소·개인결제창
+  열: 주문일·주문번호·상품번호·상품명·**공급사코드·공급사명**·수량·판매가·할인금액·공급가액·부가세·
+  매출합계·세율·주문상태·결제·취소·개인결제창
+  - 공급사는 주문 아이템의 `supplier_id`/`supplier_name` 을 그대로 쓴다 (추가 API 호출 없음).
+    담당자·구분은 `supplier-managers.json` + `/supplier-map` KV 오버라이드를 공급사코드로 조인하면 된다.
+    2026-08 실측 1,356행 전부 매핑됨. 담당자 비어 있는 공급사 9곳은 '(미지정)'.
   - **`supply_price` 를 공급가액으로 쓰면 안 된다. 그건 매입원가다.**
     실측: 판매 129,000 / supply_price 121,040 / 129,000÷1.1 = 117,272 — 셋 다 다르다.
     공급가액은 `tax_rate` 로 역산한다. 면세(`product_tax_type=B`, rate 0)는 전액 공급가액.
