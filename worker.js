@@ -63,6 +63,12 @@ var worker_default = {
         }
         return json({ token: await issueToken(env), ttlMs: TOKEN_TTL_MS });
       }
+      // ===== 영수증 AI 읽기 (경비환급 페이지 전용, 로그인 없음) =====
+      // [2026-10-06] 경비환급은 전 팀이 로그인 없이 쓰므로 인증 검사보다 앞에 둔다.
+      // 대신 우리 페이지(Origin)에서 온 요청만 받고, 워커 인스턴스별로 IP당 호출 수를 제한한다.
+      if (request.method === "POST" && url.pathname === "/receipt") {
+        return await handleReceipt(request, env);
+      }
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const keyOk = !!env.DASHBOARD_KEY && safeEqual(q.get("key") || "", env.DASHBOARD_KEY);
       const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
@@ -903,6 +909,83 @@ function csv(rows, status = 200, filename) {
   return new Response(filename ? "\uFEFF" + body : body, { status, headers });
 }
 __name(csv, "csv");
+// ===== 영수증 AI 읽기 =====
+// Google Gemini API(무료 등급)로 영수증 이미지를 읽어 일자·사용처·금액·승인번호·전체 글자를 JSON 으로 돌려준다.
+// 시크릿: GEMINI_API_KEY (필수), GEMINI_MODEL (선택, 기본 gemini-2.5-flash)
+// 무료 등급은 결제 수단이 없어 과금되지 않는다. 한도(분당·일일)를 넘으면 429 → 페이지가 기본 엔진으로 되돌아간다.
+var RECEIPT_ORIGINS = ["https://su-pbg.github.io"];
+var RECEIPT_MAX_B64 = 6e6;
+var RECEIPT_PER_MIN = 20;
+var _rcptHits = /* @__PURE__ */ new Map();
+var RECEIPT_PROMPT = [
+  "이 이미지는 한국 회사 경비 처리용 영수증(카드 매출전표, 간이영수증, 해외 SW 인보이스 등)이다.",
+  "다음을 JSON 으로만 답하라.",
+  "- date: 결제(거래) 일자 YYYY-MM-DD. 출력일·인쇄일이 아니라 거래일. 모르면 빈 문자열.",
+  "- merchant: 가맹점(상호)명. 지점명이 있으면 포함(예: 스타벅스 농대입구역점). 카드사·결제대행사 이름은 넣지 않는다.",
+  "- amount: 실제 결제된 원화 합계(부가세 포함, 할인 후). 원화가 없으면 null.",
+  "- currency: KRW 또는 USD 또는 OTHER (영수증의 결제 통화).",
+  "- foreignAmount: 외화 결제면 외화 합계, 아니면 null.",
+  "- approvalNo: 카드 승인번호(숫자). 없으면 빈 문자열.",
+  "- page: 여러 장짜리 인보이스의 쪽 표시(예: 2/2). 없으면 빈 문자열.",
+  "- fullText: 영수증의 글자를 위에서 아래로 줄바꿈 포함해 그대로 옮긴 것. 카드번호는 마지막 4자리만 남기고 *로 가린다.",
+  "숫자는 콤마 없이. 추측이 필요하면 가장 그럴듯한 값을 넣고, 전혀 보이지 않으면 비운다."
+].join("\n");
+var RECEIPT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    date: { type: "STRING" },
+    merchant: { type: "STRING" },
+    amount: { type: "NUMBER", nullable: true },
+    currency: { type: "STRING", enum: ["KRW", "USD", "OTHER"] },
+    foreignAmount: { type: "NUMBER", nullable: true },
+    approvalNo: { type: "STRING" },
+    page: { type: "STRING" },
+    fullText: { type: "STRING" }
+  },
+  required: ["date", "merchant", "amount", "currency", "fullText"]
+};
+async function handleReceipt(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  const cors = { ...CORS, "Access-Control-Allow-Origin": RECEIPT_ORIGINS.includes(origin) ? origin : RECEIPT_ORIGINS[0] };
+  const out = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
+  if (!RECEIPT_ORIGINS.includes(origin)) return out({ error: "허용되지 않은 출처" }, 403);
+  if (!env.GEMINI_API_KEY) return out({ error: "AI 읽기가 아직 설정되지 않았어요 (GEMINI_API_KEY)" }, 503);
+  const ip = request.headers.get("CF-Connecting-IP") || "?";
+  const now = Date.now();
+  const hits = (_rcptHits.get(ip) || []).filter((t) => now - t < 6e4);
+  if (hits.length >= RECEIPT_PER_MIN) return out({ error: "잠시 후 다시 시도하세요 (분당 한도)" }, 429);
+  hits.push(now);
+  _rcptHits.set(ip, hits);
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return out({ error: "잘못된 요청" }, 400);
+  }
+  const data = String(body.image || "").replace(/^data:[^,]+,/, "");
+  const mime = /^image\/(jpeg|png|webp)$/.test(body.mime || "") ? body.mime : "image/jpeg";
+  if (!data || data.length > RECEIPT_MAX_B64) return out({ error: "이미지가 없거나 너무 큼" }, 400);
+  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const ym = /^\d{4}-\d{2}$/.test(body.ym || "") ? `\n참고: 신청 월은 ${body.ym} 이다(연도가 안 보이면 이 연도로).` : "";
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+    body: JSON.stringify({
+      contents: [{ parts: [{ inline_data: { mime_type: mime, data } }, { text: RECEIPT_PROMPT + ym }] }],
+      generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: RECEIPT_SCHEMA }
+    })
+  });
+  if (r.status === 429) return out({ error: "Gemini 무료 한도 초과" }, 429);
+  if (!r.ok) return out({ error: `Gemini 오류 ${r.status}`, detail: (await r.text()).slice(0, 300) }, 502);
+  const j = await r.json();
+  const txt = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+  try {
+    return out({ ok: true, model, data: JSON.parse(txt) });
+  } catch (e) {
+    return out({ error: "응답 해석 실패", detail: txt.slice(0, 300) }, 502);
+  }
+}
+__name(handleReceipt, "handleReceipt");
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
