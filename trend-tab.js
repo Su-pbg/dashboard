@@ -114,7 +114,7 @@ function bars(obj,label=k=>k){
 const COLS=[
   {k:'keyword',t:'키워드',l:1},{k:'theme',t:'테마',l:1},{k:'monthlySearch',t:'월간 검색'},{k:'volGrowth28',t:'검색수 28일'},
   {k:'growth4w',t:'4주 추세'},{k:'yoy',t:'전년 대비'},{k:'shopGrowth4w',t:'쇼핑 클릭 4주'},{k:'femaleShare',t:'여성'},
-  {k:'adCompetition',t:'광고 경쟁'},{k:'ytViews7d',t:'유튜브 7일'},{k:'ourSales30',t:'우리 몰'},{k:'action',t:'판정',l:1},
+  {k:'adCompetition',t:'광고 경쟁'},{k:'ytViews7d',t:'유튜브·블로그·카페'},{k:'ourSales30',t:'우리 몰'},{k:'action',t:'판정',l:1},
 ];
 function filtered(rows){
   const q=S.q.trim().replace(/\s/g,'');
@@ -129,7 +129,7 @@ function rowHTML(x,i){
   const our=x.ourCount?`${n(x.ourCount)}개 · <b>${n(x.ourSales30)}</b>개 판매<div class="tr-sub">최저 ${x.ourMinPrice?n(x.ourMinPrice)+'원':'—'}</div>`:'<span class="tr-flat">없음</span>';
   const fem=x.femaleShare!=null?`${Math.round(x.femaleShare)}%<div class="tr-sub">${AGE[x.topAge]||''}</div>`:'—';
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
-  const yt=x.ytViews7d!=null?`${n(x.ytViews7d)}<div class="tr-sub">${n(x.yt7d)}개 영상</div>`:'—';
+  const yt=(x.ytViews7d!=null||x.blog7d!=null||x.cafeTotal!=null)?`${x.ytViews7d!=null?n(x.ytViews7d)+'회':'—'}<div class="tr-sub">블로그 ${n(x.blog7d)} · 카페 ${x.cafeNew!=null?'+'+n(x.cafeNew):'—'}</div>`:'—';
   return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}</td>
   <td class="l">${esc(x.theme||'')}</td><td>${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
   <td>${pct(x.volGrowth28)}</td><td><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
@@ -141,7 +141,7 @@ function detailHTML(x,i){
   const comp=(x.compTop||[]).map(p=>`<li>${esc(p.name||p.title||'')} ${p.price?'· '+n(p.price)+'원':''}</li>`).join('');
   return `<tr class="tr-detail"><td colspan="${COLS.length}"><div class="tr-dgrid">
     <div><h4>검색 지수 추이 (최근 60일, 네이버 검색어 트렌드)</h4>${bigChart(x.trendSeries,i)}
-      <div class="tr-sub" style="margin-top:6px">처음 잡힌 날 ${esc(x.firstSeen||'—')} · 월 클릭 ${n(x.monthlyClicks)} · 클릭률 ${x.ctr!=null?x.ctr+'%':'—'} · 블로그 7일 ${n(x.blog7d)}건</div></div>
+      <div class="tr-sub" style="margin-top:6px">처음 잡힌 날 ${esc(x.firstSeen||'—')} · 월 클릭 ${n(x.monthlyClicks)} · 클릭률 ${x.ctr!=null?x.ctr+'%':'—'} · 유튜브 7일 ${n(x.yt7d)}개 영상 · 블로그 7일 ${n(x.blog7d)}건(누적 ${n(x.blogTotal)}) · 카페 새 글 ${n(x.cafeNew)}(누적 ${n(x.cafeTotal)})</div></div>
     <div><h4>쇼핑 클릭 연령 (최근 3개월)</h4>${bars(x.ageShare,k=>AGE[k]||k)}</div>
     <div><h4>우리 몰 상품</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${prods}</ul>
       ${comp?`<h4 style="margin-top:var(--s3)">타사 상위</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${comp}</ul>`:''}</div>
@@ -218,6 +218,7 @@ window.loadTrendTab=async function(){
      월간 검색 = 네이버 검색광고 키워드도구(PC+모바일, 최근 30일) · 검색수 28일 = 그 값이 28일 전 기록보다 몇 % 변했나 ·
      4주 추세 = 검색어 트렌드 최근 7일 ÷ 직전 28일 · 전년 대비 = 최근 28일 ÷ 1년 전 같은 28일 ·
      쇼핑 클릭·여성·연령 = 쇼핑인사이트(가구/인테리어·생활/건강 중 클릭이 많은 쪽) · 광고 경쟁 = 검색광고 경쟁 정도(네이버 쇼핑 검색 API 종료로 상품 수 대신) ·
+     유튜브 = 최근 7일 올라온 영상의 조회수 합(상위 30개 키워드) · 블로그 = 최근 7일 새 글 · 카페 = 카페 글 누적 수의 전날 대비 증가분 ·
      우리 몰 = 상품명·분류·태그에 키워드가 들어간 상품, 30일 판매수량.<br>
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
