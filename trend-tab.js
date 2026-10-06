@@ -35,6 +35,12 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 .tr-p-재고확보{background:#FFF3E0;color:#C25E00;} .tr-p-저가라인{background:#F3EEFF;color:#6B3FD4;}
 .tr-p-지켜보기,.tr-p-소싱검토{background:var(--fill);color:var(--ink-2);} .tr-p-패스,.tr-p-유지{background:var(--fill);color:var(--ghost);}
 .tr-p-안팔림점검{background:#FEECEE;color:#C4202F;}
+.tr-p-시즌준비,.tr-p-시즌소싱{background:#FFF3E0;color:#C25E00;}
+.tr-sbars{display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:4px;}
+.tr-sbars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+.tr-sbars span.b{width:100%;border-radius:4px 4px 0 0;background:var(--hair);}
+.tr-sbars span.b.pk{background:var(--accent);}
+.tr-sbars span.m{font-size:10px;color:var(--muted);margin-top:2px;}
 .tr-why{font-size:11px;color:var(--ink-2);margin-top:3px;white-space:normal;min-width:220px;max-width:280px;line-height:1.4;}
 .tr-tt{font-size:11px;color:var(--muted);margin-left:6px;}
 .tr-sub{font-size:11px;color:var(--muted);}
@@ -60,9 +66,9 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 .tr-foot a{color:var(--accent);}
 .tr-more{border:0;background:var(--fill);border-radius:var(--r-ctrl);padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-top:var(--s3);}
 `;
-const ACTIONS=['재고확보','소싱','밀기','안 팔림 점검','저가라인','소싱 검토','지켜보기','유지','패스'];
-const TODO=['재고확보','소싱','밀기','안 팔림 점검','저가라인'];
-const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','소싱':'뜨는 중 · 우리 몰에 없음','밀기':'뜨는 중 · 우리 상품이 팔리고 있음 → 광고·기획전',
+const ACTIONS=['재고확보','시즌 준비','시즌 소싱','소싱','밀기','안 팔림 점검','저가라인','소싱 검토','지켜보기','유지','패스'];
+const TODO=['재고확보','시즌 준비','시즌 소싱','소싱','밀기','안 팔림 점검','저가라인'];
+const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','시즌 준비':'시즌 정점이 2개월 안 · 우리 몰에 있음 → 재고·기획전·광고 준비','시즌 소싱':'시즌 정점이 2개월 안 · 우리 몰에 없음 → 지금 들여야 시즌에 맞음','소싱':'뜨는 중 · 우리 몰에 없음','밀기':'뜨는 중 · 우리 상품이 팔리고 있음 → 광고·기획전',
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
   '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
@@ -109,6 +115,12 @@ function bindBig(root,rowsById){
     svg.addEventListener('mouseleave',()=>{tip.style.display='none';svg.querySelector('.xh').style.display='none';svg.querySelector('.pt').style.display='none';});
   });
 }
+function seasonBars(x){
+  const s=x.seasonIdx; if(!s||!s.some(v=>v!=null)) return '<div class="tr-sub">월별 값 없음</div>';
+  const mx=Math.max(...s.map(v=>v||0),1);
+  return '<div class="tr-sbars">'+s.map((v,i)=>`<div title="${i+1}월 ${v??'—'}배"><span class="b ${i+1===x.peakMonth?'pk':''}" style="height:${Math.max(2,(v||0)/mx*44)}px"></span><span class="m">${i+1}</span></div>`).join('')+'</div>'
+    +`<div class="tr-sub" style="margin-top:4px">${x.seasonal?`<b>${x.peakMonth}월 정점</b> · 평소의 ${x.seasonStrength}배 · ${x.monthsToPeak===0?'지금 정점':x.monthsToPeak+'개월 남음'}`:`시즌성 약함 (최고 ${x.seasonStrength??'—'}배)`}</div>`;
+}
 function bars(obj,label=k=>k){
   const e=Object.entries(obj||{}).sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'ko',{numeric:true}));
   if(!e.length) return '<div class="tr-sub">쇼핑인사이트 값 없음</div>';
@@ -135,7 +147,7 @@ function rowHTML(x,i){
   const fem=x.femaleShare!=null?`${Math.round(x.femaleShare)}%<div class="tr-sub">${AGE[x.topAge]||''}</div>`:'—';
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
   const yt=(x.ytViews7d!=null||x.blog7d!=null||x.cafeTotal!=null)?`${x.ytViews7d!=null?n(x.ytViews7d)+'회':'—'}<div class="tr-sub">블로그 ${n(x.blog7d)} · 카페 ${x.cafeNew!=null?'+'+n(x.cafeNew):'—'}</div>`:'—';
-  return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · '+esc(x.trendType):''}</div></td>
+  return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · '+esc(x.trendType):''}${x.seasonal?' · <b>'+x.peakMonth+'월 시즌</b>':''}</div></td>
   <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td>${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
   <td>${pct(x.volGrowth28)}</td><td><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
   <td>${pct(x.yoy)}</td><td>${shopc}</td><td>${fem}</td><td>${esc(x.adCompetition||'—')}</td><td>${yt}</td><td>${our}</td></tr>`;
@@ -146,7 +158,8 @@ function detailHTML(x,i){
   return `<tr class="tr-detail"><td colspan="${COLS.length}"><div class="tr-dgrid">
     <div><h4>검색 지수 추이 (최근 60일, 네이버 검색어 트렌드)</h4>${bigChart(x.trendSeries,i)}
       <div class="tr-sub" style="margin-top:6px">처음 잡힌 날 ${esc(x.firstSeen||'—')} · 월 클릭 ${n(x.monthlyClicks)} · 클릭률 ${x.ctr!=null?x.ctr+'%':'—'} · 유튜브 7일 ${n(x.yt7d)}개 영상 · 블로그 7일 ${n(x.blog7d)}건(누적 ${n(x.blogTotal)}) · 카페 새 글 ${n(x.cafeNew)}(누적 ${n(x.cafeTotal)})</div></div>
-    <div><h4>쇼핑 클릭 연령 (최근 3개월)</h4>${bars(x.ageShare,k=>AGE[k]||k)}</div>
+    <div><h4>쇼핑 클릭 연령 (최근 3개월)</h4>${bars(x.ageShare,k=>AGE[k]||k)}
+      <h4 style="margin-top:var(--s3)">월별 시즌성 (최근 3년, 평균=1)</h4>${seasonBars(x)}</div>
     <div><h4>우리 몰 상품</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${prods}</ul>
       ${comp?`<h4 style="margin-top:var(--s3)">타사 상위</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${comp}</ul>`:''}</div>
   </div></td></tr>`;
@@ -210,7 +223,7 @@ window.loadTrendTab=async function(){
   c.innerHTML=`
    <div class="tr-meta"><span>기준 <b>${esc(run.date)}</b> (매일 06:50 갱신)</span><span>키워드 풀 <b>${n(run.poolSize)}</b>개</span><span>오늘 새로 들어옴 <b>${n(run.newToday)}</b>개</span><span>추석(9/14~9/28)은 추세 계산에서 제외</span></div>
    ${errs.length?`<div class="tr-warn">일부 네이버 API 호출이 실패했습니다: ${errs.map(([k,v])=>esc(k)+' '+esc(v).slice(0,80)).join(' / ')}</div>`:''}
-   <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 처음엔 할 일(재고확보·소싱·밀기·안 팔림 점검·저가라인)만 보입니다. 상시 수요인데 잘 팔리는 키워드는 '유지'로 빠집니다.</p>
+   <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 처음엔 할 일(재고확보·시즌 준비·시즌 소싱·소싱·밀기·안 팔림 점검·저가라인)만 보입니다. 상시 수요인데 잘 팔리는 키워드는 '유지'로 빠집니다.</p>
      <div class="tr-acts" id="trActs"></div>
      <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="${esc(S.q)}">
        <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option ${S.theme===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
@@ -225,6 +238,8 @@ window.loadTrendTab=async function(){
      쇼핑 클릭·여성·연령 = 쇼핑인사이트(가구/인테리어·생활/건강 중 클릭이 많은 쪽) · 광고 경쟁 = 검색광고 경쟁 정도(네이버 쇼핑 검색 API 종료로 상품 수 대신) ·
      유튜브 = 최근 7일 올라온 영상의 조회수 합(상위 30개 키워드) · 블로그 = 최근 7일 새 글 · 카페 = 카페 글 누적 수의 전날 대비 증가분 ·
      우리 몰 = 상품명·분류·태그에 키워드가 들어간 상품, 30일 판매수량.<br>
+     흐름: <b>뜨는 중</b> 4주 +20% 또는 전년 +30% 또는 검색수 28일 +20% · <b>식는 중</b> 4주·전년 모두 −20% · <b>상시</b> 60일 일별 등락이 작고(변동계수 0.3 미만) 전년과 ±25% 안 · <b>불규칙</b> 그 외(등락이 크거나 전년과 차이가 큼) ·
+     <b>시즌</b> 최근 3년 월별 검색에서 같은 달이 평균의 1.5배 이상이고 매년 그 달(±1개월)에 정점이 옴.<br>
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
   renderActs(); renderTable(); renderCats(); renderPool();
@@ -235,3 +250,4 @@ window.loadTrendTab=async function(){
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
 };
 })();
+// 트렌드 탭 — 키워드 레이더 결과(trend-metrics.json · keyword-pool.json · shopping-insight.json)를 보여준다.
