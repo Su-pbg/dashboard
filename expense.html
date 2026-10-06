@@ -2,7 +2,8 @@
 <!--
   PBG 경비환급 엑셀 만들기
   영수증 PDF(스캔)를 올리면 브라우저 안에서 글자를 읽어 경비환급신청서 엑셀을 만든다.
-  · 로그인 없이 쓴다. 서버로 올라가는 파일이 없다 (pdf.js · tesseract.js · ExcelJS 가 전부 브라우저에서 동작).
+  · 로그인 없이 쓴다. 기본은 서버로 올라가는 파일이 없다 (pdf.js · tesseract.js · ExcelJS 가 전부 브라우저에서 동작).
+  · 'AI로 읽기'를 켜면 잘라낸 영수증 이미지를 워커(/receipt) → Google Gemini(무료 등급)로 보내 읽는다. 실패하면 기본 엔진으로 되돌아간다.
   · 법인카드·연결계좌는 화면에서 입력하면 엑셀 위쪽 칸에 들어간다. '이 브라우저에 기억'을 켠 경우에만 이 브라우저(localStorage)에 남는다.
   변경 이력은 같은 폴더의 CHANGELOG.md 를 참고하세요.
 -->
@@ -127,7 +128,7 @@
   <div class="standalone"><a href="./">← 대시보드로</a></div>
   <p class="eyebrow">PrintBakery</p>
   <h1>경비환급 엑셀 만들기</h1>
-  <p class="sub top">영수증 PDF를 올리면 경비환급신청서 엑셀을 만들어줘요 · 로그인 없이 쓸 수 있고, 파일은 이 브라우저 안에서만 처리돼요</p>
+  <p class="sub top">영수증 PDF를 올리면 경비환급신청서 엑셀을 만들어줘요 · 로그인 없이 쓸 수 있어요 · 기본은 파일을 이 브라우저 안에서만 처리해요</p>
 
   <section class="card">
     <h2><span class="step">1</span>기본 정보</h2>
@@ -151,6 +152,7 @@
       <b>PDF를 끌어다 놓거나 눌러서 선택</b>
       <span>여러 파일 가능 · 한 PDF에 영수증이 여러 장 있어도 돼요</span>
     </div>
+    <label class="keep"><input type="checkbox" id="aiOn"><span><b>AI로 읽기 (Google Gemini)</b> — 인식이 훨씬 정확해요. 대신 영수증 이미지가 구글로 전송되고, 무료 등급이라 구글이 서비스 개선에 쓸 수 있어요. 카드번호는 결과에서 가려요.</span></label>
     <input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
     <div class="prog" id="prog"><div class="bar"><i id="progBar"></i></div><p id="progTxt"></p></div>
     <div class="note" id="skipNote" style="display:none"></div>
@@ -563,7 +565,8 @@ if(EMBED) document.documentElement.classList.add('embed');
 const PDF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const LANG_PATH=window.__LANG_PATH__||'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best_int';
 // 읽기 순서: 한 번 읽어서 일자·금액이 믿을 만하면 거기서 끝내고, 아니면 해상도·이진화를 바꿔 다시 읽어 투표한다.
-const PASSES=[{dpi:150,bin:false},{dpi:200,bin:false},{dpi:250,bin:false}];
+// [2026-10-06] 2번째는 적응형 이진화(감열지 얼룩·그림자 대응), 3번째는 열 단위 배치(psm 4)로 읽어 투표 폭을 넓혔다.
+const PASSES=[{dpi:200,bin:false,psm:'6'},{dpi:300,bin:'local',psm:'6'},{dpi:300,bin:false,psm:'4'}];
 const LS={dept:'pbg_exp_dept',who:'pbg_exp_who',rules:'pbg_exp_rules',card:'pbg_exp_card',acct:'pbg_exp_acct',keep:'pbg_exp_keep'};
 const ls={get(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
 
@@ -599,6 +602,17 @@ function enhance(cv,bin){
   for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>cut){lo=v;break;} }
   acc=0; for(let v=255;v>=0;v--){ acc+=hist[v]; if(acc>cut){hi=v;break;} }
   if(hi<=lo){lo=0;hi=255;}
+  if(bin==='local'){ // 적응형 이진화(Bradley): 주변 평균보다 15% 어두우면 글자. 밝기가 고르지 않은 감열지·사진용
+    const W=cv.width,H=cv.height, s2=new Uint8Array(n), st=new Uint32Array((W+1)*(H+1));
+    for(let i=0;i<n;i++) s2[i]=Math.max(0,Math.min(255,(g[i]-lo)*255/(hi-lo)))|0;
+    for(let y=1;y<=H;y++){ let rs=0; for(let x=1;x<=W;x++){ rs+=s2[(y-1)*W+x-1]; st[y*(W+1)+x]=st[(y-1)*(W+1)+x]+rs; } }
+    const r=Math.max(8,Math.round(Math.min(W,H)/32));
+    for(let y=0;y<H;y++){ const y0=Math.max(0,y-r), y1=Math.min(H,y+r+1);
+      for(let x=0;x<W;x++){ const x0=Math.max(0,x-r), x1=Math.min(W,x+r+1);
+        const sum=st[y1*(W+1)+x1]-st[y0*(W+1)+x1]-st[y1*(W+1)+x0]+st[y0*(W+1)+x0];
+        const v=s2[y*W+x]*(y1-y0)*(x1-x0) < sum*0.85 ? 0 : 255; const i=(y*W+x)*4; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; } }
+    ctx.putImageData(im,0,0); return cv;
+  }
   let t=128;
   if(bin){ // Otsu
     const h2=new Uint32Array(256); for(let i=0;i<n;i++){ const v=Math.max(0,Math.min(255,(g[i]-lo)*255/(hi-lo)))|0; h2[v]++; }
@@ -617,7 +631,7 @@ async function renderJob(job,dpi,bin){
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,page.width,page.height);
     await p.render({canvasContext:ctx,viewport:vp}).promise;
   }else{
-    const im=job.img; const long=Math.max(im.width,im.height); const sc=Math.min(1,(dpi/150*1650)/long);
+    const im=job.img; const long=Math.max(im.width,im.height); const sc=Math.min(2,(dpi/150*1650)/long);   // 작은 사진은 키워서 읽는다(글자 높이가 낮으면 인식률이 크게 떨어짐)
     page.width=Math.round(im.width*sc); page.height=Math.round(im.height*sc); ctx=page.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,page.width,page.height); ctx.drawImage(im,0,0,page.width,page.height);
   }
@@ -647,12 +661,12 @@ async function getPool(){
   }
   pool=made; return pool;
 }
-async function ocr(cv){
+async function ocr(cv,psm){
   const p=await getPool();
   let slot;
   while(!(slot=p.find(s=>!s.busy))){ await new Promise(r=>poolWait.push(r)); }
   slot.busy=true;
-  try{ const r=await slot.w.recognize(cv); return r.data.text||''; }
+  try{ await slot.w.setParameters({tessedit_pageseg_mode:psm||'6'}); const r=await slot.w.recognize(cv); return r.data.text||''; }
   finally{ slot.busy=false; const f=poolWait.shift(); if(f) f(); }
 }
 
@@ -665,14 +679,55 @@ function toRow(parsed,text,meta){
   if(parsed.page&&parsed.page.no>1){ r.cont=true; r.include=false; }
   return r;
 }
+/* ── AI로 읽기 (워커 /receipt → Gemini) ── */
+const AI={url:'https://proud-sea-35f9.sugim-386.workers.dev/receipt', next:0, gap:6500, off:'', fails:0};   // 무료 등급 분당 10건 → 6.5초 간격
+const sleep=ms=>new Promise(r=>setTimeout(r,Math.max(0,ms)));
+function aiOn(){ return $('aiOn').checked&&!AI.off; }
+async function aiRead(img,ym){
+  for(let a=0;a<2;a++){
+    const t=Math.max(Date.now(),AI.next); AI.next=t+AI.gap; await sleep(t-Date.now());   // 호출 간격 예약(동시 작업끼리 겹치지 않게)
+    const r=await fetch(AI.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:img,mime:'image/jpeg',ym})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.ok&&j.data) return j.data;
+    if(r.status===429&&a===0){ AI.next=Date.now()+15000; continue; }
+    const e=new Error(j.error||('AI '+r.status)); e.status=r.status; throw e;
+  }
+}
+async function processJobAI(job){
+  const ym=ymNow();
+  const cv=await renderJob(job,200,false);
+  const meta=Object.assign(thumbsOf(cv),{src:job.label});
+  const sc=Math.min(1,1600/Math.max(cv.width,cv.height)); const c2=document.createElement('canvas'); c2.width=Math.round(cv.width*sc); c2.height=Math.round(cv.height*sc);
+  c2.getContext('2d').drawImage(cv,0,0,c2.width,c2.height); const img=c2.toDataURL('image/jpeg',.85); cv.width=cv.height=c2.width=c2.height=0;
+  const res=await aiRead(img,$('ym').value);
+  let text=String(res.fullText||'');
+  if(res.approvalNo&&!/승\s*인\s*번\s*호/.test(text)) text+=`\n승인번호 ${res.approvalNo}`;
+  const p=C.parseReceipt(text,{ym,rules:S.rules});           // 구분·항목 분류는 기존 규칙 그대로
+  const dm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(res.date||''); if(dm) p.date={y:+dm[1],m:+dm[2],d:+dm[3]};
+  if(res.merchant) p.merchant=String(res.merchant).slice(0,30);
+  if(res.currency==='USD'){ p.currency='USD'; if(res.foreignAmount!=null) p.usd=res.foreignAmount; p.amount=null; }
+  else if(res.amount!=null){ p.currency='KRW'; p.amount=Math.round(res.amount); }
+  const pm=/^(\d+)\s*\/\s*(\d+)$/.exec(res.page||''); if(pm&&+pm[2]>=2) p.page={no:+pm[1],total:+pm[2]};
+  const row=toRow(p,text,meta); row.ai=true;
+  return Object.assign(row,{idx:job.idx,file:job.file});
+}
 async function processJob(job){
+  if(aiOn()){
+    try{ return await processJobAI(job); }
+    catch(e){
+      console.warn('AI 읽기 실패 → 기본 엔진',e);
+      if(e.status===403||e.status===503){ AI.off=e.message; }                 // 설정 안 됨 → 이번엔 끄고 기본 엔진
+      else if(++AI.fails>=3){ AI.off='AI 읽기가 계속 실패해서 기본 엔진으로 바꿨어요'; }
+      const sk=$('skipNote'); sk.style.display='block'; sk.className='note'; sk.textContent=`AI로 읽지 못한 장은 기본 엔진으로 읽었어요${AI.off?' ('+AI.off+')':''}.`;
+    }
+  }
   const seq=job.idx;
   const ym=ymNow();
   const parsed=[]; let meta=null, firstText='';
   for(let i=0;i<PASSES.length;i++){
     const cv=await renderJob(job,PASSES[i].dpi,PASSES[i].bin);
     if(!meta){ meta=Object.assign(thumbsOf(cv),{src:job.label}); }
-    const text=await ocr(cv); cv.width=cv.height=0;
+    const text=await ocr(cv,PASSES[i].psm); cv.width=cv.height=0;
     if(i===0) firstText=text;
     parsed.push(C.parseReceipt(text,{ym,rules:S.rules}));
     const merged=C.mergeParses(parsed,ym);
@@ -894,6 +949,8 @@ $('rules').addEventListener('toggle',tell);
 (function init(){
   // 경비는 전월 것을 이번 달에 신청하므로 기본값은 항상 전월
   const now=new Date(), pm=new Date(now.getFullYear(), now.getMonth()-1, 1); $('ym').value=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}`;
+  $('aiOn').checked=ls.get('pbg_exp_ai')==='1';
+  $('aiOn').addEventListener('change',()=>{ AI.off=''; AI.fails=0; ls.set('pbg_exp_ai',$('aiOn').checked?'1':''); });
   $('dept').value=ls.get(LS.dept); $('who').value=ls.get(LS.who);
   $('keep').checked=ls.get(LS.keep)==='1';
   if($('keep').checked){ $('card').value=ls.get(LS.card); $('acct').value=ls.get(LS.acct); }
