@@ -10,6 +10,16 @@
 
 ---
 
+## 2026-10-06
+
+### 트렌드 탭 추가 (키워드 레이더)
+**배포:** `index.html` · `trend-tab.js` · `radar-config.json` (GitHub Pages) + `build_keyword_radar.py` · `.github/workflows/update-trend-metrics.yml` (`Su-pbg/slackbot`)
+
+- **무엇:** 매일 06:50 KST 에 slackbot 이 씨앗 키워드의 연관어로 키워드 풀을 넓히고(검색수가 오른 키워드는 다음 날 2차 씨앗), 검색광고 월간 검색수·API HUB 검색어 트렌드(일 단위)·쇼핑인사이트(클릭 추세·성별·연령)·유튜브·블로그를 모아 `trend-metrics.json` · `keyword-pool.json` · `shopping-insight.json` 으로 push 한다. 우리 몰 상품(`product-snapshot.json`)과 매칭해 소싱/밀기/지켜보기를 판정.
+- **구조:** 탭 코드는 `trend-tab.js` 로 분리. `index.html` 에는 TABS 한 줄과 `load()` 분기만 넣었고, 탭을 처음 열 때 스크립트를 불러온다. 워커는 안 쓴다.
+- **고치는 곳:** 씨앗·사전·제외어는 `radar-config.json` (다음 날 아침 반영, 제외어에 걸린 키워드는 풀에서 삭제).
+- **주의:** 네이버 쇼핑 검색 API 는 2026-07-31 종료(대체 없음) → 경쟁강도(상품 수 ÷ 검색수) 대신 검색광고 경쟁정도를 쓴다. 개발자센터 신규 키 발급도 막혀 API HUB 키(`NAVER_APIHUB_KEY_ID/KEY`)를 쓴다. 추석(9/14~9/28)은 추세 계산에서 제외.
+
 ## 2026-09-10
 
 ### [버그] 새 정렬 구좌가 글로벌네비 실적에 잘못 합산됨
@@ -532,3 +542,4 @@ payment_amount                          32,370   → 실제 할인 6,630
 - 진단 로그의 실제 주문 값으로 `bucket_by_day()` 를 실행해 `기타 = 0`, 할인 합계 6,630 일치, 쿠폰명·카테고리 정상 출력 확인.
 - `index.html` 스크립트 `node --check` 통과, HTML 태그 균형 검사 통과, `$('...')` 참조 id 전수 존재 확인.
 - 쿠폰 상세 렌더를 2종 쿠폰 더미로 실행해 막대 비율(100% / 24%) 정상 확인.
+# PBG 대시보드 변경 이력
