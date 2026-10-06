@@ -3,7 +3,7 @@
   PBG 경비환급 엑셀 만들기
   영수증 PDF(스캔)를 올리면 브라우저 안에서 글자를 읽어 경비환급신청서 엑셀을 만든다.
   · 로그인 없이 쓴다. 서버로 올라가는 파일이 없다 (pdf.js · tesseract.js · ExcelJS 가 전부 브라우저에서 동작).
-  · 법인카드·연결계좌는 사람마다 달라서 엑셀에 넣지 않는다 (직접 입력).
+  · 법인카드·연결계좌는 화면에서 입력하면 엑셀 위쪽 칸에 들어간다. '이 브라우저에 기억'을 켠 경우에만 이 브라우저(localStorage)에 남는다.
   변경 이력은 같은 폴더의 CHANGELOG.md 를 참고하세요.
 -->
 <html lang="ko">
@@ -44,7 +44,8 @@
   .card .lead{font-size:13px;color:var(--muted);margin:0 0 var(--s4);}
   .step{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;margin-right:var(--s2);vertical-align:2px;}
 
-  .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s4) var(--s5);}
+  .grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--s4) var(--s5);}
+  .keep{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink-2);margin-top:var(--s3);cursor:pointer;width:max-content;}
   .ctrl{display:flex;flex-direction:column;gap:var(--s2);min-width:0;}
   .ctrl label{font-size:12px;color:var(--muted);font-weight:600;}
   input[type=text],input[type=month],input[type=date],input[type=number],select{
@@ -126,14 +127,16 @@
 
   <section class="card">
     <h2><span class="step">1</span>기본 정보</h2>
-    <p class="lead">엑셀 위쪽 칸에 들어가요. 법인카드·연결계좌는 사람마다 달라서 비워 두니, 받은 엑셀에서 직접 입력하세요.</p>
+    <p class="lead">엑셀 위쪽 칸에 들어가요.</p>
     <div class="grid">
       <div class="ctrl"><label for="ym">신청 월</label><input type="month" id="ym"></div>
       <div class="ctrl"><label for="dept">부서명</label><input type="text" id="dept" placeholder="예: 테크팀" autocomplete="off"></div>
       <div class="ctrl"><label for="who">제출자</label><input type="text" id="who" placeholder="예: 김수" autocomplete="off"></div>
-      <div class="ctrl"><label for="rate">환율 (원/US$, 선택)</label><input type="number" id="rate" placeholder="해외결제 영수증용" min="0" step="0.01"></div>
+      <div class="ctrl"><label for="card">법인카드</label><input type="text" id="card" placeholder="예: 신한 1234-****-****-5678" autocomplete="off"></div>
+      <div class="ctrl"><label for="acct">연결계좌</label><input type="text" id="acct" placeholder="예: 신한 110-***-******" autocomplete="off"></div>
     </div>
-    <p class="hint">해외결제(US$) 영수증은 원화 금액이 영수증에 없어요. 카드 청구 금액을 직접 적거나, 환율을 넣으면 대신 계산해 줘요(추정치).</p>
+    <label class="keep"><input type="checkbox" id="keep">이 브라우저에 법인카드·연결계좌 기억 (공용 PC면 끄세요)</label>
+    <p class="hint">해외결제(US$) 영수증은 원화 금액이 영수증에 없어요. 아래 표에서 카드 청구 금액(원)을 직접 적어 주세요.</p>
   </section>
 
   <section class="card">
@@ -457,7 +460,7 @@ root.ExpCore=api;
 </script>
 <script>
 /* 경비환급신청서 엑셀 생성 — 서식 템플릿(tpl)을 읽어 데이터만 채운다.
-   법인카드·연결계좌 칸은 비워 둔다(사람마다 달라서 엑셀에서 직접 입력). */
+   법인카드·연결계좌는 화면에서 입력한 값을 넣는다(비우면 빈칸). */
 (function(root){
 'use strict';
 
@@ -468,7 +471,7 @@ const clone=o=>JSON.parse(JSON.stringify(o||{}));
 function colLetter(n){ return String.fromCharCode(64+n); }
 
 async function buildWorkbook(ExcelJS, tplBytes, opt){
-  const {year,month,dept,name,rows,detailText}=opt;
+  const {year,month,dept,name,card,account,rows,detailText}=opt;
   const wb=new ExcelJS.Workbook();
   await wb.xlsx.load(tplBytes);
   const ws=wb.worksheets[0];
@@ -484,8 +487,8 @@ async function buildWorkbook(ExcelJS, tplBytes, opt){
   ws.getCell('A1').value=`${String(year).slice(2)}년 ${month}월 경비 환급 신청서`;
   ws.getCell('B3').value=dept||'';
   ws.getCell('E3').value=name||'';
-  ws.getCell('H3').value=null;     // 법인카드 — 직접 입력
-  ws.getCell('K3').value=null;     // 연결계좌 — 직접 입력
+  ws.getCell('H3').value=card||null;      // 법인카드
+  ws.getCell('K3').value=account||null;   // 연결계좌
 
   // 일자별로 묶기: 월의 모든 날짜 + (월 밖 일자는 뒤에)
   const lastDay=new Date(Date.UTC(year,month,0)).getUTCDate();
@@ -557,8 +560,8 @@ const PDF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.wor
 const LANG_PATH=window.__LANG_PATH__||'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best_int';
 // 읽기 순서: 한 번 읽어서 일자·금액이 믿을 만하면 거기서 끝내고, 아니면 해상도·이진화를 바꿔 다시 읽어 투표한다.
 const PASSES=[{dpi:150,bin:false},{dpi:200,bin:false},{dpi:250,bin:false}];
-const LS={dept:'pbg_exp_dept',who:'pbg_exp_who',rules:'pbg_exp_rules',rate:'pbg_exp_rate'};
-const ls={get(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
+const LS={dept:'pbg_exp_dept',who:'pbg_exp_who',rules:'pbg_exp_rules',card:'pbg_exp_card',acct:'pbg_exp_acct',keep:'pbg_exp_keep'};
+const ls={get(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
 
 const S={rows:[],seq:1,total:0,done:0,busy:false,skipped:[],rules:[]};
 try{ S.rules=JSON.parse(ls.get(LS.rules)||'[]')||[]; }catch(e){ S.rules=[]; }
@@ -566,7 +569,6 @@ try{ S.rules=JSON.parse(ls.get(LS.rules)||'[]')||[]; }catch(e){ S.rules=[]; }
 /* ── 작은 도우미 ── */
 function ymNow(){ const v=$('ym').value; if(!/^\d{4}-\d{2}$/.test(v)) return null; return {y:+v.slice(0,4),m:+v.slice(5,7)}; }
 function dkey(d){ return d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:''; }
-function rate(){ const r=parseFloat($('rate').value); return r>0?r:0; }
 function catsFor(sec){ return sec==='out'?C.CATS.filter(c=>c!=='주유비'):C.CATS; }
 function tell(){ if(!EMBED) return; try{ parent.postMessage({type:'pbg-expense-h',h:document.documentElement.scrollHeight},'*'); }catch(e){} }
 
@@ -657,11 +659,7 @@ function toRow(parsed,text,meta){
   if(parsed.tag==='SW') r.memo='팀 업무 SW 구독';
   if(parsed.tag==='PARK'&&/발렛|VALET/i.test(text)) r.memo='발렛';
   if(parsed.page&&parsed.page.no>1){ r.cont=true; r.include=false; }
-  applyRate(r);
   return r;
-}
-function applyRate(r){
-  if(r.currency==='USD'&&r.amount==null&&r.usd!=null&&rate()){ r.amount=Math.round(r.usd*rate()); r.est=true; }
 }
 async function processJob(job){
   const seq=job.idx;
@@ -862,12 +860,12 @@ $('makeBtn').addEventListener('click',async()=>{
   const btn=$('makeBtn'); btn.disabled=true; const old=btn.textContent; btn.innerHTML='<span class="spin"></span>만드는 중';
   try{
     const dept=$('dept').value.trim(), who=$('who').value.trim();
-    const res=await X.buildWorkbook(ExcelJS,b64ToBytes(TPL_B64),{year:ym.y,month:ym.m,dept,name:who,rows:use,detailText:C.detailText});
+    const res=await X.buildWorkbook(ExcelJS,b64ToBytes(TPL_B64),{year:ym.y,month:ym.m,dept,name:who,card:$('card').value.trim(),account:$('acct').value.trim(),rows:use,detailText:C.detailText});
     const blob=new Blob([res.buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const nm=`경비환급신청서_${String(ym.y).slice(2)}년_${ym.m}월_${[dept,who].filter(Boolean).join('_')||'제출용'}.xlsx`.replace(/[\\/:*?"<>|]/g,'');
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nm; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
     const sk=$('skipNote'); sk.style.display='block'; sk.className='note';
-    sk.textContent=`${nm} 을 만들었어요 (팀예산 內 ${fmt(res.totals.in)}원 · 外 ${fmt(res.totals.out)}원). 엑셀 위쪽의 법인카드·연결계좌 칸은 직접 입력하세요.`;
+    sk.textContent=`${nm} 을 만들었어요 (팀예산 內 ${fmt(res.totals.in)}원 · 外 ${fmt(res.totals.out)}원). ${$('card').value.trim()&&$('acct').value.trim()?'':'비어 있는 법인카드·연결계좌 칸은 엑셀에서 직접 입력하세요.'}`;
   }catch(e){ console.error(e); alert('엑셀을 만드는 중 오류가 났어요: '+e.message); }
   finally{ btn.textContent=old; renderSum(); tell(); }
 });
@@ -892,10 +890,16 @@ $('rules').addEventListener('toggle',tell);
 (function init(){
   // 경비는 전월 것을 이번 달에 신청하므로 기본값은 항상 전월
   const now=new Date(), pm=new Date(now.getFullYear(), now.getMonth()-1, 1); $('ym').value=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}`;
-  $('dept').value=ls.get(LS.dept); $('who').value=ls.get(LS.who); $('rate').value=ls.get(LS.rate);
+  $('dept').value=ls.get(LS.dept); $('who').value=ls.get(LS.who);
+  $('keep').checked=ls.get(LS.keep)==='1';
+  if($('keep').checked){ $('card').value=ls.get(LS.card); $('acct').value=ls.get(LS.acct); }
   $('dept').addEventListener('input',()=>ls.set(LS.dept,$('dept').value));
   $('who').addEventListener('input',()=>ls.set(LS.who,$('who').value));
-  $('rate').addEventListener('input',()=>{ ls.set(LS.rate,$('rate').value); S.rows.forEach(r=>{ if(r.est||(r.currency==='USD'&&r.amount==null)){ r.est=false; if(r.currency==='USD'){ r.amount=null; applyRate(r);} } }); render(); });
+  // 법인카드·연결계좌는 '기억'을 켰을 때만 저장하고, 끄면 지운다
+  const saveCA=()=>{ if($('keep').checked){ ls.set(LS.card,$('card').value); ls.set(LS.acct,$('acct').value); } };
+  $('card').addEventListener('input',saveCA); $('acct').addEventListener('input',saveCA);
+  $('keep').addEventListener('change',()=>{ if($('keep').checked){ ls.set(LS.keep,'1'); saveCA(); } else { ls.del(LS.keep); ls.del(LS.card); ls.del(LS.acct); } });
+  ls.del('pbg_exp_rate');   // 예전 환율 칸 값 정리
   $('ym').addEventListener('change',()=>render());
   renderRules(); render();
   if(EMBED&&window.ResizeObserver) new ResizeObserver(tell).observe(document.body);
@@ -906,4 +910,3 @@ window.__EXP__={S,render,processJob,addFiles};   // 테스트·디버깅용
 </script>
 </body>
 </html>
-<!DOCTYPE html>
