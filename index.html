@@ -529,6 +529,7 @@ const TABS=[
   {id:'funnel',  name:'퍼널·페이지', ready:true},   // 필요할 때: 퍼널·페이지·스크롤
   {id:'product', name:'구좌·상품',   ready:true},   // 필요할 때: 구좌 성과·상품 성과
   {id:'manager', name:'담당자',     ready:true},   // 필요할 때: 담당자별 판매 실적
+  {id:'trend',   name:'트렌드',    ready:true},   // 매일: 키워드 레이더 (trend-tab.js · slackbot/build_keyword_radar.py)
 ];
 // 탭은 URL(?tab=) 이 있으면 그것을, 없으면 마지막으로 본 탭을 쓴다.
 // URL 이 우선인 이유: 북마크로 특정 탭을 바로 열 수 있어야 하기 때문.
@@ -834,6 +835,9 @@ async function load(){
   if(TAB==='growth'){ await loadGrowthTab(); return; }
   if(TAB==='revenue'){ await loadRevenue(); return; }
   if(TAB==='manager'){ await loadManagerTab(); return; }
+  if(TAB==='trend'){   // 트렌드 탭은 별도 파일을 처음 열 때만 불러온다
+    if(!window.loadTrendTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='trend-tab.js?v='+Math.floor(Date.now()/3600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    await window.loadTrendTab(); return; }
   showLoading();
   try{
     const d = await wfetch(WORKER+'/?'+q());
