@@ -33,7 +33,10 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 .tr-pill{display:inline-block;border-radius:var(--r-pill);padding:2px 10px;font-size:12px;font-weight:700;}
 .tr-p-소싱{background:#E8F3FF;color:#1B64DA;} .tr-p-밀기{background:#E7F9F0;color:#008A52;}
 .tr-p-재고확보{background:#FFF3E0;color:#C25E00;} .tr-p-저가라인{background:#F3EEFF;color:#6B3FD4;}
-.tr-p-지켜보기{background:var(--fill);color:var(--ink-2);} .tr-p-패스{background:var(--fill);color:var(--ghost);}
+.tr-p-지켜보기,.tr-p-소싱검토{background:var(--fill);color:var(--ink-2);} .tr-p-패스,.tr-p-유지{background:var(--fill);color:var(--ghost);}
+.tr-p-안팔림점검{background:#FEECEE;color:#C4202F;}
+.tr-why{font-size:11px;color:var(--ink-2);margin-top:3px;white-space:normal;min-width:220px;max-width:280px;line-height:1.4;}
+.tr-tt{font-size:11px;color:var(--muted);margin-left:6px;}
 .tr-sub{font-size:11px;color:var(--muted);}
 .tr-detail td{background:var(--paper);white-space:normal;text-align:left;padding:var(--s4);}
 .tr-dgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.3fr);gap:var(--s5);}
@@ -57,11 +60,13 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 .tr-foot a{color:var(--accent);}
 .tr-more{border:0;background:var(--fill);border-radius:var(--r-ctrl);padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-top:var(--s3);}
 `;
-const ACTIONS=['재고확보','소싱','저가라인','밀기','지켜보기','패스'];
-const ACT_HELP={재고확보:'수요 있음 · 우리 상품 전부 품절',소싱:'수요 있음 · 경쟁 낮음/중간 · 우리 몰에 없음',
-  저가라인:'수요 있음 · 우리 가격이 시장의 2배 이상',밀기:'수요 있음 · 우리 몰에 있음',지켜보기:'뜨는 중이지만 검색수가 아직 작음',패스:'그 외'};
+const ACTIONS=['재고확보','소싱','밀기','안 팔림 점검','저가라인','소싱 검토','지켜보기','유지','패스'];
+const TODO=['재고확보','소싱','밀기','안 팔림 점검','저가라인'];
+const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','소싱':'뜨는 중 · 우리 몰에 없음','밀기':'뜨는 중 · 우리 상품이 팔리고 있음 → 광고·기획전',
+  '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
+  '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
-const S={data:null,pool:null,shop:null,act:'',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
+const S={data:null,pool:null,shop:null,act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
 const pct=v=>{if(v==null)return '<span class="tr-flat">—</span>';const p=Math.round(v*100);const c=p>=10?'tr-up':p<=-10?'tr-down':'tr-flat';return `<span class="${c}">${p>0?'+':''}${p}%</span>`;};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -112,13 +117,13 @@ function bars(obj,label=k=>k){
 }
 
 const COLS=[
-  {k:'keyword',t:'키워드',l:1},{k:'theme',t:'테마',l:1},{k:'monthlySearch',t:'월간 검색'},{k:'volGrowth28',t:'검색수 28일'},
+  {k:'keyword',t:'키워드',l:1},{k:'action',t:'판정 · 할 일',l:1},{k:'monthlySearch',t:'월간 검색'},{k:'volGrowth28',t:'검색수 28일'},
   {k:'growth4w',t:'4주 추세'},{k:'yoy',t:'전년 대비'},{k:'shopGrowth4w',t:'쇼핑 클릭 4주'},{k:'femaleShare',t:'여성'},
-  {k:'adCompetition',t:'광고 경쟁'},{k:'ytViews7d',t:'유튜브·블로그·카페'},{k:'ourSales30',t:'우리 몰'},{k:'action',t:'판정',l:1},
+  {k:'adCompetition',t:'광고 경쟁'},{k:'ytViews7d',t:'유튜브·블로그·카페'},{k:'ourSales30',t:'우리 몰'},
 ];
 function filtered(rows){
   const q=S.q.trim().replace(/\s/g,'');
-  let r=rows.filter(x=>(!S.act||x.action===S.act)&&(!S.theme||x.theme===S.theme)&&(!q||x.keyword.includes(q))
+  let r=rows.filter(x=>(!S.act||(S.act==='할 일'?TODO.includes(x.action):x.action===S.act))&&(!S.theme||x.theme===S.theme)&&(!q||x.keyword.includes(q))
     &&(!S.onlyNew||x.isNew)&&(!S.onlyRising||(x.growth4w||0)>=.2||(x.volGrowth28||0)>=.2||(x.yoy||0)>=.3));
   if(S.sort){const k=S.sort;const comp=k==='adCompetition'?(v=>({'낮음':1,'중간':2,'높음':3}[v]||0)):(v=>v);
     r=[...r].sort((a,b)=>{const A=comp(a[k]),B=comp(b[k]);if(A==null&&B==null)return 0;if(A==null)return 1;if(B==null)return -1;
@@ -130,11 +135,10 @@ function rowHTML(x,i){
   const fem=x.femaleShare!=null?`${Math.round(x.femaleShare)}%<div class="tr-sub">${AGE[x.topAge]||''}</div>`:'—';
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
   const yt=(x.ytViews7d!=null||x.blog7d!=null||x.cafeTotal!=null)?`${x.ytViews7d!=null?n(x.ytViews7d)+'회':'—'}<div class="tr-sub">블로그 ${n(x.blog7d)} · 카페 ${x.cafeNew!=null?'+'+n(x.cafeNew):'—'}</div>`:'—';
-  return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}</td>
-  <td class="l">${esc(x.theme||'')}</td><td>${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
+  return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · '+esc(x.trendType):''}</div></td>
+  <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td>${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
   <td>${pct(x.volGrowth28)}</td><td><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
-  <td>${pct(x.yoy)}</td><td>${shopc}</td><td>${fem}</td><td>${esc(x.adCompetition||'—')}</td><td>${yt}</td><td>${our}</td>
-  <td class="l"><span class="tr-pill tr-p-${esc(x.action)}">${esc(x.action)}</span></td></tr>`;
+  <td>${pct(x.yoy)}</td><td>${shopc}</td><td>${fem}</td><td>${esc(x.adCompetition||'—')}</td><td>${yt}</td><td>${our}</td></tr>`;
 }
 function detailHTML(x,i){
   const prods=(x.ourTop||[]).map(p=>`<li><a href="${esc(p.url||('https://www.printbakery.com/product/detail.html?product_no='+p.no))}" target="_blank" rel="noopener">${esc(p.name)}</a> · ${n(p.price)}원 · 30일 ${n(p.q30)}개${p.soldOut?' · <b>품절</b>':''}</li>`).join('')||'<li class="tr-sub">우리 몰에 매칭되는 상품 없음</li>';
@@ -164,7 +168,8 @@ function renderTable(){
 function renderActs(){
   const rows=S.data.runs[S.data.runs.length-1].rows; const cnt={}; rows.forEach(r=>cnt[r.action]=(cnt[r.action]||0)+1);
   const el=document.getElementById('trActs');
-  el.innerHTML=`<button class="tr-act ${S.act?'':'on'}" data-a=""><span class="n">${rows.length}</span><span class="l">전체</span></button>`+
+  const todo=rows.filter(r=>TODO.includes(r.action)).length;
+  el.innerHTML=`<button class="tr-act ${S.act==='할 일'?'on':''}" data-a="할 일"><span class="n">${todo}</span><span class="l">할 일</span></button><button class="tr-act ${S.act?'':'on'}" data-a=""><span class="n">${rows.length}</span><span class="l">전체</span></button>`+
     ACTIONS.filter(a=>cnt[a]).map(a=>`<button class="tr-act ${S.act===a?'on':''}" data-a="${a}" title="${ACT_HELP[a]}"><span class="n">${cnt[a]}</span><span class="l">${a}</span></button>`).join('');
   el.querySelectorAll('.tr-act').forEach(b=>b.onclick=()=>{S.act=b.dataset.a;S.limit=60;renderActs();renderTable();});
 }
@@ -205,7 +210,7 @@ window.loadTrendTab=async function(){
   c.innerHTML=`
    <div class="tr-meta"><span>기준 <b>${esc(run.date)}</b> (매일 06:50 갱신)</span><span>키워드 풀 <b>${n(run.poolSize)}</b>개</span><span>오늘 새로 들어옴 <b>${n(run.newToday)}</b>개</span><span>추석(9/14~9/28)은 추세 계산에서 제외</span></div>
    ${errs.length?`<div class="tr-warn">일부 네이버 API 호출이 실패했습니다: ${errs.map(([k,v])=>esc(k)+' '+esc(v).slice(0,80)).join(' / ')}</div>`:''}
-   <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 숫자 카드를 누르면 그 판정만 봅니다.</p>
+   <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 처음엔 할 일(재고확보·소싱·밀기·안 팔림 점검·저가라인)만 보입니다. 상시 수요인데 잘 팔리는 키워드는 '유지'로 빠집니다.</p>
      <div class="tr-acts" id="trActs"></div>
      <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="${esc(S.q)}">
        <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option ${S.theme===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
