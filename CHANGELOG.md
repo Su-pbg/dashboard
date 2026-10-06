@@ -4,13 +4,33 @@
 
 | 파일 | 배포 위치 |
 |---|---|
-| `index.html`, `CHANGELOG.md`, `revenue-daily.json` | `Su-pbg/dashboard` (GitHub Pages) |
+| `index.html`, `expense.html`, `CHANGELOG.md`, `revenue-daily.json` | `Su-pbg/dashboard` (GitHub Pages) |
 | `worker.js` | Cloudflare Worker `proud-sea-35f9` |
 | `build_revenue_daily.py`, `snapshot_new_members.py`, `*.yml` | `Su-pbg/slackbot` |
 
 ---
 
 ## 2026-10-06
+
+### 왼쪽 상위 메뉴(대시보드 / 트렌드 분석 / 경비환급) + 경비환급 엑셀 만들기 페이지
+**배포:** `index.html` · `expense.html` (GitHub Pages, 같은 폴더). 워커·slackbot 수정 없음.
+
+- **무엇:** 화면을 어드민 레이아웃으로 바꿨다. 왼쪽에 상위 메뉴 3개, 오른쪽에 본문.
+  - **대시보드** — 기존 탭(그로스·매출·고객·퍼널·페이지·구좌·상품·담당자)
+  - **트렌드 분석** — 예전 '트렌드' 탭이 상위 메뉴로 올라갔다. 탭줄·기간 조건은 숨긴다(이 화면은 쓰지 않음).
+  - **경비환급** — 신규. 영수증 PDF를 올리면 경비환급신청서 엑셀을 만든다(`expense.html` 을 안에 끼워 넣음).
+- **로그인 범위:** 대시보드·트렌드 분석만 로그인이 필요하다. 경비환급은 로그인 없이 쓴다(전 팀 사용).
+  - 로그인 창은 화면 전체가 아니라 본문 영역만 덮는다 → 로그인 전에도 왼쪽 메뉴의 경비환급을 누를 수 있다.
+  - 토큰이 없으면 `load()` 가 호출되지 않아 데이터 요청이 나가지 않는 성질은 그대로(로그인이 필요한 메뉴를 열 때만 로그인 창이 뜸).
+- **주소:** `?m=dashboard|trend|expense`. `m` 이 없으면 늘 대시보드. 예전 북마크 `?tab=trend` 는 트렌드 분석으로 열린다.
+  `TAB` 변수는 그대로 쓰고, 트렌드 분석을 열 때만 `'trend'` 로 바꿔 기존 `load()` 분기를 재사용(`DASH_TAB` 에 대시보드 탭을 기억).
+- **경비환급 엑셀 만들기(`expense.html`):** pdf.js 로 PDF 페이지를 그리고, 영수증 부분만 잘라 tesseract.js(한글+영문)로 읽고, ExcelJS 로 서식 템플릿에 채운다.
+  모두 브라우저 안에서 동작해 서버로 올라가는 파일이 없다. 법인카드·연결계좌는 사람마다 달라서 엑셀에 넣지 않는다(직접 입력).
+  - 읽기: 150dpi 로 한 번 읽어 일자·금액이 믿을 만하면 끝, 아니면 200·250dpi 로 다시 읽어 투표(평균 1.5~2회). 스타벅스 영수증은 '변경 가능 기간'(거래일+14일)에서 거래일을 역산.
+  - **인식은 틀릴 수 있다.** 실제 스캔 PDF 로 시험한 결과 금액은 약 90%, 일자는 약 80%가 맞았다(흐린 감열지는 일자를 못 읽는 경우가 있음). 그래서 표에서 영수증 사진을 보며 일자·금액을 확인하는 단계를 넣었다.
+  - 분류: 기본 규칙(택시·주차 → 교통비, 주유소 → 주유비, 카페·식당 → 식·음료대, SW 구독·해외 인보이스 → 팀예산 外). 팀마다 다른 기준은 화면의 '자동 분류 규칙'에서 키워드로 추가(브라우저에 저장).
+  - US$ 인보이스는 영수증에 원화가 없어 직접 입력하거나 환율을 넣는다(추정치로 표시). 2쪽짜리 인보이스의 2쪽은 자동 제외.
+- **주의:** 인식 엔진·언어 데이터는 CDN(cdnjs · jsdelivr)에서 처음 한 번 내려받는다(약 2MB + 라이브러리). `expense.html` 의 디자인 토큰은 `index.html` 과 같다 — 바꿀 때 양쪽을 같이.
 
 ### 트렌드 탭 추가 (키워드 레이더)
 **배포:** `index.html` · `trend-tab.js` · `radar-config.json` (GitHub Pages) + `build_keyword_radar.py` · `.github/workflows/update-trend-metrics.yml` (`Su-pbg/slackbot`)
