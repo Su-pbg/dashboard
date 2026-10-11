@@ -152,7 +152,7 @@
       <b>PDF를 끌어다 놓거나 눌러서 선택</b>
       <span>여러 파일 가능 · 한 PDF에 영수증이 여러 장 있어도 돼요</span>
     </div>
-    <label class="keep"><input type="checkbox" id="aiOn"><span><b>AI로 읽기 (Google Gemini)</b> — 인식이 훨씬 정확해요. 대신 영수증 이미지가 구글로 전송되고, 무료 등급이라 구글이 서비스 개선에 쓸 수 있어요. 카드번호는 결과에서 가려요.</span></label>
+    <label class="keep"><input type="checkbox" id="aiOn" checked><span><b>AI로 읽기 (Google Gemini)</b> — 인식이 훨씬 정확해요. 대신 영수증 이미지가 구글로 전송되고, 무료 등급이라 구글이 서비스 개선에 쓸 수 있어요. 카드번호는 결과에서 가려요.</span></label>
     <input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
     <div class="prog" id="prog"><div class="bar"><i id="progBar"></i></div><p id="progTxt"></p></div>
     <div class="note" id="skipNote" style="display:none"></div>
@@ -230,7 +230,7 @@ function datesInLine(line){
 const RE_CHANGE=/[변번]\s?경\s*가능|가능\s*기간/;   // 스타벅스: '변경 가능 기간 ~ (거래일+14일)'
 function shiftDays(y,m,d,n){ const t=new Date(Date.UTC(y,m-1,d+n)); return [t.getUTCFullYear(),t.getUTCMonth()+1,t.getUTCDate()]; }
 function findDate(lines, ym){
-  let best=null, bestScore=-1e9, idx=0;
+  let best=null, bestScore=-1e9, idx=0, anyInMonth=false;
   lines.forEach((line,li)=>{
     let ds=datesInLine(line);
     const derived=RE_CHANGE.test(line)&&ds.length>0;
@@ -241,11 +241,17 @@ function findDate(lines, ym){
       if(ym && mo===ym.m && y!==ym.y && Math.abs(y-ym.y)<=8){ y=ym.y; }
       if(DATE_KEY_STRONG.test(line)) s+=3; else if(DATE_KEY_WEAK.test(line)) s+=2;
       if(derived) s+=1; else if(DATE_PENALTY.test(line)) s-=4;
-      if(ym && ym.y===y && ym.m===mo) s+=3;
+      if(ym && ym.y===y && ym.m===mo){ s+=3; anyInMonth=true; }
       s-=idx*0.01; idx++;
       if(s>bestScore){bestScore=s;best={y,m:mo,d};}
     });
   });
+  // [2026-10-07] 월 자리 오독 보정. 감열지에서 09 가 03·08 로 읽히는 일이 잦다(실측 2건/21).
+  // 영수증 전체에 신청월 날짜가 하나도 없고 '일'이 신청월에 존재할 때만 월·연을 신청월로 맞춘다.
+  // 조용히 바꾸지 않는다 — fix 를 달아 화면에 빨간 '일자 보정' 칩을 띄우고 사람이 확인하게 한다.
+  if(best && ym && !anyInMonth && !(best.y===ym.y&&best.m===ym.m) && validYMD(ym.y,ym.m,best.d)){
+    best={y:ym.y,m:ym.m,d:best.d,fix:true};
+  }
   return best;
 }
 
@@ -436,13 +442,17 @@ function detailText(row){
 function inMonth(d,ym){ return !!(d&&ym&&d.y===ym.y&&d.m===ym.m); }
 function isConfident(p,ym){
   const amtOk=(p.currency==='USD'?p.usd!=null:p.amount!=null);
-  return !!(p.date&&inMonth(p.date,ym)&&amtOk&&p.amtScore>=5);
+  // 보정한 일자(fix)는 확신으로 치지 않는다 — 여기서 끊으면 제대로 읽을 기회를 버린다.
+  return !!(p.date&&!p.date.fix&&inMonth(p.date,ym)&&amtOk&&p.amtScore>=5);
 }
 function mergeParses(list, ym){
   const out=Object.assign({}, list[0]);
   const dv=new Map();
   list.forEach((p,i)=>{ if(!p.date) return; const k=`${p.date.y}-${p.date.m}-${p.date.d}`;
-    const o=dv.get(k)||{w:0,d:p.date,first:i}; o.w+=1+(inMonth(p.date,ym)?2:0); dv.set(k,o); });
+    const o=dv.get(k)||{w:0,d:p.date,first:i};
+    o.w+=1+(inMonth(p.date,ym)?(p.date.fix?0:2):0);   // 보정한 일자는 가산점 없이 1표만
+    if(!p.date.fix&&o.d.fix) o.d=p.date;              // 같은 날짜면 실제로 읽은 쪽을 남긴다
+    dv.set(k,o); });
   let bd=null; dv.forEach(o=>{ if(!bd||o.w>bd.w||(o.w===bd.w&&o.first<bd.first)) bd=o; });
   out.date=bd?bd.d:null;
   const av=new Map(); const cur=list.filter(p=>p.currency==='USD').length>list.length/2?'USD':'KRW';
@@ -566,7 +576,9 @@ const PDF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.wor
 const LANG_PATH=window.__LANG_PATH__||'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best_int';
 // 읽기 순서: 한 번 읽어서 일자·금액이 믿을 만하면 거기서 끝내고, 아니면 해상도·이진화를 바꿔 다시 읽어 투표한다.
 // [2026-10-06] 2번째는 적응형 이진화(감열지 얼룩·그림자 대응), 3번째는 열 단위 배치(psm 4)로 읽어 투표 폭을 넓혔다.
-const PASSES=[{dpi:200,bin:false,psm:'6'},{dpi:300,bin:'local',psm:'6'},{dpi:300,bin:false,psm:'4'}];
+// [2026-10-07] 1·3차를 400dpi 로. 실측(9월 테크팀 23쪽) 일자+금액 정확 48% → 67%.
+//   감열지 키오스크 전표의 '일시' 줄이 200dpi 에서 통째로 뭉개졌다. 600dpi 는 오히려 나빠진다(하이픈이 공백이 됨).
+const PASSES=[{dpi:400,bin:false,psm:'6'},{dpi:300,bin:'local',psm:'6'},{dpi:400,bin:false,psm:'4'}];
 const LS={dept:'pbg_exp_dept',who:'pbg_exp_who',rules:'pbg_exp_rules',card:'pbg_exp_card',acct:'pbg_exp_acct',keep:'pbg_exp_keep'};
 const ls={get(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
 
@@ -623,18 +635,28 @@ function enhance(cv,bin){
   for(let i=0;i<n;i++){ let v=Math.max(0,Math.min(255,(g[i]-lo)*255/(hi-lo)))|0; if(bin) v=v>t?255:0; d[i*4]=d[i*4+1]=d[i*4+2]=v; d[i*4+3]=255; }
   ctx.putImageData(im,0,0); return cv;
 }
-async function renderJob(job,dpi,bin){
+// 원본 그대로 그리기. raw=true 면 사진을 억지로 키우지 않는다(AI 는 확대본이 필요 없다).
+async function renderPage(job,dpi,raw){
   let page=document.createElement('canvas'), ctx;
   if(job.kind==='pdf'){
-    const p=await job.doc.getPage(job.no); const vp=p.getViewport({scale:dpi/72});
+    const p=await job.doc.getPage(job.no);
+    // 400dpi A4 = 약 3300x4700. 더 큰 판형(A3 등)에서 캔버스가 터지지 않게 긴 변을 5200px 로 묶는다.
+    const v0=p.getViewport({scale:dpi/72});
+    const cap=Math.min(1,5200/Math.max(v0.width,v0.height));
+    const vp=cap<1?p.getViewport({scale:dpi/72*cap}):v0;
     page.width=Math.ceil(vp.width); page.height=Math.ceil(vp.height); ctx=page.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,page.width,page.height);
     await p.render({canvasContext:ctx,viewport:vp}).promise;
   }else{
-    const im=job.img; const long=Math.max(im.width,im.height); const sc=Math.min(2,(dpi/150*1650)/long);   // 작은 사진은 키워서 읽는다(글자 높이가 낮으면 인식률이 크게 떨어짐)
+    const im=job.img; const long=Math.max(im.width,im.height);
+    const sc=raw?1:Math.min(2,(dpi/150*1650)/long);   // 작은 사진은 키워서 읽는다(글자 높이가 낮으면 인식률이 크게 떨어짐)
     page.width=Math.round(im.width*sc); page.height=Math.round(im.height*sc); ctx=page.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,page.width,page.height); ctx.drawImage(im,0,0,page.width,page.height);
   }
+  return page;
+}
+async function renderJob(job,dpi,bin){
+  const page=await renderPage(job,dpi);
   const cropped=autoCrop(page); page.width=page.height=0;
   return enhance(cropped,bin);
 }
@@ -680,6 +702,7 @@ function toRow(parsed,text,meta){
   return r;
 }
 /* ── AI로 읽기 (워커 /receipt → Gemini) ── */
+const AI_DPI=300, AI_MAXPX=2000, AI_Q=.92;
 const AI={url:'https://proud-sea-35f9.sugim-386.workers.dev/receipt', next:0, gap:6500, off:'', fails:0};   // 무료 등급 분당 10건 → 6.5초 간격
 const sleep=ms=>new Promise(r=>setTimeout(r,Math.max(0,ms)));
 function aiOn(){ return $('aiOn').checked&&!AI.off; }
@@ -695,10 +718,13 @@ async function aiRead(img,ym){
 }
 async function processJobAI(job){
   const ym=ymNow();
-  const cv=await renderJob(job,200,false);
+  // [2026-10-07] 전처리(autoCrop·흑백·대비 스트레치)는 tesseract 용이다. AI 한테는 오히려 독이라 거치지 않는다.
+  // 300dpi 컬러 원본 → 긴 변 2000px, JPEG 0.92. (워커 한도 6MB base64, 여유 있음)
+  const cv=await renderPage(job,AI_DPI,true);
   const meta=Object.assign(thumbsOf(cv),{src:job.label});
-  const sc=Math.min(1,1600/Math.max(cv.width,cv.height)); const c2=document.createElement('canvas'); c2.width=Math.round(cv.width*sc); c2.height=Math.round(cv.height*sc);
-  c2.getContext('2d').drawImage(cv,0,0,c2.width,c2.height); const img=c2.toDataURL('image/jpeg',.85); cv.width=cv.height=c2.width=c2.height=0;
+  const sc=Math.min(1,AI_MAXPX/Math.max(cv.width,cv.height)); const c2=document.createElement('canvas'); c2.width=Math.round(cv.width*sc); c2.height=Math.round(cv.height*sc);
+  const g2=c2.getContext('2d'); g2.imageSmoothingQuality='high'; g2.drawImage(cv,0,0,c2.width,c2.height);
+  const img=c2.toDataURL('image/jpeg',AI_Q); cv.width=cv.height=c2.width=c2.height=0;
   const res=await aiRead(img,$('ym').value);
   let text=String(res.fullText||'');
   if(res.approvalNo&&!/승\s*인\s*번\s*호/.test(text)) text+=`\n승인번호 ${res.approvalNo}`;
@@ -811,6 +837,7 @@ function chipsOf(r){
   if(r.currency==='USD'&&r.amount==null) out.push([`원화 금액 입력 (US$ ${fmt(r.usd==null?0:r.usd)})`,'red']);
   else if(r.amount==null) out.push(['금액 입력','red']);
   if(r.est) out.push([`환율 적용 (US$ ${r.usd})`,'']);
+  if(r.date&&r.date.fix) out.push(['일자 보정됨 · 확인','red']);
   // 중복 = 같은 날짜·같은 가맹점·같은 금액. 날짜가 비었거나 다르면 중복이 아니고, 승인번호가 서로 다르면 중복이 아니다.
   const ap=x=>((x.text||'').replace(/\s/g,'').match(/승인번호[:：]?(\d{6,10})/)||[])[1];
   const dup=r.include&&r.date&&r.amount!=null&&S.rows.find(o=>o!==r&&o.include&&o.date&&o.amount===r.amount&&dkey(o.date)===dkey(r.date)&&o.merchant===r.merchant&&!(ap(o)&&ap(r)&&ap(o)!==ap(r)));
@@ -949,8 +976,8 @@ $('rules').addEventListener('toggle',tell);
 (function init(){
   // 경비는 전월 것을 이번 달에 신청하므로 기본값은 항상 전월
   const now=new Date(), pm=new Date(now.getFullYear(), now.getMonth()-1, 1); $('ym').value=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}`;
-  $('aiOn').checked=ls.get('pbg_exp_ai')==='1';
-  $('aiOn').addEventListener('change',()=>{ AI.off=''; AI.fails=0; ls.set('pbg_exp_ai',$('aiOn').checked?'1':''); });
+  $('aiOn').checked=ls.get('pbg_exp_ai')!=='0';   // 기본 켜짐. 직접 끈 적 있을 때만 꺼진다
+  $('aiOn').addEventListener('change',()=>{ AI.off=''; AI.fails=0; ls.set('pbg_exp_ai',$('aiOn').checked?'1':'0'); });
   $('dept').value=ls.get(LS.dept); $('who').value=ls.get(LS.who);
   $('keep').checked=ls.get(LS.keep)==='1';
   if($('keep').checked){ $('card').value=ls.get(LS.card); $('acct').value=ls.get(LS.acct); }

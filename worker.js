@@ -911,7 +911,7 @@ function csv(rows, status = 200, filename) {
 __name(csv, "csv");
 // ===== 영수증 AI 읽기 =====
 // Google Gemini API(무료 등급)로 영수증 이미지를 읽어 일자·사용처·금액·승인번호·전체 글자를 JSON 으로 돌려준다.
-// 시크릿: GEMINI_API_KEY (필수), GEMINI_MODEL (선택, 기본 gemini-2.5-flash)
+// 시크릿: GEMINI_API_KEY (필수), GEMINI_MODEL (선택, 기본 gemini-3.8-flash)
 // 무료 등급은 결제 수단이 없어 과금되지 않는다. 한도(분당·일일)를 넘으면 429 → 페이지가 기본 엔진으로 되돌아간다.
 var RECEIPT_ORIGINS = ["https://su-pbg.github.io"];
 var RECEIPT_MAX_B64 = 6e6;
@@ -949,7 +949,7 @@ async function handleReceipt(request, env) {
   const cors = { ...CORS, "Access-Control-Allow-Origin": RECEIPT_ORIGINS.includes(origin) ? origin : RECEIPT_ORIGINS[0] };
   const out = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
   if (!RECEIPT_ORIGINS.includes(origin)) return out({ error: "허용되지 않은 출처" }, 403);
-  if (!env.GEMINI_API_KEY) return out({ error: "AI 읽기가 아직 설정되지 않았어요 (GEMINI_API_KEY)" }, 503);
+  if (!env.GEMINI_API_KEY) return out({ error: "AI 읽기가 아직 설정되지 않았어요 (GEMINI_API_KEY)", code: "nokey" }, 503);
   const ip = request.headers.get("CF-Connecting-IP") || "?";
   const now = Date.now();
   const hits = (_rcptHits.get(ip) || []).filter((t) => now - t < 6e4);
@@ -965,9 +965,11 @@ async function handleReceipt(request, env) {
   const data = String(body.image || "").replace(/^data:[^,]+,/, "");
   const mime = /^image\/(jpeg|png|webp)$/.test(body.mime || "") ? body.mime : "image/jpeg";
   if (!data || data.length > RECEIPT_MAX_B64) return out({ error: "이미지가 없거나 너무 큼" }, 400);
-  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
+  let model = env.GEMINI_MODEL || "gemini-3.8-flash";
+  // 진단용: DASHBOARD_KEY 를 같이 보낼 때만 모델을 바꿔볼 수 있다 (한도·가용 모델 확인).
+  if (body.model && body.key && body.key === env.DASHBOARD_KEY) model = String(body.model).slice(0, 60);
   const ym = /^\d{4}-\d{2}$/.test(body.ym || "") ? `\n참고: 신청 월은 ${body.ym} 이다(연도가 안 보이면 이 연도로).` : "";
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const call = (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
     body: JSON.stringify({
@@ -975,12 +977,24 @@ async function handleReceipt(request, env) {
       generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: RECEIPT_SCHEMA }
     })
   });
-  if (r.status === 429) return out({ error: "Gemini 무료 한도 초과" }, 429);
-  if (!r.ok) return out({ error: `Gemini 오류 ${r.status}`, detail: (await r.text()).slice(0, 300) }, 502);
+  let r = await call(model);
+  // [2026-10-07] 모델명을 박아두면 언젠가 404 가 된다 (gemini-2.5-flash 가 그랬고, 그동안 AI 읽기가 통째로 죽어 있었다).
+  // 구글이 404 본문에 후속 모델을 적어주므로 그 이름으로 한 번만 다시 부른다. 그래도 안 되면 그대로 502.
+  if (r.status === 404) {
+    const t404 = await r.text();
+    const alt = [...t404.matchAll(/models\/([A-Za-z0-9.\-]+)/g)].map((x) => x[1]).find((n) => n !== model);
+    if (!alt) return out({ error: "Gemini 오류 404", detail: t404.slice(0, 300) }, 502);
+    model = alt;
+    r = await call(model);
+  }
+  // code 로 성격을 구분해 돌려준다. 페이지가 "다시 걸어볼 것(quota·busy)" 과 "포기할 것(nokey)" 을 가려야 한다.
+  if (r.status === 429) return out({ error: "Gemini 한도 초과", code: "quota", detail: (await r.text()).slice(0, 600) }, 429);
+  if (r.status === 503 || r.status === 500) return out({ error: "Gemini 혼잡", code: "busy", detail: (await r.text()).slice(0, 300) }, 503);
+  if (!r.ok) return out({ error: `Gemini 오류 ${r.status}`, code: "err", detail: (await r.text()).slice(0, 300) }, 502);
   const j = await r.json();
   const txt = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
   try {
-    return out({ ok: true, model, data: JSON.parse(txt) });
+    return out({ ok: true, model, usage: j?.usageMetadata || null, data: JSON.parse(txt) });
   } catch (e) {
     return out({ error: "응답 해석 실패", detail: txt.slice(0, 300) }, 502);
   }

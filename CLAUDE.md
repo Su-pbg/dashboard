@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-10-02
+마지막 갱신: 2026-10-07
 
 ---
 
@@ -24,6 +24,7 @@
 | 구성요소 | 위치 | Git |
 |---|---|---|
 | 프론트엔드 `index.html` (~200KB 단일 파일) | `su-pbg/dashboard` | O |
+| 경비환급 `expense.html` · 트렌드 `trend-tab.js`+`radar-config.json` | `su-pbg/dashboard` | O |
 | 데이터 수집 `scripts/*.mjs` + `.github/workflows/*` | `su-pbg/dashboard` | O |
 | **Cloudflare Worker** `proud-sea-35f9.sugim-386.workers.dev` | `su-pbg/dashboard` 의 `worker.js` | **O** |
 | 매출/카테고리 수집 `build_revenue_daily.py` 등 | `Su-pbg/slackbot` | 별도 레포 |
@@ -54,7 +55,16 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 ```
 
 ### 워커 주요 엔드포인트
-`?bs=&be=&as=&ae=&tab=...` + **인증 필요**
+
+**인증을 타지 않는 경로가 하나 있다 — `POST /receipt`** (2026-10-06).
+경비환급 페이지를 전 팀이 로그인 없이 쓰기 때문에 **인증 검사보다 앞**에 있다.
+막는 건 Origin 화이트리스트(`RECEIPT_ORIGINS` = `https://su-pbg.github.io`)와 IP당 분당 20회뿐.
+→ **워커 라우팅을 건드릴 때 이 블록을 인증 뒤로 밀지 말 것.** 밀면 경비환급이 통째로 죽는다.
+영수증 이미지(base64, 최대 6MB) → Gemini → `{date,merchant,amount,currency,foreignAmount,approvalNo,page,fullText}`.
+시크릿 `GEMINI_API_KEY`(필수) · `GEMINI_MODEL`(기본 `gemini-2.5-flash`). 무료 등급이라 한도 넘으면 429.
+
+나머지는 전부 **인증 필요**:
+`?bs=&be=&as=&ae=&tab=...`
 - 사람: `POST /login` 에 비번 → 토큰 → `Authorization: Bearer` (파일 받기만 `?t=`)
 - 기계: `?key=<DASHBOARD_KEY>` (하드코딩 폴백 없음. 틀리면 403)
 `tab` = `overview`(기본) / `slots` / `cart` / `segfunnel` / `retention` / `acquisition` /
@@ -338,6 +348,76 @@ products?limit=1 + 2026-03-01 → 200
 - 카테고리 섹션: 축 소계(아트·라이프·중복·오프라인·미분류) → 버킷별 세부 → 펼치면 상품 전부.
 - 데이터 점검 배너는 **기본 숨김**(`?health=1` 로 켬). 고칠 사람만 보면 된다.
 - 담당자 탭은 아트·라이프 **팀별**로 나눠서 표시(거래처 LIST 의 `cat` 기준).
+
+---
+
+## 3-3. 2026-10-06~07 (트렌드 탭 · 경비환급)
+
+상세는 `CHANGELOG.md` 에 있다. 여기엔 함정만 적는다.
+
+### 화면이 상위 메뉴 3개로 쪼개졌다
+`?m=dashboard|trend|expense`. `m` 없으면 대시보드. 예전 북마크 `?tab=trend` 도 트렌드로 열린다.
+`TAB` 변수는 그대로 쓰고 트렌드일 때만 `'trend'` 로 바꿔 기존 `load()` 분기를 재사용한다(`DASH_TAB` 이 대시보드 탭을 기억).
+**로그인은 대시보드·트렌드만.** 로그인 창이 화면 전체가 아니라 본문만 덮는 건 의도다 —
+로그인 전에도 왼쪽 메뉴에서 경비환급을 누를 수 있어야 한다.
+
+### 트렌드 탭 (키워드 레이더)
+`trend-tab.js` + `radar-config.json`. **워커를 안 쓴다.** 데이터는 slackbot 이 매일 06:50 KST 에
+`trend-metrics.json` · `keyword-pool.json` · `shopping-insight.json` · `product-snapshot.json` 으로 push.
+씨앗·사전·제외어는 `radar-config.json` 에서 고친다(다음 날 아침 반영).
+- 네이버 쇼핑 검색 API 는 2026-07-31 종료(대체 없음) → 경쟁강도 대신 검색광고 경쟁정도를 쓴다.
+- 개발자센터 신규 키 발급이 막혀 API HUB 키(`NAVER_APIHUB_KEY_ID/KEY`)를 쓴다.
+
+### 경비환급 (`expense.html`)
+pdf.js → 캔버스 → OCR → ExcelJS. 읽기 경로가 **두 개**다.
+
+#### AI 읽기 (`aiOn`, 2026-10-07 부터 기본 켜짐) — 워커 `/receipt` → Gemini
+- 끈 상태는 `localStorage.pbg_exp_ai='0'` 으로만 기억한다(값이 없으면 켜짐). **영수증이 구글로 나간다** — 라벨에 적혀 있다.
+- **[2026-10-07] 무료 등급은 모델당 하루 20건이다.** 9월 테크팀 영수증만 23장 —
+  한 사람 한 달치가 팀 전체 하루 한도를 넘는다. **유료 전환은 하지 않기로 했다(Su, 2026-10-07).**
+  그래서 AI 는 보조고 **기본 엔진이 본선**이다.
+- **[2026-10-07 고침] `gemini-2.5-flash` 가 404 가 돼 AI 읽기가 통째로 죽어 있었다.**
+  "no longer available to new users". 3연속 실패하면 조용히 기본 엔진으로 내려가므로(`AI.off`)
+  겉으로는 "그냥 OCR 이 나쁜 것"처럼 보였다. → 기본을 `gemini-3.8-flash` 로 올리고,
+  **404 본문에 구글이 적어주는 후속 모델 이름으로 한 번 더 부르는 자가복구**를 넣었다.
+  cafe24 API 버전 때와 같은 함정이다(4번 참조). 모델명을 박아두면 언젠가 또 죽는다.
+- 에러에 `code` 가 붙는다: `nokey`(설정 안 됨·포기) · `quota`(한도) · `busy`(혼잡) · `err`.
+- 진단: 요청 본문에 `key`(=`DASHBOARD_KEY`)와 `model` 을 같이 보내면 모델을 바꿔 불러볼 수 있다.
+  한도가 찼어도 429 본문에 `limit: N, model: X` 가 그대로 와서 모델별 한도를 볼 수 있다.
+
+#### 기본 엔진 (tesseract.js) — 여기가 본선
+`PASSES` 3회(400dpi / 300dpi+적응형이진화 / 400dpi psm4)로 읽어 투표. `isConfident` 면 일찍 끝낸다.
+- **[2026-10-07] 1·3차를 200·300 → 400dpi 로 올렸다. 실측 48% → 67%.**
+  감열지 키오스크 전표의 '일시' 줄이 200dpi 에서 통째로 뭉개졌다(금액은 멀쩡한데 일자만 깨짐).
+  **600dpi 는 오히려 나빠진다** — 하이픈이 공백이 돼 `2026-09-08` 이 `2026-09 08` 이 된다. 올리면 좋은 게 아니다.
+  400dpi A4 는 약 3300×4700 이라 `renderPage` 가 긴 변 5200px 로 상한을 건다.
+- **[2026-10-07] 월 자리 오독 보정.** 09 가 03·08 로 읽히는 일이 잦다(실측 2건/21).
+  영수증 전체에 신청월 날짜가 **하나도 없을 때만** 월·연을 신청월로 맞추고 `date.fix=true` 를 단다
+  → 화면에 **빨간 '일자 보정됨 · 확인' 칩**. 조용히 바꾸지 않는다.
+  - **보정한 일자는 `isConfident` 가 거부한다.** 처음에 이걸 빼먹었더니 추정 일자가 확신으로 잡혀
+    투표를 일찍 끊었고, 멀쩡하던 장이 깨졌다(76% → 71%). 추정값으로 조기 종료하면 안 된다.
+  - 투표에서도 보정본은 가산점 없이 1표. 같은 날짜면 실제로 읽은 쪽을 남긴다.
+
+#### 정확도 (2026-10-07 실측, 9월 테크팀 23쪽 / 정답 21건)
+| | 일자+금액 모두 정확 |
+|---|---|
+| 손대기 전 | 10/21 (48%) |
+| 파싱만 고침 | 11/21 (52%) |
+| 400dpi 만 | 14/21 (67%) |
+| **둘 다 (현재)** | **16/21 (76%)** |
+
+남은 5건 중 3건(Google·Postman·Claude)은 **USD 인보이스라 설계상 수동 입력**이고,
+1건(노션)은 시트 값이 인보이스가 아니라 카드 청구 기준이라 애초에 OCR 로 맞출 수 없다.
+**실제로 못 읽는 건 1건**(흐린 컴포즈 전표, 어느 해상도·psm 으로도 일자가 안 나온다).
+
+#### 고치기 전에 이걸 돌린다
+```bash
+node test_expense.mjs                              # 내장 검사만 (월 보정·투표·금액·분류)
+node test_expense.mjs expense-fixtures.local.json  # 실측세트까지 (정확도 + 바닥선 16)
+```
+실측세트는 **커밋하지 않는다**(`.gitignore`). 실제 영수증 글자라 카드·승인번호가 들어 있다.
+다시 만들려면 영수증 PDF 를 3가지 PASSES 로 렌더해 tesseract.js 로 읽은 텍스트를
+`{ym, pages:[{texts:[pass0,pass1,pass2]}], expect:[{date,amount,merchant}], floor}` 로 담으면 된다.
 
 ---
 
