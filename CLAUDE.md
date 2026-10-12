@@ -373,24 +373,24 @@ products?limit=1 + 2026-03-01 → 200
 `trend-tab.js` + `radar-config.json`. **워커를 안 쓴다.** 데이터는 slackbot 이 매일 06:50 KST 에
 `trend-metrics.json` · `keyword-pool.json` · `shopping-insight.json` · `product-snapshot.json` 으로 push.
 씨앗·사전·제외어는 `radar-config.json` 에서 고친다(다음 날 아침 반영).
-- **네이버 쇼핑 검색 API — 경로별로 실측해둔다 (2026-10-12 확정)**
-  | 호스트 · 경로 | 헤더 | 결과 |
-  |---|---|---|
-  | `naverapihub.apigw.ntruss.com/search/v1/blog` | `X-NCP-APIGW-*` | 401 Auth Failed → **경로 있음** |
-  | `naverapihub.apigw.ntruss.com/search/v1/shop` | `X-NCP-APIGW-*` | **404 URL not found → 경로 없음** |
-  | `openapi.naver.com/v1/search/shop.json` | `X-Naver-Client-Id` | 401 NID AUTH → **API 는 살아 있음** |
-  | `naveropenapi.apigw.ntruss.com/**` | 어느 쪽이든 | 404 (여긴 아예 아니다) |
+- **네이버 쇼핑 검색 API 는 2026-07-31 종료. 대체 없음. 더 파지 말 것.**
+  공지: https://developers.naver.com/notice/article/32530 (및 32564)
+  > 검색 API 중 **'쇼핑·책·전문자료' 검색 API는 NAVER API HUB 이관 대상에서 제외**되며,
+  > 단계별 일정과 관계없이 2026년 7월 31일에 서비스가 종료됩니다.
+  > 해당 API는 **유예 기간이 적용되지 않으며**, 2026년 7월 31일 이후에는
+  > **기존 발급 키를 포함하여 호출이 불가**합니다.
+  > **NAVER API HUB를 포함한 별도의 대체 API는 제공되지 않습니다.**
 
-  정리: **쇼핑검색 API 는 멀쩡한데 부를 키가 없다.** API HUB 에는 쇼핑이 없고(404),
-  개발자센터 키가 있어야 하는데 **신규 발급이 막혀 있다(2026-10-12 확인)**.
-  `NAVER_CLIENT_ID`/`SECRET` 은 slackbot 에 설정돼 있지 않다.
-  → **남은 길은 하나다.** 회사에 예전에 등록된 개발자센터 앱이 있으면 그 키로
-  **2027-06-30 까지** 쓸 수 있다(`trend_metrics.py` 주석). 기존 앱에 '검색' API 추가는 열려 있을 수 있다.
+  - 2027-06-30 유예는 **검색어 트렌드·쇼핑인사이트·나머지 검색 API** 에만 해당된다. 쇼핑은 아니다.
+  - 그래서 "예전 개발자센터 키를 구하면 된다" 는 **틀렸다.** 기존 키도 이미 차단이다.
+  - `openapi.naver.com/v1/search/shop.json` 이 401 을 돌려주는 건 인증 단계에서 먼저 끊기기 때문이지
+    **경로가 살아 있다는 뜻이 아니다.** 401/404 만 보고 생사를 판정하면 이렇게 틀린다.
+  - API HUB(`naverapihub.apigw.ntruss.com`)에는 `/search/v1/shop` 이 **404** 로 애초에 없다. 정상이다.
 
-  실제 호출부는 `trend_metrics.py` 의 `HUB = 'https://naverapihub.apigw.ntruss.com'` 과
-  `naver_endpoint(kind)` 다. **추측으로 호스트를 찍지 말고 이 두 줄을 먼저 봐라** —
-  이번에 `openapi.naver.com` · `naveropenapi.apigw.ntruss.com` · `apihub.naver.com` 으로
-  세 번 헛짚었고, 코드 두 줄이 한 번에 끝냈다.
+  **[2026-10-12 실패 기록]** 이 항목이 원래 `trend_metrics.py` 주석에 정확히 적혀 있었는데,
+  내가 상태코드만 보고 "종료가 아니라 키 문제" 라고 뒤집었다가 공지를 읽고 되돌렸다.
+  호스트도 세 번 헛짚었다(`openapi.naver.com` · `naveropenapi.*` · `apihub.naver.com`).
+  **공급사 문서·공지를 먼저 읽는다. 상태코드 추측으로 뒤집지 않는다.**
 
   그래서 `trend-metrics.json` 의 `compTop`·`compPrice`·`marketPrice`·`priceGap` 은 계속 빈다(7일 내내 0/120).
   **시장가가 필요하면 사람이 네이버 쇼핑을 열어 적는 수밖에 없다.**
