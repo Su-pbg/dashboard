@@ -167,7 +167,7 @@ var worker_default = {
       // [2026-09-22] paths·vers·client 등 탭별 파라미터도 캐시 키에 넣는다.
       // 안 넣었더니 tab=slotfunnel 을 구좌 1개로 부른 응답이, 구좌 9개로 부른 요청에
       // 그대로 돌아왔다(같은 키). 응답 내용을 바꾸는 파라미터는 전부 키에 있어야 한다.
-      const cacheKeyParts = ["bs", "be", "as", "ae", "tab", "excl", "autoExclLowEngagement", "cmp", "country", "paths", "vers", "client", "blen", "from", "to", "format", "anchorDate", "anchorTotal"].map((k) => `${k}=${q.get(k) || ""}`).join("&");
+      const cacheKeyParts = ["bs", "be", "as", "ae", "tab", "excl", "autoExclLowEngagement", "cmp", "country", "paths", "vers", "client", "blen", "from", "to", "format", "anchorDate", "anchorTotal", "products"].map((k) => `${k}=${q.get(k) || ""}`).join("&");
       const cacheKey = "resp:v2:" + cacheKeyParts;
       const bypassCache = q.get("nocache") === "1";
       const todayKst = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
@@ -604,6 +604,58 @@ var worker_default = {
       //   그래서 공급가액은 tax_rate 로 직접 역산한다. 면세(rate 0)면 전액이 공급가액.
       //   판매가·할인은 '라인 합계' 다 (단가 아님) — 수량을 또 곱하면 안 된다.
       //   배송비는 주문 단위라 품목 행에 못 붙인다 → 합계가 GMV 와 다르다.
+      // [2026-10-12] 위탁 정산 보조: 상품번호 → 브랜드, 공급사코드 → 카페24 공급사별 배송비 정책.
+      //   · 주문 품목(orderitems)엔 공급사만 있고 브랜드가 없다 → 상품 목록 한 번(최대 100개) + 브랜드 목록(KV 하루).
+      //   · 배송비: 몰 설정이 '공급사별 배송비 사용'(supplier_shipping_fee=T)이라 정책은 공급사마다 있다.
+      //     shipping/suppliers/{공급사 계정ID} — 공급사코드가 아니라 계정ID 를 받는다(코드로 부르면 404 "supplier account cannot be found").
+      //     계정ID 는 suppliers/users?supplier_code= 로 얻는다. 공급사당 2번 호출이라 KV 에 하루 둔다(서브요청 한도 50).
+      //   · 상품 목록의 shipping_fee_by_product 는 우리 몰에선 전부 F(개별 배송비 안 씀)였다 → 상품 단위는 보지 않는다.
+      if (q.get("tab") === "settleprod") {
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const mallId = env.CAFE24_MALL_ID, kv = env.CAFE24_TOKEN_KV;
+        const nos = String(q.get("products") || "").split(",").map((x) => x.trim()).filter((x) => /^\d{1,9}$/.test(x)).slice(0, 100);
+        const sups = String(q.get("suppliers") || "").split(",").map((x) => x.trim()).filter((x) => /^S[0-9A-Z]{7}$/.test(x)).slice(0, 15);
+        const kvGet = async (k) => { try { const v = kv ? await kv.get(k) : null; return v ? JSON.parse(v) : null; } catch (e) { return null; } };
+        const kvPut = async (k, v) => { try { if (kv) await kv.put(k, JSON.stringify(v), { expirationTtl: 86400 }); } catch (e) { } };
+        const products = {};
+        if (nos.length) {
+          let brands = await kvGet("cafe24:brands:v1");
+          if (!brands) {
+            brands = {};
+            for (let p = 0; p < 20; p++) {
+              const b = await cafe24Get(mallId, tok, `brands?limit=100&offset=${p * 100}`, false, env);
+              const arr = b.brands || [];
+              for (const x of arr) brands[x.brand_code] = x.brand_name;
+              if (arr.length < 100) break;
+            }
+            await kvPut("cafe24:brands:v1", brands);
+          }
+          const j = await cafe24Get(mallId, tok, `products?product_no=${nos.join(",")}&limit=100`, false, env);
+          for (const p of j.products || []) products[p.product_no] = { brand: brands[p.brand_code] || "", brand_code: p.brand_code || "" };
+        }
+        const shipping = {};
+        for (const code of sups) {
+          const ck = "cafe24:supship:v1:" + code;
+          let v = await kvGet(ck);
+          if (!v) {
+            try {
+              const u = await cafe24Get(mallId, tok, `suppliers/users?supplier_code=${code}`, false, env);
+              const uid = (u.users || [])[0]?.user_id;
+              if (!uid) v = { none: "공급사 계정 없음" };
+              else {
+                const sp = (await cafe24Get(mallId, tok, `shipping/suppliers/${encodeURIComponent(uid)}`, false, env)).supplier || {};
+                v = { type: sp.shipping_fee_type || "", fee: sp.shipping_fee != null ? Number(sp.shipping_fee) : null,
+                      free_over: sp.free_shipping_price != null ? Number(sp.free_shipping_price) : null,
+                      rates: sp.shipping_rates || null, by_quantity: sp.shipping_fee_by_quantity || null };
+              }
+            } catch (e) { v = { error: String(e.message || e).slice(0, 120) }; }
+            if (!v.error) await kvPut(ck, v);
+          }
+          shipping[code] = v;
+        }
+        return json({ products, shipping });
+      }
       if (q.get("tab") === "orderitems") {
         const tok = await getCafe24AccessToken(env);
         if (!tok) return json({ error: "cafe24 인증 실패" }, 200);

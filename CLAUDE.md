@@ -603,6 +603,9 @@ row['marketBrands'] = market_brands(k, tm.HUB_ID, tm.HUB_KEY, rel=rel_keywords_f
 - **정가 기준이다.** 판매가·할인가로 계산하면 기존 정산서와 안 맞는다. 그래서 대사의 '금액 다름'은 막지 않는다(참고용).
 - 배송비 행은 **무료배송 기준을 보지 않고** 주문마다 붙는다(기존 78개가 그렇다). 예외는 화면에서 주문별로 끈다.
 - 시트의 요율 칸은 **PB 수수료**다(0.25 = 업체에 75% 지급). 문자열 요율("작품50%/상품25%")은 일부러 막는다 — 추측해서 계산하지 말 것.
+- **카페24 공급사 배송비는 `shipping/suppliers/{계정ID}` 다.** 공급사코드로 부르면 404("supplier account cannot be found").
+  계정ID 는 `suppliers/users?supplier_code=`. 공급사 원본(`suppliers/{code}`)엔 배송비가 없고 수수료(commission)만 있다.
+  상품의 `shipping_fee_by_product` 는 전부 F 라 상품 단위 배송비는 안 쓴다. 주문의 `shipping_fee_detail` 에 공급사별 실제 부과 배송비가 있다(아직 안 씀).
 - 시트 읽기가 403 이면 공유 문제다(응답 `saEmail`). 탭 이름을 바꾸면 batchGet 이 통째로 400 → 워커 `SETTLE_TABS` 를 같이 고친다.
 
 ## 4. cafe24 API 함정 (반복해서 당했다)
