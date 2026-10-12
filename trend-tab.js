@@ -57,6 +57,8 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 .tr-cat .h{display:flex;justify-content:space-between;font-weight:700;font-size:14px;}
 .tr-cat .s{font-size:12px;color:var(--muted);margin-top:2px;}
 .tr-two{display:grid;grid-template-columns:1fr 1fr;gap:var(--s5);}
+.tr-three{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s5);}
+@media (max-width:980px){.tr-three{grid-template-columns:1fr;}}
 @media (max-width:760px){.tr-two{grid-template-columns:1fr;}}
 .tr-list{list-style:none;margin:0;padding:0;font-size:13px;}
 .tr-list li{display:flex;justify-content:space-between;gap:var(--s3);padding:6px 0;border-bottom:1px solid var(--hair);}
@@ -64,6 +66,9 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 .tr-tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;z-index:50;display:none;white-space:nowrap;}
 .tr-foot{font-size:12px;color:var(--muted);line-height:1.7;}
 .tr-foot a{color:var(--accent);}
+.tr-dig{display:flex;flex-wrap:wrap;gap:6px;}
+.tr-dig a{font-size:12px;font-weight:600;text-decoration:none;color:var(--ink-2);background:var(--fill);border-radius:var(--r-pill);padding:4px 10px;}
+.tr-dig a:hover{background:var(--accent-soft);color:var(--accent-press);}
 .tr-more{border:0;background:var(--fill);border-radius:var(--r-ctrl);padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-top:var(--s3);}
 `;
 const ACTIONS=['재고확보','시즌 준비','시즌 소싱','소싱','밀기','안 팔림 점검','저가라인','소싱 검토','지켜보기','유지','패스'];
@@ -72,7 +77,7 @@ const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절'
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
   '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
-const S={data:null,pool:null,shop:null,act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
+const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
 const pct=v=>{if(v==null)return '<span class="tr-flat">—</span>';const p=Math.round(v*100);const c=p>=10?'tr-up':p<=-10?'tr-down':'tr-flat';return `<span class="${c}">${p>0?'+':''}${p}%</span>`;};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -161,6 +166,8 @@ function detailHTML(x,i){
     <div><h4>쇼핑 클릭 연령 (최근 3개월)</h4>${bars(x.ageShare,k=>AGE[k]||k)}
       <h4 style="margin-top:var(--s3)">월별 시즌성 (최근 3년, 평균=1)</h4>${seasonBars(x)}</div>
     <div><h4>우리 몰 상품</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${prods}</ul>
+      <h4 style="margin-top:var(--s3)">더 파보기 — 왜 뜨는지는 우리 데이터로 안 나온다</h4>
+      <div class="tr-dig">${digLinks(x.keyword)}</div>
       ${comp?`<h4 style="margin-top:var(--s3)">타사 상위</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${comp}</ul>`:''}</div>
   </div></td></tr>`;
 }
@@ -194,6 +201,135 @@ function renderCats(){
     <div style="margin:6px 0">${spark(v.series,220,36)}</div>
     <div class="s">전년 대비 ${pct(v.yoy)} · 여성 ${v.gender&&v.gender.f!=null?Math.round(v.gender.f)+'%':'—'} · 주 연령 ${top?AGE[top[0]]+' '+Math.round(top[1])+'%':'—'}</div></div>`;}).join('')+'</div>';
 }
+// ── 오늘 뜨는 중간·상세 검색어 ───────────────────────────────────────────
+// [2026-10-12] trend-metrics.json 의 상위 목록은 score 가 월간검색수와 상관 1.00 이라
+//   검색량 큰 것만 올라온다. 실측: 풀 1,200개 중 1천~3천 구간 303개가 화면에 0개였다.
+//   여기서는 keyword-pool.json(풀 전체 + 일별 hist)을 직접 읽어 '급상승' 순으로 다시 세운다.
+//   hist 가 7일치라 순위가 매일 바뀐다 — 고정 목록이 아니라 '오늘 뜨는 것'이 나온다.
+const BANDS={tail:[0,1000,'상세 (1천 미만)'],mid:[1000,5000,'중간 (1천~5천)'],head:[5000,1e9,'머리 (5천+)'],all:[0,1e9,'전체']};
+const BUCKETS=[
+ {id:'push',t:'즉시 노출',d:'상품은 있는데 30일 0개 — 구좌·기획전에 올리면 되는 것. 돈이 안 든다.',
+  f:x=>x.n>0&&x.sold===0&&x.spike>=.10, s:(a,b)=>b.spike-a.spike},
+ {id:'ad',t:'광고 후보',d:'이미 팔리는 중 + 수요 상승 — 광고를 태우면 바로 받는 것.',
+  f:x=>x.n>0&&x.sold>0&&x.spike>=.05, s:(a,b)=>b.sold-a.sold},
+ {id:'src',t:'소싱 검토',d:'수요는 오르는데 우리 상품이 없고 광고 경쟁이 높지 않은 것.',
+  f:x=>x.n===0&&x.spike>=.15&&x.comp!=='높음', s:(a,b)=>b.spike-a.spike}];
+function poolSpike(e){
+  const h=e.hist||{}; const d=Object.keys(h).sort();
+  if(d.length<2) return {cur:0,spike:null,days:d.length};
+  const avg=a=>a.length?a.reduce((x,y)=>x+(y||0),0)/a.length:0;
+  const recent=avg(d.slice(-3).map(k=>h[k])), base=avg(d.slice(0,3).map(k=>h[k]));
+  return {cur:h[d[d.length-1]]||0, spike: base?recent/base-1:null, days:d.length};
+}
+// 테마 사전이 '쿠션' 같은 일반어를 잡아 화장품·식품이 섞인다. radar-config 의 제외어로 화면에서도 거른다
+// (제외어를 고쳐도 slackbot 이 다음 날 아침에야 풀에서 지우므로, 여기서 한 겹 더 막는다).
+function offDomain(k){ const ex=(S.cfg||{}).exclude||[]; return ex.some(w=>w&&k.includes(w)); }
+function risingRows(){
+  const P=(S.pool||{}).keywords||{}; const H=S.prods;
+  const band=BANDS[S.band]||BANDS.mid;
+  const out=[];
+  for(const k in P){
+    const e=P[k]; const {cur,spike}=poolSpike(e);
+    if(spike==null||!(cur>=band[0]&&cur<band[1])) continue;
+    if(offDomain(k)) continue;
+    let n=0,sold=0;
+    if(H){ const kk=k.replace(/\s+/g,''); for(let i=0;i<H.length;i++) if(H[i].s.includes(kk)){n++;sold+=H[i].q;} }
+    out.push({k,cur,spike,theme:e.theme||'',comp:e.adCompetition||'—',n,sold});
+  }
+  return out;
+}
+function renderRising(){
+  const el=document.getElementById('trRise2'); if(!el) return;
+  if(!S.pool){ el.innerHTML='<div class="tr-sub">키워드 풀 불러오는 중…</div>'; return; }
+  const rows=risingRows();
+  const matched=!!S.prods;
+  const cols=BUCKETS.map(b=>{
+    const list=rows.filter(b.f).sort(b.s).slice(0,10);
+    const items=list.map(x=>`<li><span>${esc(x.k)} <span class="t">${esc(x.theme)}</span>${links(x.k)}</span>`
+      +`<span>${pct(x.spike)} <span class="t">${n(x.cur)}</span>${x.n?` <span class="t">· 상품 ${n(x.n)}${x.sold?' · '+n(x.sold)+'개 팔림':''}</span>`:''}</span></li>`).join('')
+      || `<li class="tr-sub">${matched?'해당 없음':'우리 상품 대조 중…'}</li>`;
+    return `<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">${b.t} <span style="font-weight:400">(${list.length})</span></h4>`
+      +`<div class="tr-sub" style="margin:0 0 6px">${esc(b.d)}</div><ul class="tr-list">${items}</ul></div>`;
+  }).join('');
+  el.innerHTML=`<div class="tr-filters">
+      <select id="trBand">${Object.entries(BANDS).map(([k,v])=>`<option value="${k}" ${S.band===k?'selected':''}>${v[2]}</option>`).join('')}</select>
+      <span class="tr-sub">대상 ${n(rows.length)}개 · 제외어로 거른 뒤 · 상승률 = 최근 3일 평균 ÷ 가장 이른 3일 평균</span></div>
+    <div class="tr-three">${cols}</div>`;
+  const sel=document.getElementById('trBand');
+  if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
+}
+function renderInsta(){
+  const el=document.getElementById('trInsta'); if(!el) return;
+  const w=(S.cfg||{}).instagramWatch;
+  if(!w){ el.innerHTML='<div class="tr-sub">radar-config.json 에 instagramWatch 가 없습니다</div>'; return; }
+  const grp=(t,a)=>a&&a.length?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 4px">${t} (${a.length})</h4>`
+    +`<div style="display:flex;flex-wrap:wrap;gap:6px">${a.map(x=>`<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)">#${esc(x)}</span>`).join('')}</div></div>`:'';
+  const tot=['브랜드','제품군','맥락'].reduce((s,k)=>s+((w[k]||[]).length),0);
+  el.innerHTML=`<div class="tr-three">${grp('브랜드',w.브랜드)}${grp('제품군',w.제품군)}${grp('맥락',w.맥락)}</div>
+   <div class="tr-sub" style="margin-top:8px">${esc(w._설명||'')}<br>${esc(w._선정기준||'')} · 현재 ${tot}개 (API 한도 30)</div>`;
+}
+
+// ── 몰 안 검색어 (광고 제외) ────────────────────────────────────────────
+// [2026-10-12] 워커 tab=searchterms. 광고로 들어온 세션은 '우리 몰에서 뭘 찾는지'가 아니라
+//   '광고가 뭘 보여줬는지'라 수요로 읽으면 안 된다. 실측: 전체 22,811 중 10,230(45%)이 광고였고
+//   'lee bae' 는 1,781 중 1,455 가 광고라 빼면 326 으로 5분의 1이 된다.
+//   결과 수는 GA4 가 모르므로 상품 스냅샷과 대조해 '상품 0개'를 찾는다.
+function searchRows(){
+  const T=(S.terms||{}).terms||[]; const H=S.prods;
+  const code=/^B[0-9A-Z]{6,}$/i, enc=/%[0-9A-F]{2}/i;
+  return T.map(x=>{
+    let n=0,sold=0;
+    if(H){const k=x.term.toLowerCase().replace(/\s+/g,''); for(let i=0;i<H.length;i++) if(H[i].sl.includes(k)){n++;sold+=H[i].q;}}
+    return {...x,n,sold,junk:code.test(x.term)||enc.test(x.term)};
+  });
+}
+function renderSearch(){
+  const el=document.getElementById('trSearch'); if(!el) return;
+  if(!S.terms){ el.innerHTML='<div class="tr-sub">검색어 불러오는 중…</div>'; return; }
+  if(S.terms.error){ el.innerHTML='<div class="tr-sub">검색어를 불러오지 못했습니다: '+esc(S.terms.error).slice(0,120)+'</div>'; return; }
+  if(!S.prods){ el.innerHTML='<div class="tr-sub">상품 대조 중… (스냅샷 5.8MB)</div>'; return; }
+  const R=searchRows().filter(x=>!x.junk&&x.organic>=5);
+  const zero=R.filter(x=>x.n===0).sort((a,b)=>b.organic-a.organic).slice(0,15);
+  const dead=R.filter(x=>x.n>0&&x.sold===0).sort((a,b)=>b.organic-a.organic).slice(0,15);
+  const junk=searchRows().filter(x=>x.junk&&x.organic>=5).sort((a,b)=>b.organic-a.organic).slice(0,8);
+  const li=(x,extra)=>`<li><span>${esc(x.term)} ${links(x.term)}</span><span>${n(x.organic)}<span class="t"> 세션${x.paid?' · 광고 '+n(x.paid):''}${extra||''}</span></span></li>`;
+  el.innerHTML=`<div class="tr-two">
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">찾는데 상품이 0개 (${zero.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">검색은 되는데 걸리는 상품이 없다. 소싱이거나, 이름·태그가 안 맞는 것.</div>
+      <ul class="tr-list">${zero.map(x=>li(x)).join('')||'<li class="tr-sub">해당 없음</li>'}</ul></div>
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">상품은 있는데 30일 0개 (${dead.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">수요도 상품도 있는데 안 팔린다. 가격·진열·상품 수를 본다.</div>
+      <ul class="tr-list">${dead.map(x=>li(x,' · 상품 '+n(x.n))).join('')||'<li class="tr-sub">해당 없음</li>'}</ul></div></div>
+   ${junk.length?`<div class="tr-sub" style="margin-top:10px"><b>깨진 검색어</b> — 인코딩이 안 풀렸거나 공급사 코드다. 검색창 연동을 봐야 한다:<br>${junk.map(x=>esc(x.term)+' ('+n(x.organic)+')').join(' · ')}</div>`:''}
+   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · 5세션 이상만. 전체 ${n((S.terms.terms||[]).length)}개 검색어 중.</div>`;
+}
+// 키워드 하나를 바깥에서 더 파볼 수 있는 링크 — 어디서 왜 뜨는지는 우리 데이터로 안 나온다
+// 상세 패널용 — 작게 붙는 links() 와 달리 눌러보기 쉬운 버튼
+function digLinks(k){
+  const e=encodeURIComponent(k), h=encodeURIComponent(k.replace(/\s+/g,''));
+  const L=[
+    ['네이버 뉴스',`https://search.naver.com/search.naver?where=news&sort=1&query=${e}`,'최신순 — 왜 갑자기 뜨는지는 보통 여기에 있다'],
+    ['네이버 통합',`https://search.naver.com/search.naver?query=${e}`,'연관검색어·인기글'],
+    ['데이터랩',`https://datalab.naver.com/keyword/trendResult.naver?hashKey=&query=${e}`,'기간·성별·연령 직접 조정'],
+    ['네이버 쇼핑',`https://search.shopping.naver.com/search/all?query=${e}`,'경쟁 상품·가격대'],
+    ['유튜브 최신',`https://www.youtube.com/results?search_query=${e}&sp=CAI%253D`,'어떻게 쓰이는지'],
+    ['인스타 태그',`https://www.instagram.com/explore/tags/${h}/`,'요즘 어떤 사진으로 도는지'],
+    ['구글',`https://www.google.com/search?q=${e}`,''],
+    ['구글 뉴스',`https://news.google.com/search?q=${e}&hl=ko`,''],
+  ];
+  return L.map(([t,u,d])=>`<a href="${u}" target="_blank" rel="noopener" title="${esc(d)}">${t}</a>`).join('');
+}
+function links(k){
+  const e=encodeURIComponent(k);
+  const a=(u,t,lab)=>`<a href="${u}" target="_blank" rel="noopener" title="${t}" style="color:var(--muted);text-decoration:none;font-size:11px;margin-left:5px">${lab}</a>`;
+  return a(`https://search.naver.com/search.naver?query=${e}`,'네이버 통합검색','N')
+       + a(`https://search.naver.com/search.naver?where=news&query=${e}`,'네이버 뉴스','뉴스')
+       + a(`https://datalab.naver.com/keyword/trendResult.naver?hashKey=&query=${e}`,'네이버 데이터랩','랩')
+       + a(`https://www.google.com/search?q=${e}`,'구글','G')
+       + a(`https://www.youtube.com/results?search_query=${e}&sp=CAI%253D`,'유튜브 (최신순)','YT')
+       + a(`https://www.instagram.com/explore/tags/${encodeURIComponent(k.replace(/\s+/g,''))}/`,'인스타그램 해시태그','IG');
+}
+
 function renderPool(){
   const el=document.getElementById('trPool'); const p=(S.pool||{}).keywords; if(!p){el.innerHTML='<div class="tr-sub">불러오는 중…</div>';return;}
   const last=h=>{const k=Object.keys(h||{}).sort();return k.length?h[k[k.length-1]]:null;};
@@ -230,6 +366,9 @@ window.loadTrendTab=async function(){
        <label><input type="checkbox" id="trNew" ${S.onlyNew?'checked':''}>신규만</label>
        <label><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>뜨는 것만 (4주 +20% · 전년 +30%)</label></div>
      <div id="trTable"></div></div>
+   <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
+   <div class="tr-card"><h2>몰 안 검색어 — 광고 제외</h2><p class="tr-lead">우리 몰 검색창에 뭘 치는지. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 45%가 광고). 결과 수는 GA4 가 모르므로 상품 스냅샷과 대조해 0개인 것을 찾는다.</p><div id="trSearch"></div></div>
+   <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">인스타는 해시태그 검색이 30개/7일 제한이라 발견 도구로 못 쓴다. 매출·판매수량 상위에서 고른 아래 목록만 주 1회 찍어 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
    <div class="tr-card tr-foot"><b>읽는 법</b><br>
@@ -242,12 +381,20 @@ window.loadTrendTab=async function(){
      <b>시즌</b> 최근 3년 월별 검색에서 같은 달이 평균의 1.5배 이상이고 매년 그 달(±1개월)에 정점이 옴.<br>
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
-  renderActs(); renderTable(); renderCats(); renderPool();
+  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch();
   document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
   document.getElementById('trRise').onchange=e=>{S.onlyRising=e.target.checked;renderTable();};
-  fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
+  fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
+  wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
+  fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();}).catch(()=>{});
+  // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
+  fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
+    S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
+      .map(p=>{const t=((p.name||'')+' '+(p.tags||[]).join(' ')+' '+(p.categories||[]).join(' ')).replace(/\s+/g,'');return {q:p.q30||0,s:t,sl:t.toLowerCase()};});
+    renderRising(); renderSearch();
+  }).catch(()=>{});
 };
 })();
 // 트렌드 탭 — 키워드 레이더 결과(trend-metrics.json · keyword-pool.json · shopping-insight.json)를 보여준다.

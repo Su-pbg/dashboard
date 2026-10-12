@@ -306,6 +306,38 @@ var worker_default = {
       // 봐야 하는 질문은 runReport 로 못 푼다(이벤트 스코프라 교집합이 안 나온다).
       // runFunnelReport 는 단계별로 남은 사용자 수를 주므로 귀속 없이도 전환을 셀 수 있다.
       //   ?tab=funnelprobe&steps=view_search_results,view_item,add_to_cart,purchase
+      // [2026-10-12] 온사이트 검색어. 광고로 들어온 세션은 빼고 센다.
+      //   광고 랜딩은 '우리 몰에서 뭘 찾는지'가 아니라 '광고가 뭘 보여줬는지'라 수요로 읽으면 안 된다.
+      //   상품이 0개인 검색어를 찾는 게 목적이지만 카탈로그 대조는 화면에서 한다(여기선 검색어만 준다).
+      if (q.get("tab") === "searchterms") {
+        const PAID = /^(Paid|Display|Affiliates|Cross-network)/i;
+        const body = {
+          dateRanges: [{ startDate: ranges.after.start, endDate: ranges.after.end }],
+          dimensions: [{ name: "searchTerm" }, { name: "sessionDefaultChannelGroup" }],
+          metrics: [{ name: "sessions" }],
+          limit: Number(q.get("limit") || 5000),
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }]
+        };
+        try {
+          const rows = await runReport(propertyId, token, body);
+          const by = {};
+          for (const r of rows) {
+            const term = String((r.dimensionValues || [])[0]?.value || "").trim();
+            if (!term) continue;
+            const ch = String((r.dimensionValues || [])[1]?.value || "");
+            const v = Number((r.metricValues || [])[0]?.value || 0);
+            const o = by[term] || (by[term] = { term, organic: 0, paid: 0 });
+            if (PAID.test(ch)) o.paid += v; else o.organic += v;
+          }
+          const list = Object.values(by).map((o) => ({ ...o, total: o.organic + o.paid }))
+            .sort((a, b) => b.organic - a.organic);
+          return json({ from: ranges.after.start, to: ranges.after.end, count: list.length,
+            note: "organic = 광고 외 유입 세션. 수요는 organic 으로 읽는다.", terms: list }, 200);
+        } catch (e) {
+          return json({ error: String(e && e.message || e) }, 200);
+        }
+      }
+
       if (q.get("tab") === "funnelprobe") {
         const names = (q.get("steps") || "view_search_results,view_item,add_to_cart,purchase")
           .split(",").map((x) => x.trim()).filter(Boolean);
