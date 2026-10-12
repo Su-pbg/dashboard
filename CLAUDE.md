@@ -532,9 +532,27 @@ https://api.printbakery.com/v1/search/products?q=…&limit=  →  { total, data[
   공간·연출 / 소비맥락 / 품목흐름 / **경쟁채널(오늘의집·29CM·텐바이텐·아이디어스)**.
   우리 브랜드를 넣으면 트렌드 발견이 아니라 우리 반응 확인이 된다.
 - '몰 안 검색어' 카드에 **'시장 트렌드 아님'** 배지. 이미 우리 몰에 온 사람의 수요다.
-- 쇼핑인사이트 **분야별 인기검색어**는 아직 못 붙였다(경로 6가지 404). 붙이면 씨앗과 무관한
-  카테고리 인기어가 들어와 씨앗 갱신의 근거가 된다. **추측 말고 `shopping-insight.json` 만드는
-  코드의 URL 을 읽을 것.**
+- **쇼핑인사이트 '분야별 인기검색어' 는 API 가 없다.** 데이터랩 쇼핑인사이트는 *내가 지정한*
+  키워드/카테고리의 클릭 추이만 준다. 랭킹은 데이터랩 웹 화면 전용이다.
+  (`/shopping/v1/keywords` · `/category/rank` · `/category/top` 전부 404 — 실측)
+  → "씨앗과 무관한 인기어를 받아온다" 는 이 경로로는 불가능하다. 씨앗 갱신은 사람이 한다.
+
+- **HUB 쇼핑인사이트 경로 (2026-10-12 실측, 401=있음 / 404=없음)**
+  ```
+  /shopping/v1/categories               ← 지금 쓰는 것 (카테고리 클릭 추이)
+  /shopping/v1/category/gender          ← 쓰는 중
+  /shopping/v1/category/age             ← 쓰는 중
+  /shopping/v1/category/device          ◀ 있는데 안 쓴다 (PC/모바일 비중 — 광고 집행에 쓸 수 있다)
+  /shopping/v1/category/keywords        ◀ 있는데 안 쓴다
+  /shopping/v1/category/keyword/age     ◀ 있는데 안 쓴다
+  /shopping/v1/category/keyword/gender  ◀ 있는데 안 쓴다
+  ```
+  `/category/keywords` 로 **씨앗 키워드가 그 카테고리 안에서 점유를 잃는지 얻는지** 볼 수 있다.
+  지금은 카테고리 전체 추이만 봐서 "가구/인테리어 -24.9%" 수준에 머문다.
+
+  명명 규칙: `/{service}/v1/{method}` — `search` · `search-trend` · `shopping`.
+  `shopping-insight` · `datalab` 접두어는 전부 404 다. 경로를 모르면 **404/401 로 훑어서 찾는다**
+  (404=없음, 401=있고 키만 필요). 이번엔 8가지 찍어서 한 번에 나왔다.
 
 ### 시장 브랜드는 블로그·유튜브 제목에서 뽑는다
 `scripts/market_brands.py` — 네이버 쇼핑 API 가 없으니 **이미 부르고 있는** 블로그·카페·유튜브
