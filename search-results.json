@@ -1,0 +1,5044 @@
+{
+ "updatedAt": "2026-10-12T04:45:03.248Z",
+ "window": {
+  "from": "2026-09-13",
+  "to": "2026-10-12"
+ },
+ "_설명": "results = 몰 검색 1쪽에 걸린 상품 수(최대 20). pages>1 이면 그보다 많다. organic = 광고 외 유입 세션.",
+ "counted": 559,
+ "zero": 48,
+ "thin": 46,
+ "terms": [
+  {
+   "term": "lee bae",
+   "organic": 330,
+   "paid": 1470,
+   "total": 1800,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤병락",
+   "organic": 295,
+   "paid": 44,
+   "total": 339,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "일상이상",
+   "organic": 271,
+   "paid": 1205,
+   "total": 1476,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "달항아리",
+   "organic": 218,
+   "paid": 112,
+   "total": 330,
+   "results": 20,
+   "pages": 8,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "허명욱",
+   "organic": 211,
+   "paid": 108,
+   "total": 319,
+   "results": 20,
+   "pages": 9,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "정희진",
+   "organic": 207,
+   "paid": 51,
+   "total": 258,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이배",
+   "organic": 204,
+   "paid": 135,
+   "total": 339,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유영국",
+   "organic": 189,
+   "paid": 86,
+   "total": 275,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "예예",
+   "organic": 175,
+   "paid": 43,
+   "total": 218,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "영리",
+   "organic": 153,
+   "paid": 30,
+   "total": 183,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김선우",
+   "organic": 139,
+   "paid": 42,
+   "total": 181,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박서보",
+   "organic": 137,
+   "paid": 210,
+   "total": 347,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김환기",
+   "organic": 137,
+   "paid": 104,
+   "total": 241,
+   "results": 19,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드 호크니",
+   "organic": 131,
+   "paid": 264,
+   "total": 395,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "문형태",
+   "organic": 116,
+   "paid": 15,
+   "total": 131,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김현성",
+   "organic": 116,
+   "paid": 38,
+   "total": 154,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "최영욱",
+   "organic": 112,
+   "paid": 124,
+   "total": 236,
+   "results": 18,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤형택",
+   "organic": 109,
+   "paid": 17,
+   "total": 126,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "민수연",
+   "organic": 107,
+   "paid": 25,
+   "total": 132,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하품",
+   "organic": 104,
+   "paid": 0,
+   "total": 104,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "최종태",
+   "organic": 95,
+   "paid": 4,
+   "total": 99,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이내",
+   "organic": 94,
+   "paid": 24,
+   "total": 118,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김창열",
+   "organic": 88,
+   "paid": 66,
+   "total": 154,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김정수",
+   "organic": 75,
+   "paid": 22,
+   "total": 97,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "파시호시",
+   "organic": 72,
+   "paid": 0,
+   "total": 72,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "장욱진",
+   "organic": 68,
+   "paid": 7,
+   "total": 75,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이왈종",
+   "organic": 67,
+   "paid": 22,
+   "total": 89,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "방진태",
+   "organic": 65,
+   "paid": 14,
+   "total": 79,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "태우",
+   "organic": 60,
+   "paid": 19,
+   "total": 79,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "flos",
+   "organic": 58,
+   "paid": 399,
+   "total": 457,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아르테미데",
+   "organic": 57,
+   "paid": 370,
+   "total": 427,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하태임",
+   "organic": 55,
+   "paid": 26,
+   "total": 81,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이우환",
+   "organic": 54,
+   "paid": 40,
+   "total": 94,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "전상근",
+   "organic": 54,
+   "paid": 11,
+   "total": 65,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "neuhyo",
+   "organic": 52,
+   "paid": 0,
+   "total": 52,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "연호경",
+   "organic": 50,
+   "paid": 13,
+   "total": 63,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이슬로",
+   "organic": 50,
+   "paid": 8,
+   "total": 58,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "조명",
+   "organic": 50,
+   "paid": 26,
+   "total": 76,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "청신",
+   "organic": 50,
+   "paid": 18,
+   "total": 68,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "마니푸리",
+   "organic": 49,
+   "paid": 206,
+   "total": 255,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "화병",
+   "organic": 49,
+   "paid": 27,
+   "total": 76,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "트레이",
+   "organic": 49,
+   "paid": 23,
+   "total": 72,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이혜미",
+   "organic": 47,
+   "paid": 19,
+   "total": 66,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나슬릭",
+   "organic": 47,
+   "paid": 1,
+   "total": 48,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "집들이",
+   "organic": 46,
+   "paid": 14,
+   "total": 60,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤여동",
+   "organic": 45,
+   "paid": 30,
+   "total": 75,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김보희",
+   "organic": 43,
+   "paid": 22,
+   "total": 65,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "우인영",
+   "organic": 43,
+   "paid": 10,
+   "total": 53,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "세트",
+   "organic": 42,
+   "paid": 9,
+   "total": 51,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "파라킷",
+   "organic": 41,
+   "paid": 25,
+   "total": 66,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "양유완",
+   "organic": 41,
+   "paid": 8,
+   "total": 49,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "고영훈",
+   "organic": 40,
+   "paid": 15,
+   "total": 55,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드 걸스타인",
+   "organic": 39,
+   "paid": 10,
+   "total": 49,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "컵",
+   "organic": 39,
+   "paid": 18,
+   "total": 57,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아톰",
+   "organic": 38,
+   "paid": 17,
+   "total": 55,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "정희진도자기",
+   "organic": 37,
+   "paid": 39,
+   "total": 76,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "펠트로 스튜디오",
+   "organic": 37,
+   "paid": 3,
+   "total": 40,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "그레타프리든",
+   "organic": 37,
+   "paid": 10,
+   "total": 47,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수공당",
+   "organic": 36,
+   "paid": 12,
+   "total": 48,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이희조",
+   "organic": 35,
+   "paid": 13,
+   "total": 48,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "최혜지",
+   "organic": 35,
+   "paid": 8,
+   "total": 43,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "조연예",
+   "organic": 33,
+   "paid": 12,
+   "total": 45,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "헤르시",
+   "organic": 33,
+   "paid": 15,
+   "total": 48,
+   "results": 20,
+   "pages": 8,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "작품선물",
+   "organic": 33,
+   "paid": 3,
+   "total": 36,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아트인테리어",
+   "organic": 32,
+   "paid": 14,
+   "total": 46,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Shin Morae",
+   "organic": 30,
+   "paid": 17,
+   "total": 47,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "레오나르디",
+   "organic": 30,
+   "paid": 1,
+   "total": 31,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "studio yeodongyun",
+   "organic": 30,
+   "paid": 225,
+   "total": 255,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박스걸",
+   "organic": 30,
+   "paid": 8,
+   "total": 38,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "와인",
+   "organic": 30,
+   "paid": 26,
+   "total": 56,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "시계",
+   "organic": 30,
+   "paid": 11,
+   "total": 41,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사과",
+   "organic": 30,
+   "paid": 8,
+   "total": 38,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김하윤",
+   "organic": 30,
+   "paid": 6,
+   "total": 36,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "artemide",
+   "organic": 29,
+   "paid": 224,
+   "total": 253,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤여동 바로배송",
+   "organic": 29,
+   "paid": 184,
+   "total": 213,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "방연당",
+   "organic": 29,
+   "paid": 7,
+   "total": 36,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "르디쉬",
+   "organic": 29,
+   "paid": 18,
+   "total": 47,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "물터",
+   "organic": 29,
+   "paid": 6,
+   "total": 35,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "강준영",
+   "organic": 28,
+   "paid": 12,
+   "total": 40,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "키민느",
+   "organic": 27,
+   "paid": 0,
+   "total": 27,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "호크니",
+   "organic": 27,
+   "paid": 7,
+   "total": 34,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "서보",
+   "organic": 26,
+   "paid": 0,
+   "total": 26,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "접시",
+   "organic": 26,
+   "paid": 16,
+   "total": 42,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "신보라",
+   "organic": 26,
+   "paid": 0,
+   "total": 26,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이재민",
+   "organic": 26,
+   "paid": 0,
+   "total": 26,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "kim tschangyeul",
+   "organic": 25,
+   "paid": 101,
+   "total": 126,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이지연",
+   "organic": 25,
+   "paid": 4,
+   "total": 29,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "펠트로스튜디오",
+   "organic": 25,
+   "paid": 11,
+   "total": 36,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "브라운즈",
+   "organic": 24,
+   "paid": 82,
+   "total": 106,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Young lee",
+   "organic": 24,
+   "paid": 5,
+   "total": 29,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "알레시",
+   "organic": 24,
+   "paid": 14,
+   "total": 38,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "문영서",
+   "organic": 24,
+   "paid": 3,
+   "total": 27,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤태성",
+   "organic": 23,
+   "paid": 38,
+   "total": 61,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "누보피에스타",
+   "organic": 23,
+   "paid": 5,
+   "total": 28,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "쿠사마",
+   "organic": 23,
+   "paid": 17,
+   "total": 40,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "정소혜",
+   "organic": 23,
+   "paid": 7,
+   "total": 30,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박성극",
+   "organic": 22,
+   "paid": 7,
+   "total": 29,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김지구",
+   "organic": 22,
+   "paid": 8,
+   "total": 30,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "선물추천",
+   "organic": 22,
+   "paid": 8,
+   "total": 30,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "장마리아",
+   "organic": 22,
+   "paid": 13,
+   "total": 35,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "심문섭",
+   "organic": 22,
+   "paid": 10,
+   "total": 32,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "에임빌라",
+   "organic": 22,
+   "paid": 0,
+   "total": 22,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "펠트로",
+   "organic": 22,
+   "paid": 14,
+   "total": 36,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "포스터",
+   "organic": 22,
+   "paid": 6,
+   "total": 28,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "nuhegue",
+   "organic": 21,
+   "paid": 0,
+   "total": 21,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "파라킷 카펫",
+   "organic": 21,
+   "paid": 0,
+   "total": 21,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "홍삼",
+   "organic": 21,
+   "paid": 17,
+   "total": 38,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "러그",
+   "organic": 21,
+   "paid": 18,
+   "total": 39,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하이다나",
+   "organic": 20,
+   "paid": 0,
+   "total": 20,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "액자",
+   "organic": 20,
+   "paid": 3,
+   "total": 23,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유선태",
+   "organic": 20,
+   "paid": 0,
+   "total": 20,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "렉슨",
+   "organic": 19,
+   "paid": 23,
+   "total": 42,
+   "results": 18,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "호박",
+   "organic": 19,
+   "paid": 9,
+   "total": 28,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Jenp",
+   "organic": 19,
+   "paid": 0,
+   "total": 19,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "플로스",
+   "organic": 19,
+   "paid": 9,
+   "total": 28,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "슈리글리",
+   "organic": 19,
+   "paid": 2,
+   "total": 21,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수토",
+   "organic": 19,
+   "paid": 7,
+   "total": 26,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "young lee",
+   "organic": 18,
+   "paid": 2,
+   "total": 20,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "진1937",
+   "organic": 18,
+   "paid": 0,
+   "total": 18,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "톰딕슨",
+   "organic": 18,
+   "paid": 2,
+   "total": 20,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "잔",
+   "organic": 18,
+   "paid": 9,
+   "total": 27,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "넛츠앤버터",
+   "organic": 17,
+   "paid": 5,
+   "total": 22,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "에디강",
+   "organic": 17,
+   "paid": 6,
+   "total": 23,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "무라카미",
+   "organic": 17,
+   "paid": 8,
+   "total": 25,
+   "results": 16,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "그릇",
+   "organic": 17,
+   "paid": 11,
+   "total": 28,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다비데그로피",
+   "organic": 16,
+   "paid": 2,
+   "total": 18,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "해바라기",
+   "organic": 16,
+   "paid": 10,
+   "total": 26,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김슬기",
+   "organic": 16,
+   "paid": 6,
+   "total": 22,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "권은영",
+   "organic": 16,
+   "paid": 2,
+   "total": 18,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "류연희",
+   "organic": 16,
+   "paid": 6,
+   "total": 22,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "마버글라스",
+   "organic": 16,
+   "paid": 7,
+   "total": 23,
+   "results": 19,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유야",
+   "organic": 16,
+   "paid": 2,
+   "total": 18,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "젠피젠피",
+   "organic": 16,
+   "paid": 0,
+   "total": 16,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "매트",
+   "organic": 16,
+   "paid": 8,
+   "total": 24,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "훈밤",
+   "organic": 16,
+   "paid": 3,
+   "total": 19,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "yang yoowan",
+   "organic": 15,
+   "paid": 81,
+   "total": 96,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "향수",
+   "organic": 15,
+   "paid": 34,
+   "total": 49,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "승지원",
+   "organic": 15,
+   "paid": 9,
+   "total": 24,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "지민경",
+   "organic": 15,
+   "paid": 2,
+   "total": 17,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "굽접시",
+   "organic": 15,
+   "paid": 12,
+   "total": 27,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김쥬쥬",
+   "organic": 15,
+   "paid": 3,
+   "total": 18,
+   "results": 16,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이상민",
+   "organic": 15,
+   "paid": 0,
+   "total": 15,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "알보우",
+   "organic": 15,
+   "paid": 0,
+   "total": 15,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "바삭",
+   "organic": 15,
+   "paid": 2,
+   "total": 17,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤형근",
+   "organic": 14,
+   "paid": 0,
+   "total": 14,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "걸스타인",
+   "organic": 14,
+   "paid": 8,
+   "total": 22,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "판화",
+   "organic": 14,
+   "paid": 6,
+   "total": 20,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "타월",
+   "organic": 14,
+   "paid": 5,
+   "total": 19,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박연경",
+   "organic": 14,
+   "paid": 3,
+   "total": 17,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "테이블매트",
+   "organic": 14,
+   "paid": 10,
+   "total": 24,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "포켓몬",
+   "organic": 14,
+   "paid": 6,
+   "total": 20,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "스카프",
+   "organic": 14,
+   "paid": 2,
+   "total": 16,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드",
+   "organic": 13,
+   "paid": 16,
+   "total": 29,
+   "results": 20,
+   "pages": 8,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "정민희",
+   "organic": 13,
+   "paid": 3,
+   "total": 16,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "배세진",
+   "organic": 13,
+   "paid": 4,
+   "total": 17,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "조원경",
+   "organic": 13,
+   "paid": 5,
+   "total": 18,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "모네",
+   "organic": 13,
+   "paid": 5,
+   "total": 18,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "델라온",
+   "organic": 13,
+   "paid": 1,
+   "total": 14,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "머그",
+   "organic": 13,
+   "paid": 7,
+   "total": 20,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "송형노",
+   "organic": 13,
+   "paid": 3,
+   "total": 16,
+   "results": 19,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드 크라코프",
+   "organic": 12,
+   "paid": 10,
+   "total": 22,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "30만원대 선물",
+   "organic": 12,
+   "paid": 9,
+   "total": 21,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "플레이트",
+   "organic": 12,
+   "paid": 2,
+   "total": 14,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "강아지",
+   "organic": 12,
+   "paid": 8,
+   "total": 20,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "고양이",
+   "organic": 12,
+   "paid": 2,
+   "total": 14,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김종학",
+   "organic": 12,
+   "paid": 3,
+   "total": 15,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "도상봉",
+   "organic": 12,
+   "paid": 3,
+   "total": 15,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "항아리",
+   "organic": 12,
+   "paid": 5,
+   "total": 17,
+   "results": 20,
+   "pages": 9,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박다원",
+   "organic": 11,
+   "paid": 5,
+   "total": 16,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "sai",
+   "organic": 11,
+   "paid": 23,
+   "total": 34,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "yeye",
+   "organic": 11,
+   "paid": 4,
+   "total": 15,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "젠피",
+   "organic": 11,
+   "paid": 5,
+   "total": 16,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "현관",
+   "organic": 11,
+   "paid": 0,
+   "total": 11,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "가방",
+   "organic": 11,
+   "paid": 3,
+   "total": 14,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수저",
+   "organic": 11,
+   "paid": 5,
+   "total": 16,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Haydonna",
+   "organic": 11,
+   "paid": 0,
+   "total": 11,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박하",
+   "organic": 11,
+   "paid": 4,
+   "total": 15,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김정윤",
+   "organic": 11,
+   "paid": 1,
+   "total": 12,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다하",
+   "organic": 11,
+   "paid": 5,
+   "total": 16,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "choi youngwook",
+   "organic": 10,
+   "paid": 59,
+   "total": 69,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아트포스터",
+   "organic": 10,
+   "paid": 7,
+   "total": 17,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "결혼선물",
+   "organic": 10,
+   "paid": 9,
+   "total": 19,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "변경수",
+   "organic": 10,
+   "paid": 5,
+   "total": 15,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수저받침",
+   "organic": 10,
+   "paid": 9,
+   "total": 19,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유나얼",
+   "organic": 10,
+   "paid": 2,
+   "total": 12,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김현수",
+   "organic": 10,
+   "paid": 1,
+   "total": 11,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "커트러리",
+   "organic": 10,
+   "paid": 3,
+   "total": 13,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "코스터",
+   "organic": 10,
+   "paid": 7,
+   "total": 17,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "풀림",
+   "organic": 10,
+   "paid": 2,
+   "total": 12,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "레인하우스",
+   "organic": 10,
+   "paid": 2,
+   "total": 12,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이상호",
+   "organic": 10,
+   "paid": 0,
+   "total": 10,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "발매트",
+   "organic": 10,
+   "paid": 2,
+   "total": 12,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "보노엠",
+   "organic": 10,
+   "paid": 1,
+   "total": 11,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "오든크래프트",
+   "organic": 10,
+   "paid": 2,
+   "total": 12,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "개완",
+   "organic": 9,
+   "paid": 9,
+   "total": 18,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김이수",
+   "organic": 9,
+   "paid": 2,
+   "total": 11,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "언스",
+   "organic": 9,
+   "paid": 0,
+   "total": 9,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "거울",
+   "organic": 9,
+   "paid": 6,
+   "total": 15,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "미물즈",
+   "organic": 9,
+   "paid": 2,
+   "total": 11,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박성철",
+   "organic": 9,
+   "paid": 2,
+   "total": 11,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김부각",
+   "organic": 9,
+   "paid": 1,
+   "total": 10,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김지희",
+   "organic": 9,
+   "paid": 0,
+   "total": 9,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "류종대",
+   "organic": 9,
+   "paid": 3,
+   "total": 12,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "손정민",
+   "organic": 9,
+   "paid": 3,
+   "total": 12,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "백",
+   "organic": 9,
+   "paid": 1,
+   "total": 10,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유앤어스",
+   "organic": 9,
+   "paid": 8,
+   "total": 17,
+   "results": 16,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유야 하시즈메",
+   "organic": 9,
+   "paid": 0,
+   "total": 9,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이야이야",
+   "organic": 9,
+   "paid": 0,
+   "total": 9,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하종현",
+   "organic": 9,
+   "paid": 5,
+   "total": 14,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "바로배송",
+   "organic": 8,
+   "paid": 27,
+   "total": 35,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데저트에센스",
+   "organic": 8,
+   "paid": 0,
+   "total": 8,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "오브오브제",
+   "organic": 8,
+   "paid": 0,
+   "total": 8,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "로우리트 콜렉티브",
+   "organic": 8,
+   "paid": 1,
+   "total": 9,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아틀리에파이스",
+   "organic": 8,
+   "paid": 8,
+   "total": 16,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "쿠사마야요이",
+   "organic": 8,
+   "paid": 5,
+   "total": 13,
+   "results": 19,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "구찌",
+   "organic": 8,
+   "paid": 0,
+   "total": 8,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김제언",
+   "organic": 8,
+   "paid": 1,
+   "total": 9,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "바다",
+   "organic": 8,
+   "paid": 6,
+   "total": 14,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나얼",
+   "organic": 8,
+   "paid": 3,
+   "total": 11,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "와인쿨러",
+   "organic": 8,
+   "paid": 2,
+   "total": 10,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "허욱",
+   "organic": 8,
+   "paid": 0,
+   "total": 8,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "임하리",
+   "organic": 8,
+   "paid": 2,
+   "total": 10,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "까치",
+   "organic": 8,
+   "paid": 5,
+   "total": 13,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "고흐",
+   "organic": 8,
+   "paid": 1,
+   "total": 9,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "무라카미 다카시 Tan Tan Bo",
+   "organic": 8,
+   "paid": 3,
+   "total": 11,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "모모킴",
+   "organic": 8,
+   "paid": 3,
+   "total": 11,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이예린",
+   "organic": 8,
+   "paid": 4,
+   "total": 12,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "스툴",
+   "organic": 8,
+   "paid": 4,
+   "total": 12,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "진영",
+   "organic": 8,
+   "paid": 6,
+   "total": 14,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "쿠션",
+   "organic": 8,
+   "paid": 6,
+   "total": 14,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "옻칠",
+   "organic": 8,
+   "paid": 4,
+   "total": 12,
+   "results": 20,
+   "pages": 7,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "프린트베이커리",
+   "organic": 8,
+   "paid": 0,
+   "total": 8,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "lee woochul",
+   "organic": 7,
+   "paid": 44,
+   "total": 51,
+   "results": 19,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "jo yeonye",
+   "organic": 7,
+   "paid": 50,
+   "total": 57,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Younglee",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "yoon byungrock",
+   "organic": 7,
+   "paid": 35,
+   "total": 42,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Yoon Byungrock",
+   "organic": 7,
+   "paid": 10,
+   "total": 17,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "식물세트",
+   "organic": 7,
+   "paid": 27,
+   "total": 34,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "임승현",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "younglee",
+   "organic": 7,
+   "paid": 1,
+   "total": 8,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "유리",
+   "organic": 7,
+   "paid": 3,
+   "total": 10,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "호랑이",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김상열",
+   "organic": 7,
+   "paid": 1,
+   "total": 8,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "도도새",
+   "organic": 7,
+   "paid": 3,
+   "total": 10,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "원영단",
+   "organic": 7,
+   "paid": 9,
+   "total": 16,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이대원",
+   "organic": 7,
+   "paid": 5,
+   "total": 12,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나무사이로",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아트놈",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이사라",
+   "organic": 7,
+   "paid": 3,
+   "total": 10,
+   "results": 18,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이석주",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이성미",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "진달래",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "칠러",
+   "organic": 7,
+   "paid": 7,
+   "total": 14,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "혜미",
+   "organic": 7,
+   "paid": 8,
+   "total": 15,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "마담규",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "비누",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "새",
+   "organic": 7,
+   "paid": 5,
+   "total": 12,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "성모자상",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "우병윤",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이하승",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "장콸",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "황다연",
+   "organic": 7,
+   "paid": 0,
+   "total": 7,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "함",
+   "organic": 7,
+   "paid": 4,
+   "total": 11,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나박",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "물방울",
+   "organic": 7,
+   "paid": 2,
+   "total": 9,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "kim jungsoo",
+   "organic": 6,
+   "paid": 36,
+   "total": 42,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김재희",
+   "organic": 6,
+   "paid": 0,
+   "total": 6,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "조연예 바로배송",
+   "organic": 6,
+   "paid": 35,
+   "total": 41,
+   "results": 18,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "반고흐",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "올리브",
+   "organic": 6,
+   "paid": 0,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "요시토모나라",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이이정은",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Yeye",
+   "organic": 6,
+   "paid": 3,
+   "total": 9,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "그레타",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "노은님",
+   "organic": 6,
+   "paid": 1,
+   "total": 7,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "로스코",
+   "organic": 6,
+   "paid": 1,
+   "total": 7,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "서도호",
+   "organic": 6,
+   "paid": 3,
+   "total": 9,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "마이버드",
+   "organic": 6,
+   "paid": 1,
+   "total": 7,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "부각",
+   "organic": 6,
+   "paid": 0,
+   "total": 6,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나난",
+   "organic": 6,
+   "paid": 1,
+   "total": 7,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이상엽",
+   "organic": 6,
+   "paid": 3,
+   "total": 9,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "정단금",
+   "organic": 6,
+   "paid": 0,
+   "total": 6,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "인센스",
+   "organic": 6,
+   "paid": 6,
+   "total": 12,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "젓가락",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "보보산수",
+   "organic": 6,
+   "paid": 0,
+   "total": 6,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "vasak",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "옥승철",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "블랭킷",
+   "organic": 6,
+   "paid": 3,
+   "total": 9,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "숙우",
+   "organic": 6,
+   "paid": 4,
+   "total": 10,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "선물",
+   "organic": 6,
+   "paid": 1,
+   "total": 7,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "호랑",
+   "organic": 6,
+   "paid": 2,
+   "total": 8,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "moon hyeongtae",
+   "organic": 5,
+   "paid": 27,
+   "total": 32,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "마무앙",
+   "organic": 5,
+   "paid": 16,
+   "total": 21,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "몽슈슈",
+   "organic": 5,
+   "paid": 11,
+   "total": 16,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김창렬",
+   "organic": 5,
+   "paid": 6,
+   "total": 11,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "haydonna",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "미소랑 작가",
+   "organic": 5,
+   "paid": 5,
+   "total": 10,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "뉴욕",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박산하",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "버켓",
+   "organic": 5,
+   "paid": 5,
+   "total": 10,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "에바 알머슨",
+   "organic": 5,
+   "paid": 5,
+   "total": 10,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "손수건",
+   "organic": 5,
+   "paid": 2,
+   "total": 7,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "오순환",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "엽서",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "와인칠러",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤위동",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이지은",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "원화",
+   "organic": 5,
+   "paid": 5,
+   "total": 10,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이진우",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "천경자",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "타원트레이",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "키링",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "테이블 매트",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Frieze Seoul",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "포크",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김고운",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "bird",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김물길",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "마크로스코",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "바스켓",
+   "organic": 5,
+   "paid": 2,
+   "total": 7,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "빗자루",
+   "organic": 5,
+   "paid": 5,
+   "total": 10,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "우국원",
+   "organic": 5,
+   "paid": 4,
+   "total": 9,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수연",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "스테디너리",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이강소",
+   "organic": 5,
+   "paid": 4,
+   "total": 9,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김대섭",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "달력",
+   "organic": 5,
+   "paid": 2,
+   "total": 7,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "골드",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박대성",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "무라카미 다카시",
+   "organic": 5,
+   "paid": 3,
+   "total": 8,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박스걸스튜디오",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "방콕",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "빠뜨드무슈",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사이",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "와인버킷",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "술잔",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "요시토모 나라",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이우연",
+   "organic": 5,
+   "paid": 3,
+   "total": 8,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "정희진 도자기",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "최서원",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "토끼",
+   "organic": 5,
+   "paid": 2,
+   "total": 7,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "프리즈",
+   "organic": 5,
+   "paid": 2,
+   "total": 7,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "도록",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 19,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "도자기",
+   "organic": 5,
+   "paid": 2,
+   "total": 7,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "베어브릭",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "서안나",
+   "organic": 5,
+   "paid": 1,
+   "total": 6,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "숟가락",
+   "organic": 5,
+   "paid": 0,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "jeon sanggeun",
+   "organic": 4,
+   "paid": 56,
+   "total": 60,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Astro boy 아톰",
+   "organic": 4,
+   "paid": 5,
+   "total": 9,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이우철",
+   "organic": 4,
+   "paid": 11,
+   "total": 15,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "루카스",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드호크니",
+   "organic": 4,
+   "paid": 5,
+   "total": 9,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "동양화",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박스걸 스튜디오",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박영남",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "서유라",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수건",
+   "organic": 4,
+   "paid": 4,
+   "total": 8,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "스피커",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "신모래",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "실버",
+   "organic": 4,
+   "paid": 3,
+   "total": 7,
+   "results": 20,
+   "pages": 7,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아티쉬",
+   "organic": 4,
+   "paid": 4,
+   "total": 8,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아우스월",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아틀리에",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "액막이",
+   "organic": 4,
+   "paid": 3,
+   "total": 7,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "안민주",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "에디션",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "에바알머슨",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "오브제",
+   "organic": 4,
+   "paid": 9,
+   "total": 13,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "올리브오일",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "워커비",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "은채",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이다혜",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이베",
+   "organic": 4,
+   "paid": 6,
+   "total": 10,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이상원",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이유손",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "조각",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 9,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "체어",
+   "organic": 4,
+   "paid": 3,
+   "total": 7,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "케이스",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "코지로",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "크리스마스",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 9,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "톰삭스",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "티슈",
+   "organic": 4,
+   "paid": 6,
+   "total": 10,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "풍경",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "피카츄",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하비에르",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "허명욱 트레이",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "호리",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Unglamouse",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "화분",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Young",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "young",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다기",
+   "organic": 4,
+   "paid": 4,
+   "total": 8,
+   "results": 16,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "꽃",
+   "organic": 4,
+   "paid": 5,
+   "total": 9,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "달",
+   "organic": 4,
+   "paid": 3,
+   "total": 7,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "들라크루아",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "바씨밀라노",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "모빌",
+   "organic": 4,
+   "paid": 4,
+   "total": 8,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "베르디",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "베싸개",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "소반",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "보니",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "가을향기",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "갑빠오",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "갓",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "고경표",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "권지안",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김수아",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김현",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "누헤그",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나라",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "달항아리 그림",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다다즈",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "달튼",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다카시",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "로지박",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 7,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "리을라이팅",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "매난국죽",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "머그컵",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박영지",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "무라카미 다카시 Hustle'n'Punch",
+   "organic": 4,
+   "paid": 3,
+   "total": 7,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박스",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "발롱드파리",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사발",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "북엔드",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "슈니따",
+   "organic": 4,
+   "paid": 1,
+   "total": 5,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "위스키",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "제프쿤스",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "접시걸이",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "주전자",
+   "organic": 4,
+   "paid": 2,
+   "total": 6,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "평접시",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "쿨러",
+   "organic": 4,
+   "paid": 0,
+   "total": 4,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "3",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "에르메스",
+   "organic": 3,
+   "paid": 15,
+   "total": 18,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "달항아리-2017",
+   "organic": 3,
+   "paid": 6,
+   "total": 9,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다관",
+   "organic": 3,
+   "paid": 10,
+   "total": 13,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "rlaxortkd",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "테이블",
+   "organic": 3,
+   "paid": 4,
+   "total": 7,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "PB",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "ledish",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "verdy",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "강민성",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "가족",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 8,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "권오상",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "권순익",
+   "organic": 3,
+   "paid": 3,
+   "total": 6,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "기안",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김성윤",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "꼴로리",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김영헌",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "로퍼",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "라 사본느리 드 니옹",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "나무",
+   "organic": 3,
+   "paid": 5,
+   "total": 8,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다도",
+   "organic": 3,
+   "paid": 5,
+   "total": 8,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "루이스폴센",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "리은",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "루트세라믹",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "명태",
+   "organic": 3,
+   "paid": 3,
+   "total": 6,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "방석",
+   "organic": 3,
+   "paid": 3,
+   "total": 6,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "범영민",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "살랭",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "샴페인잔",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수영장",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 18,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "술",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "신철",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "신혼",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "아티초크",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 13,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "안병석",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "여익",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "오병욱",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "앤디워홀",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "여준환",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 17,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "오혁진",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "와유산수",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "옻",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 7,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "윤준호",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "와인잔",
+   "organic": 3,
+   "paid": 5,
+   "total": 8,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "요시토모",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이야이야앤프렌즈",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 6,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이예림",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이엘리",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이중섭",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "이해진",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 11,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "일광",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "임미량",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "일상비일상",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "전태영",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "전영근",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "줄리안 오피",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "종",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "차시",
+   "organic": 3,
+   "paid": 5,
+   "total": 8,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "카펫",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "커튼",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 16,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "태우작가",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "타올",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "타원 트레이",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "폴 고갱",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "패브릭",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하경아",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "피카소",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 16,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "하품-",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "한국화",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "환희",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "헤민",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "호박포크",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "3d",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Tcg",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 12,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Cherry",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "가을",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "거실",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "골프",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "고블렛",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "글라스",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김규태",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김병주",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김시영",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김수영",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 9,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김혜미",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김혜령",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "다이어리",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "니키",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "더 닷",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드 슈리글리",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "데이비드슈리글리",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "라이플페이퍼",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 5,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "드로잉",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "믈터",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "로낭 부홀렉",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 4,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "만욱",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "문진",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 18,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박선민",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 8,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "민화",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "박성욱",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "보보",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "반지",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "보테로",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "백자",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "베르판",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "볼",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사봉",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사계절",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사진",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 2,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "샤넬",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "산",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 10,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수납",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 5,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "슈퍼픽션",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 14,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "가니메드",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 2,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김경희",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "Cat",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "권하나",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 10,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "김동완",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "까마귀",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "느효",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 3,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "도어벨",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "디퓨저",
+   "organic": 3,
+   "paid": 1,
+   "total": 4,
+   "results": 15,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "비거북",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 0,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "메이우드",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "반려 동물 의뢰작 프로모션",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 1,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "사치켓",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 6,
+   "pages": 1,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "수영",
+   "organic": 3,
+   "paid": 0,
+   "total": 3,
+   "results": 20,
+   "pages": 3,
+   "checkedAt": "2026-10-12"
+  },
+  {
+   "term": "숲",
+   "organic": 3,
+   "paid": 2,
+   "total": 5,
+   "results": 20,
+   "pages": 4,
+   "checkedAt": "2026-10-12"
+  }
+ ]
+}

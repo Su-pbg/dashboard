@@ -1,7 +1,7 @@
 # PBG 대시보드 — 작업 컨텍스트
 
 이 파일은 Claude Code 가 이 레포에서 작업을 시작할 때 자동으로 읽는다.
-마지막 갱신: 2026-10-07
+마지막 갱신: 2026-10-12
 
 ---
 
@@ -93,6 +93,14 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
     또 주문단위 `coupon_discount_price` 는 품목 `coupon_discount_price` 의 합이라 **이중차감 주의**.
   - 검증(2026-08): 취소·미결제 뺀 315,236,135 vs `revenue-daily.json` 8월 net 315,572,720 (0.11% 차,
     환불 시차 범위). 취소 42.2M · 미결제 4.7M · 개인결제창 10.0M 는 행에 플래그로 남긴다(안 지운다).
+- `tab=searchterms&check=N` — 몰 안 검색어(GA4 `searchTerm`)를 **광고 유입과 갈라서** 돌려준다.
+  **광고 랜딩은 수요가 아니다.** 실측(최근 30일): 전체 22,811 세션 중 10,230(45%)이 광고였고
+  `lee bae` 는 1,781 중 1,455 가 광고라 빼면 326 이다. 수요는 `organic` 으로만 읽는다.
+  - `check=N` 이면 상위 N개(최대 24)는 **진짜 몰 검색 페이지를 받아 결과 수를 센다.** KV 하루 캐시.
+  - **상품 스냅샷으로 결과 수를 대신 세면 안 된다.** cafe24 검색은 `product-snapshot.json` 에 없는
+    필드까지 인덱싱한다 — `lee bae` 가 스냅샷엔 0종인데 몰 검색은 6종이다. 이걸로 한 번 크게 틀렸다.
+  - 검색 결과는 **한 쪽에 20종까지**다(실측: 달항아리 page=8, 허명욱 page=9). `pages>1` 이면 그 이상.
+  - 전수는 워커로 못 한다(서브요청 한도 50) → `scripts/check-search-results.mjs` + `update-search-results` 액션.
 **인식 못 하는 tab 은 조용히 overview 를 돌려준다** (디버깅 시 함정).
 
 ---
@@ -418,6 +426,42 @@ node test_expense.mjs expense-fixtures.local.json  # 실측세트까지 (정확�
 실측세트는 **커밋하지 않는다**(`.gitignore`). 실제 영수증 글자라 카드·승인번호가 들어 있다.
 다시 만들려면 영수증 PDF 를 3가지 PASSES 로 렌더해 tesseract.js 로 읽은 텍스트를
 `{ym, pages:[{texts:[pass0,pass1,pass2]}], expect:[{date,amount,merchant}], floor}` 로 담으면 된다.
+
+---
+
+## 3-4. 2026-10-12 (트렌드 탭 · 몰 검색어)
+
+### 키워드 레이더는 머리 키워드만 보여주고 있었다
+`trend-metrics.json` 의 `score` 가 월간검색수와 **상관 1.00** 이라 사실상 검색량 순 정렬이었다.
+실측: 풀 1,200개 중 `<1천 725 · 1천~3천 303 · 3천~1만 131 · 1만+ 41`(중앙값 790)인데
+화면 120행에는 **1천~3천 구간이 0개**였다. 중간·상세 검색어가 통째로 묻혔다.
+→ `trend-tab.js` 가 `keyword-pool.json`(풀 전체 + 일별 `hist`)을 직접 읽어 급상승으로 다시 세운다.
+`hist` 가 7일치라 **매일 순위가 바뀐다.** 3버킷: 즉시 노출 · 광고 후보 · 소싱 검토.
+`score` 수식 자체는 slackbot(`build_keyword_radar.py`)이라 손 못 댔다.
+
+### 테마 사전이 부분 문자열이라 엉뚱한 영역이 섞인다
+`lexicon` 의 '쿠션'이 **쿠션 파운데이션(화장품)** 까지 잡아 전부 '패브릭' 테마로 들어와 있었다.
+풀의 '쿠션' 키워드 71개 중 절반이 화장품. **패브릭 테마 오염도 27%** (다른 테마는 0~4%).
+→ `radar-config.json` 제외어 57 → 118. **'쿠션' 자체는 넣으면 안 된다** — 진짜 쿠션까지 죽는다.
+제외어는 화면에서도 한 번 더 거른다(slackbot 은 다음 날 아침에야 풀에서 지우므로).
+
+### 인스타그램은 발견 도구로 못 쓴다
+Graph API 해시태그 검색이 **해시태그 30개 / 7일** 제한이고 최근 24시간 top media 만 준다.
+Basic Display API 는 종료됐다. → `radar-config.json` 의 `instagramWatch` 에 매출 상위 브랜드·제품군
+**22개를 고정**해 주 1회 온도만 본다. 발견은 네이버·유튜브로 한다.
+유튜브는 이미 들어오지만 `search.list` 가 100 units/호출, 일 10,000 → **하루 100회**가 상한이라
+120행 중 30행만 채워진다. 로테이션하거나 후보 좁힌 뒤 붙이는 게 맞다.
+
+### 몰 검색어 전수 확인 — 배치
+```bash
+DASHBOARD_KEY=... node scripts/check-search-results.mjs [--max 1200] [--min 3]
+```
+→ `search-results.json`. 액션 `update-search-results` 가 매일 06:20 KST 에 돌린다.
+**주의: GitHub Secret `DASHBOARD_KEY` 가 옛 값이면 403 이다** (3-1 참조. `update-members` 도 같은 문제).
+
+실측(2026-10-12, 559개 확인): **결과 0건 48개(351세션) · 1~3종 46개(317세션)**.
+광고 제외 12,581세션의 5.3%다. 0건 상위는 `방진태 65` · `연호경 50` · `김슬기 16` · `윤형근 14` 로
+**전부 작가명**이고, `김창렬`(오타, 맞는 표기는 김창열) · `Younglee`(영문) 같은 표기 문제도 섞여 있다.
 
 ---
 

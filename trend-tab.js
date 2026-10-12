@@ -77,7 +77,7 @@ const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절'
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
   '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
-const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
+const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,sres:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
 const pct=v=>{if(v==null)return '<span class="tr-flat">—</span>';const p=Math.round(v*100);const c=p>=10?'tr-up':p<=-10?'tr-down':'tr-flat';return `<span class="${c}">${p>0?'+':''}${p}%</span>`;};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -274,9 +274,12 @@ function renderInsta(){
 //   '광고가 뭘 보여줬는지'라 수요로 읽으면 안 된다. 실측: 전체 22,811 중 10,230(45%)이 광고였고
 //   'lee bae' 는 1,781 중 1,455 가 광고라 빼면 326 으로 5분의 1이 된다.
 //   결과 수는 GA4 가 모르므로 상품 스냅샷과 대조해 '상품 0개'를 찾는다.
+// search-results.json(매일 06:20 배치, 검색어 1,200개 전수)이 있으면 그걸 쓰고,
+// 없으면 워커가 즉석에서 센 상위 24개로 버틴다.
 function searchRows(){
-  const T=(S.terms||{}).terms||[];
   const code=/^B[0-9A-Z]{6,}$/i, enc=/%[0-9A-F]{2}/i;
+  const batch=(S.sres||{}).terms;
+  const T = (batch && batch.length) ? batch : ((S.terms||{}).terms||[]);
   return T.map(x=>({...x, junk:code.test(x.term)||enc.test(x.term)}));
 }
 function resText(x){
@@ -306,7 +309,7 @@ function renderSearch(){
       <ul class="tr-list">${[...zero,...thin].map(x=>li(x,`${n(x.organic)}<span class="t"> 세션 · </span>${resText(x)}`)).join('')||'<li class="tr-sub">상위 구간엔 없음</li>'}</ul></div></div>
    ${adHeavy.length?`<div class="tr-sub" style="margin-top:10px"><b>광고가 절반 넘는 검색어</b> — 수요가 아니라 광고가 보여준 것이다:<br>${adHeavy.map(x=>esc(x.term)+' ('+n(x.paid)+'/'+n(x.total)+')').join(' · ')}</div>`:''}
    ${junk.length?`<div class="tr-sub" style="margin-top:8px"><b>깨진 검색어</b> — 인코딩이 안 풀렸거나 공급사 코드다. 검색창 연동을 봐야 한다:<br>${junk.map(x=>esc(x.term)+' ('+n(x.organic)+')').join(' · ')}</div>`:''}
-   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · 검색어 ${n(R.length)}개 중 상위 ${n((S.terms||{}).checked||0)}개만 실제 검색을 걸어 확인한다(워커 서브요청 한도, 하루 캐시).</div>`;
+   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · ${(S.sres&&S.sres.counted)?`검색어 <b>${n(S.sres.counted)}개</b>를 매일 06:20 배치로 전수 확인한다 (기준 ${esc(S.sres.window?S.sres.window.to:'')}).`:`상위 ${n((S.terms||{}).checked||0)}개만 즉석 확인 — 배치(search-results.json)가 아직 없다.`}</div>`;
 }
 // 키워드 하나를 바깥에서 더 파볼 수 있는 링크 — 어디서 왜 뜨는지는 우리 데이터로 안 나온다
 // 상세 패널용 — 작게 붙는 links() 와 달리 눌러보기 쉬운 버튼
@@ -392,6 +395,7 @@ window.loadTrendTab=async function(){
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
   document.getElementById('trRise').onchange=e=>{S.onlyRising=e.target.checked;renderTable();};
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
+  fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
