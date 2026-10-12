@@ -380,6 +380,7 @@
   .nav-item.active .nav-tag{background:#fff;color:var(--accent-press);}
   .main{margin-left:var(--side-w);min-width:0;}
   #expenseView[hidden]{display:none;}
+  #settleView[hidden]{display:none;}
   #expenseView.wrap{max-width:1440px;}   /* 경비환급은 1440 로 고정. 본문 기본값(1600)보다 좁다 — 영수증 표가 너무 늘어지면 읽기 나빠서. */
   #expenseFrame{display:block;width:100%;height:1200px;border:0;background:transparent;}
   @media(max-width:860px){
@@ -418,6 +419,7 @@
     <button class="nav-item" data-menu="dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>대시보드</button>
     <button class="nav-item" data-menu="trend"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>트렌드 분석</button>
     <button class="nav-item" data-menu="expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>경비환급<span class="nav-tag">로그인 없음</span></button>
+    <button class="nav-item" data-menu="settle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>위탁 정산</button>
   </nav>
 </aside>
 <main class="main">
@@ -469,6 +471,15 @@
   <h1>경비환급 엑셀 만들기</h1>
   <p class="sub">영수증 PDF를 올리면 경비환급신청서 엑셀을 만들어줘요 · 로그인 없이 쓸 수 있고, 파일은 이 브라우저 안에서만 처리돼요</p>
   <iframe id="expenseFrame" title="경비환급 엑셀 만들기" scrolling="no" loading="lazy"></iframe>
+</div>
+
+<!-- [2026-10-12] 위탁 정산: 카페24 판매 건수 ↔ 이카운트 판매내역서 대조 → 업체별 정산서 ZIP.
+     settle-tab.js 를 처음 열 때 불러온다. 대시보드와 같은 로그인(authGate)을 쓴다 — 비밀번호는 하나로 관리한다. -->
+<div class="wrap" id="settleView" hidden>
+  <p class="eyebrow">PrintBakery</p>
+  <h1>위탁 정산</h1>
+  <p class="sub">담당자별 카페24 판매 건수를 이카운트 판매내역서와 대조한 뒤, 업체별 정산서를 기존 양식 그대로 만들어요</p>
+  <div id="settleContent"></div>
 </div>
 </main>
 </div>
@@ -593,7 +604,7 @@ const DASH_TABS=TABS.filter(t=>t.id!=='trend');
 const URL_Q=new URLSearchParams(location.search);
 const URL_TAB=URL_Q.get('tab');
 const SAVED_TAB=localStorage.getItem('pbg_dashboard_tab');
-const MENUS=['dashboard','trend','expense'];
+const MENUS=['dashboard','trend','expense','settle'];
 let MENU = MENUS.includes(URL_Q.get('m')) ? URL_Q.get('m')
          : (URL_TAB==='trend' ? 'trend'
          : 'dashboard');   // 주소에 m 이 없으면 늘 대시보드(마지막 메뉴를 기억하면 북마크가 헷갈린다)
@@ -3643,6 +3654,17 @@ function enterDashboard(){
     if(LOADED_TAB!==TAB) load();
   }
 }
+// 위탁 정산 화면은 별도 파일이라 처음 열 때만 불러온다(트렌드 탭과 같은 방식)
+let SETTLE_LOADED=false;
+async function enterSettle(){
+  showGate(false);
+  if(SETTLE_LOADED) return;
+  SETTLE_LOADED=true;
+  try{
+    if(!window.loadSettleTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='settle-tab.js?v='+Math.floor(Date.now()/3600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    await window.loadSettleTab($('settleContent'));
+  }catch(e){ SETTLE_LOADED=false; $('settleContent').innerHTML='<div class="err">위탁 정산 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
+}
 function ensureExpenseFrame(){
   const f=$('expenseFrame');
   if(!f.getAttribute('src')) f.setAttribute('src','expense.html?embed=1');
@@ -3650,8 +3672,16 @@ function ensureExpenseFrame(){
 function setMenu(m){
   MENU=m;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.menu===m));
-  const ex=(m==='expense');
-  $('dashView').hidden=ex; $('expenseView').hidden=!ex;
+  const ex=(m==='expense'), st=(m==='settle');
+  $('dashView').hidden=ex||st; $('expenseView').hidden=!ex; $('settleView').hidden=!st;
+  if(st){
+    try{ history.replaceState(null,'',location.pathname+'?m=settle'); }catch(e){}
+    document.title='위탁 정산 · PrintBakery';
+    window.scrollTo(0,0);
+    if(!authToken()){ showGate(true); return; }
+    enterSettle();
+    return;
+  }
   if(ex){
     showGate(false); ensureExpenseFrame();
     try{ history.replaceState(null,'',location.pathname+'?m=expense'); }catch(e){}
@@ -3669,7 +3699,7 @@ async function tryUnlock(){
   btn.disabled=true; err.style.display='none';
   try{
     await dashLogin(input);
-    enterDashboard();
+    if(MENU==='settle') enterSettle(); else enterDashboard();
   }catch(e){
     err.textContent=e.message||'비밀번호가 틀렸습니다.';
     err.style.display='block';

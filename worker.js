@@ -114,6 +114,48 @@ var worker_default = {
         return json({ error: "지원하지 않는 메서드" }, 405);
       }
 
+      // ===== 위탁 정산 ('위탁 정산' 탭) =====
+      // [2026-10-12] 요율·정산서류·배송비는 [이커머스] 거래처 LIST 구글시트에만 있다.
+      // 레포가 공개라 정적 파일로 둘 수 없어서, 워커가 서비스계정(GA_SA_KEY)으로 시트를 직접 읽어
+      // 로그인한 사람에게만 준다. 시트를 서비스계정 이메일에 '뷰어'로 공유해야 한다.
+      // 이카운트 판매내역서(고객 이름·연락처 포함)는 여기로 보내지 않는다 — 화면에서만 처리한다.
+      // POST 는 '상품명 브랜드 → 공급사코드' 수동 연결. 거래처 LIST 의 공급사명·브랜드명으로 못 찾는 것만 쓴다.
+      // ponytail: /supplier-map 과 같이 맵 전체를 키 하나에 둔다.
+      if (url.pathname === "/settle") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        const MAP_KEY = "settlemap:v1", SHEET_KEY = "settle:sheet:v1";
+        if (request.method === "POST") {
+          if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+          let b = {};
+          try { b = await request.json(); } catch (e) { /* 본문 없음 */ }
+          const brand = String(b.brand || "").trim();
+          if (!brand || brand.length > 80) return json({ error: "브랜드명이 올바르지 않습니다" }, 400);
+          const code = String(b.code || "").trim();
+          if (b.remove !== true && !/^[A-Za-z0-9_-]{1,32}$/.test(code)) return json({ error: "공급사코드가 올바르지 않습니다" }, 400);
+          const raw = await kv0.get(MAP_KEY);
+          const map = raw ? JSON.parse(raw) : {};
+          if (b.remove === true) delete map[brand];
+          else map[brand] = { code, at: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10) };
+          await kv0.put(MAP_KEY, JSON.stringify(map));
+          return json({ ok: true, brand, saved: map[brand] || null, count: Object.keys(map).length });
+        }
+        if (request.method !== "GET") return json({ error: "지원하지 않는 메서드" }, 405);
+        let sheet = null;
+        if (kv0 && q.get("refresh") !== "1") {
+          try { const hit = await kv0.get(SHEET_KEY); if (hit) sheet = JSON.parse(hit); } catch (e) { }
+        }
+        if (!sheet) {
+          try {
+            sheet = await readSettleSheet(env);
+          } catch (e) {
+            return json({ error: e.message, code: e.code || "sheet", saEmail: e.saEmail || null }, 502);
+          }
+          if (kv0) { try { await kv0.put(SHEET_KEY, JSON.stringify(sheet), { expirationTtl: 600 }); } catch (e) { } }
+        }
+        const rawMap = kv0 ? await kv0.get(MAP_KEY) : null;
+        return json({ ...sheet, brandMap: rawMap ? JSON.parse(rawMap) : {} });
+      }
+
       const ranges = {
         before: { start: q.get("bs"), end: q.get("be") },
         after: { start: q.get("as"), end: q.get("ae") }
@@ -1064,6 +1106,46 @@ async function handleReceipt(request, env) {
   }
 }
 __name(handleReceipt, "handleReceipt");
+// [2026-10-12] 위탁 정산용 거래처 LIST 읽기. 시트 ID 는 비밀이 아니다(접근은 공유 설정이 막는다).
+// 거래처 LIST 탭에는 연락처가 있어 정산에 쓰는 열(입점여부·브랜드명·공급사코드)만 남긴다.
+var SETTLE_SHEET_ID = "1_murW4zNdM5lYIUG5vM1F-LARA3Q7lfLLBtArvtYA0c";
+var SETTLE_TABS = {
+  "카페 24 등록 공급사": null,
+  "거래처 LIST (아트)": ["입점여부", "브랜드명", "카페24 공급사코드"],
+  "거래처 LIST (라이프)": ["입점여부", "브랜드명", "카페24 공급사코드"],
+  "거래처 LIST (구)": ["입점여부", "작가/브랜드명", "공급사 코드"]
+};
+async function readSettleSheet(env) {
+  const sa = JSON.parse(env.GA_SA_KEY);
+  const id = env.SETTLE_SHEET_ID || SETTLE_SHEET_ID;
+  const tabs = Object.keys(SETTLE_TABS);
+  const tok = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets.readonly");
+  const qs = tabs.map((t) => "ranges=" + encodeURIComponent(`'${t}'`)).join("&");
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`, {
+    headers: { Authorization: "Bearer " + tok }
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = j?.error?.message || `HTTP ${r.status}`;
+    const e = new Error(r.status === 403 && /permission/i.test(msg)
+      ? `거래처 LIST 시트를 읽을 권한이 없습니다. 시트를 ${sa.client_email} 에 '뷰어'로 공유해 주세요.`
+      : `거래처 LIST 시트를 읽지 못했습니다: ${msg}`);
+    e.code = r.status === 403 && /permission/i.test(msg) ? "noaccess" : "sheet";
+    e.saEmail = sa.client_email;
+    throw e;
+  }
+  const sheets = {};
+  (j.valueRanges || []).forEach((vr, i) => {
+    const rows = vr.values || [], keep = SETTLE_TABS[tabs[i]];
+    if (!keep) { sheets[tabs[i]] = rows; return; }
+    const h = rows.findIndex((row) => row.some((c) => String(c).trim() === "입점여부"));
+    if (h < 0) { sheets[tabs[i]] = []; return; }
+    const idx = keep.map((k) => rows[h].findIndex((c) => String(c).trim() === k)).filter((x) => x >= 0);
+    sheets[tabs[i]] = rows.slice(h).map((row) => idx.map((x) => row[x] ?? ""));
+  });
+  return { sheets, sheetAt: new Date().toISOString(), saEmail: sa.client_email };
+}
+__name(readSettleSheet, "readSettleSheet");
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -1071,12 +1153,12 @@ function json(obj, status = 200) {
   });
 }
 __name(json, "json");
-async function getAccessToken(sa) {
+async function getAccessToken(sa, scope = "https://www.googleapis.com/auth/analytics.readonly") {
   const now = Math.floor(Date.now() / 1e3);
   const header = { alg: "RS256", typ: "JWT" };
   const claim = {
     iss: sa.client_email,
-    scope: "https://www.googleapis.com/auth/analytics.readonly",
+    scope,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600

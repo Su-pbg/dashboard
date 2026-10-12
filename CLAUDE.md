@@ -69,7 +69,7 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 - 기계: `?key=<DASHBOARD_KEY>` (하드코딩 폴백 없음. 틀리면 403)
 `tab` = `overview`(기본) / `slots` / `cart` / `segfunnel` / `retention` / `acquisition` /
 `activeusers` / `events` / `metricscsv` / `membercount` / `suppliersales` / `buyerpath` /
-`catnames` / `cohort` / `orderitems` · 진단용(다 쓰면 삭제): `ga4probe` `funnelprobe` `orderstatus` `probecustomers`
+`catnames` / `cohort` / `orderitems` · 경로 `/settle`(위탁 정산: 거래처 LIST 시트 읽기·브랜드 연결 저장) · 진단용(다 쓰면 삭제): `ga4probe` `funnelprobe` `orderstatus` `probecustomers`
 
 - `tab=orderitems&from=&to=[&format=csv][&full=1]` — 주문 **건별·상품별 원장**. 집계가 아니라 raw 행.
   열: 주문일·주문번호·상품번호·상품명·**공급사코드·공급사명**·수량·판매가·할인금액·공급가액·부가세·
@@ -591,6 +591,17 @@ row['marketBrands'] = market_brands(k, tm.HUB_ID, tm.HUB_KEY, rel=rel_keywords_f
 
 
 ---
+
+## 3-5. 2026-10-12 (위탁 정산 메뉴)
+
+`settle-tab.js` + 워커 `/settle`. 대시보드와 같은 로그인을 쓴다(메뉴별 비번 없음). 상세·검증은 `CHANGELOG.md`. 여기엔 함정만.
+
+- **정산 금액의 기준은 이카운트 판매내역서다.** 카페24(`orderitems`)는 대사용이다. 반품·이월·선수금 전표가 이카운트에만 있다.
+  이카운트 `결제일` 열이 실제로는 cafe24 주문번호다(대사·배송비 묶음의 키).
+- **정가 기준이다.** 판매가·할인가로 계산하면 기존 정산서와 안 맞는다. 그래서 대사의 '금액 다름'은 막지 않는다(참고용).
+- 배송비 행은 **무료배송 기준을 보지 않고** 주문마다 붙는다(기존 78개가 그렇다). 예외는 화면에서 주문별로 끈다.
+- 시트의 요율 칸은 **PB 수수료**다(0.25 = 업체에 75% 지급). 문자열 요율("작품50%/상품25%")은 일부러 막는다 — 추측해서 계산하지 말 것.
+- 시트 읽기가 403 이면 공유 문제다(응답 `saEmail`). 탭 이름을 바꾸면 batchGet 이 통째로 400 → 워커 `SETTLE_TABS` 를 같이 고친다.
 
 ## 4. cafe24 API 함정 (반복해서 당했다)
 
