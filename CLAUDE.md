@@ -507,6 +507,7 @@ https://api.printbakery.com/v1/search/products?q=…&limit=  →  { total, data[
   실측: 전체 22,811 세션 중 **45%가 광고**. `lee bae` 는 1,781 중 1,455 가 광고.
   **광고 랜딩은 수요가 아니다** — `organic` 으로만 읽는다.
 - `scripts/check-search-results.mjs` → `search-results.json` (상위 100개 결과 수 + 브랜드 + 인기검색어)
+  2026-10-12 현재 **파일 없음** — 429 가 풀린 뒤 액션이 처음 돌면 생긴다. 없으면 화면은 검색어 목록만 보여준다.
 - 띄어쓰기 버그: `정희진 도자기` 0건 → `정희진도자기` **44건**. 공백을 AND 로 처리한다.
 
 ### 시장 브랜드는 블로그·유튜브 제목에서 뽑는다
