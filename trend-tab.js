@@ -267,10 +267,11 @@ function renderInsta(){
   const el=document.getElementById('trInsta'); if(!el) return;
   const w=(S.cfg||{}).instagramWatch;
   if(!w){ el.innerHTML='<div class="tr-sub">radar-config.json 에 instagramWatch 가 없습니다</div>'; return; }
+  const GRP=['공간·연출','소비맥락','품목흐름','경쟁채널'];
   const grp=(t,a)=>a&&a.length?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 4px">${t} (${a.length})</h4>`
     +`<div style="display:flex;flex-wrap:wrap;gap:6px">${a.map(x=>`<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)">#${esc(x)}</span>`).join('')}</div></div>`:'';
-  const tot=['브랜드','제품군','맥락'].reduce((s,k)=>s+((w[k]||[]).length),0);
-  el.innerHTML=`<div class="tr-three">${grp('브랜드',w.브랜드)}${grp('제품군',w.제품군)}${grp('맥락',w.맥락)}</div>
+  const tot=GRP.reduce((s,k)=>s+((w[k]||[]).length),0);
+  el.innerHTML=`<div class="tr-three">${GRP.map(k=>grp(k,w[k])).join('')}</div>
    <div class="tr-sub" style="margin-top:8px">${esc(w._설명||'')}<br>${esc(w._선정기준||'')} · 현재 ${tot}개 (API 한도 30)</div>`;
 }
 
@@ -381,8 +382,8 @@ window.loadTrendTab=async function(){
        <label><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>뜨는 것만 (4주 +20% · 전년 +30%)</label></div>
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
-   <div class="tr-card"><h2>몰 안 검색어 — 광고 제외</h2><p class="tr-lead">우리 몰 검색창에 뭘 치는지. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
-   <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">인스타는 해시태그 검색이 30개/7일 제한이라 발견 도구로 못 쓴다. 매출·판매수량 상위에서 고른 아래 목록만 주 1회 찍어 온도만 본다.</p><div id="trInsta"></div></div>
+   <div class="tr-card"><h2>우리 몰에 온 사람들이 친 말 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
+   <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">시장이 뭘 하고 있나를 보는 목록이다. <b>우리 브랜드는 넣지 않는다</b> — 그건 우리 반응 확인이지 트렌드 발견이 아니다. 해시태그 검색이 30개/7일 제한이라 주 1회 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
    <div class="tr-card tr-foot"><b>읽는 법</b><br>
