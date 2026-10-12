@@ -521,7 +521,7 @@ var worker_default = {
         }
         const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
         const lines = [];
-        const tot = { sale: 0, disc: 0, net: 0, supply: 0, vat: 0, qty: 0 };
+        const tot = { sale: 0, disc: 0, net: 0, supply: 0, vat: 0, qty: 0, cost: 0 };
         for (const o of orders) {
           for (const it of o.items || []) {
             const qty = n(it.quantity);
@@ -540,6 +540,12 @@ var worker_default = {
               supplier_id: it.supplier_id || it.supplier_code || "",
               supplier_name: it.supplier_name || "",
               qty, sale, disc, supply, vat, net,
+              // [2026-10-12] cost = cafe24 supply_price × 수량.
+              //   ⚠ 원가로 쓰면 안 된다. 실측(2026-08·2025-08 전수): 등록된 행만 봐도
+              //      cost/net 이 99.8% · 105.6% 로 나온다 — 판매가와 거의 같은 값이다.
+              //      절반 가까운 행은 0 이고, 마진 계산에 쓰면 전부 틀린 답이 나온다.
+              //   남겨둔 이유: 값 자체를 눈으로 확인할 일이 또 생길 수 있어서. 그 외 용도 없음.
+              cost: n(it.supply_price) * qty,
               tax_rate: rate,
               tax_type: it.product_tax_type || "",
               status: it.order_status || "",
@@ -549,7 +555,7 @@ var worker_default = {
             };
             lines.push(row);
             tot.qty += qty; tot.sale += sale; tot.disc += disc;
-            tot.net += net; tot.supply += supply; tot.vat += vat;
+            tot.net += net; tot.supply += supply; tot.vat += vat; tot.cost += row.cost;
           }
         }
         lines.sort((a, b) => a.date.localeCompare(b.date) || String(a.order_id).localeCompare(String(b.order_id)));
