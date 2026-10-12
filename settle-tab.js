@@ -2,7 +2,8 @@
 //
 // 순서 (팀이 실제로 하는 순서 그대로)
 //   ① 월·담당자를 고르면 카페24 에서 그 담당자 공급사들의 판매 현황을 받는다 (워커 tab=orderitems).
-//      담당자는 담당자 탭과 같은 supplierMap() — supplier-managers.json + /supplier-map 오버레이.
+//      담당자는 **거래처 LIST 의 '담당자' 열**(아트·라이프 탭)을 따른다. 대시보드 담당자 탭(supplier-managers.json)과 다르다.
+//      공급사코드가 있으면 코드로, 없으면 그 행의 카페24 공급사명·브랜드명이 공급사명과 같을 때 잇는다. 구 탭은 담당자로 안 쓴다.
 //   ② 이카운트 판매내역서(재고2·위탁)를 올려 ①과 주문번호 × 공급사 단위로 대조한다.
 //   ③ 대조가 끝나면 업체별 정산서(xlsx)를 기존 양식 그대로 만들어 ZIP 으로 받는다.
 //
@@ -176,16 +177,30 @@ function parseSuppliers(sheets){
   if(!list.length) throw new Error("'카페 24 등록 공급사' 탭에서 공급사를 하나도 읽지 못했습니다.");
   const byCode=Object.fromEntries(list.map(s=>[s.code,s])), alias={};
   const addAlias=(name,code)=>{ for(const v of nameVariants(name)){ const k=norm(v); (alias[k] ||= []).includes(code) || alias[k].push(code); } };
+  const byName={};
+  for(const s of list) (byName[norm(s.name)] ||= []).push(s);
+  // 거래처 LIST 행 → 공급사코드: 코드 열, 없으면 카페24 공급사명·브랜드명이 공급사명과 같을 때
+  const codeOfRow=(code,c24name,brand)=>{
+    if(byCode[code]) return code;
+    for(const v of [c24name,...nameVariants(brand)]){ const hit=v&&byName[norm(v)]; if(hit&&hit.length===1) return hit[0].code; }
+    return null;
+  };
+  const mgr={};
   for(const t of Object.keys(sheets).filter(k=>/^거래처\s*LIST/.test(k))){
     const rs=sheets[t]||[], hh=findHeader(rs,['입점여부']); if(!hh) continue;
     const cb=[hh.col('브랜드명'),hh.col('작가/브랜드명')].find(i=>i>=0);
     const cc=[hh.col('카페24 공급사코드'),hh.col('공급사 코드')].find(i=>i>=0);
-    if(cb==null||cc==null) continue;
-    for(const r of rs.slice(hh.idx+1)){ const code=String(r[cc]||'').trim(); if(byCode[code]) addAlias(r[cb],code); }
+    const cn=hh.col('카페24 공급사명'), cm=/구\)/.test(t)?-1:hh.col('담당자');   // 구 탭 담당자는 옛 값이라 안 쓴다
+    if(cb==null) continue;
+    for(const r of rs.slice(hh.idx+1)){
+      const code=codeOfRow(cc==null?'':String(r[cc]||'').trim(), cn<0?'':String(r[cn]||'').trim(), r[cb]);
+      if(!code) continue;
+      addAlias(r[cb],code);
+      const m=cm<0?'':String(r[cm]||'').trim();
+      if(m&&!mgr[code]) mgr[code]=m;   // 같은 공급사가 여러 줄이면 먼저 나온 담당자
+    }
   }
-  for(const [code,v] of Object.entries(S.map||{})) if(byCode[code]&&v.brand) addAlias(v.brand,code);
-  const byName={};
-  for(const s of list) (byName[norm(s.name)] ||= []).push(s);
+  S.map=Object.fromEntries(Object.entries(mgr).map(([k,v])=>[k,{mgr:v}]));
   // 같은 이름이 여러 개면 위탁 > 배송방식·요율이 채워진 쪽
   for(const k in byName) byName[k].sort((a,b)=>(/위탁/.test(b.type)-/위탁/.test(a.type))||((!!b.method)-(!!a.method))||((b.rate!=null)-(a.rate!=null)));
   return {list,alias,byName,byCode};
@@ -205,6 +220,9 @@ async function loadC24(){
   rebuild(); render();
 }
 // 담당자 공급사만, 공급사별로 묶는다
+// 매입 계약 공급사는 이카운트 재고2(위탁)에 애초에 안 들어온다 → 대사·정산 대상이 아니다.
+// (2026-10-12 실측: 정윤희 8월 불일치 125건 대부분이 허명욱·윤여동 등 매입 업체였다.) '매입 + 위탁' 혼합은 대상으로 둔다.
+const isBuyIn=code=>{ const s=S.sup&&S.sup.byCode[code]; return !!s&&s.type==='매입'; };
 function c24BySupplier(){
   const g={};
   for(const l of (S.c24?S.c24.lines:[])){
@@ -285,7 +303,7 @@ function reconcile(){
   const ymd=o=>{const m=String(o||'').match(/^(\d{4})(\d{2})(\d{2})-/);return m?`${m[1]}-${m[2]}-${m[3]}`:'';};
   const keys=new Map();
   const K=(order,code)=>{const k=order+'|'+code; if(!keys.has(k)) keys.set(k,{order,code,c24:0,c24c:0,c24amt:0,ec:0,ecamt:0,c24lines:[],eclines:[]}); return keys.get(k);};
-  for(const l of S.c24.lines){ if(!inMgr(l.supplier_id)) continue; const x=K(l.order_id,l.supplier_id); x.c24lines.push(l); if(l.ok){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); } else x.c24c+=l.qty; }
+  for(const l of S.c24.lines){ if(!inMgr(l.supplier_id)||isBuyIn(l.supplier_id)) continue; const x=K(l.order_id,l.supplier_id); x.c24lines.push(l); if(l.ok){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); } else x.c24c+=l.qty; }
   for(const r of S.sales.rows){ if(!r.sup||!inMgr(r.sup.code)) continue; const x=K(r.order||'(주문번호 없음)',r.sup.code); x.ec+=r.qty; x.ecamt+=r.qty*r.price; x.eclines.push(r); }
   const rows=[...keys.values()].map(x=>{
     const od=x.c24lines[0]?x.c24lines[0].date:ymd(x.order), inMonth=od>=from&&od<=to;
@@ -428,7 +446,11 @@ function step1(){
   if(S.c24Loading) body='<div class="st-stat">카페24 주문 불러오는 중… (한 달치는 10~20초 걸립니다)</div>';
   else if(S.c24Err) body=`<div class="st-stat err">${esc(S.c24Err.message)}</div>`;
   else if(S.c24){
-    const sups=c24BySupplier();
+    const all=c24BySupplier(), sups=all.filter(x=>!isBuyIn(x.code)), buys=all.filter(x=>isBuyIn(x.code));
+    const row=x=>{const s=S.sup&&S.sup.byCode[x.code];return `<tr><td class="l"><b>${esc(s?s.name:x.name)}</b> <span class="st-sub" style="display:inline">${esc(x.code)}${S.mgr===ALL?' · '+esc(mgrOf(x.code)):''}</span></td>
+        <td class="l">${esc(s?s.type||'—':'시트에 없음')}</td><td class="l">${esc(s&&s.doc||'—')}</td>
+        <td>${s?(s.rate!=null?Math.round(s.rate*1000)/10+'%':`<span class="st-badge st-warn" style="margin:0">${esc(s.rateRaw||'없음')}</span>`):'—'}</td>
+        <td>${n(x.lines.filter(l=>l.ok).length)}</td><td>${n(x.orders.size)}</td><td>${n(x.qty)}</td><td>${n(x.sale)}</td><td>${n(x.net)}</td><td>${x.cancel?n(x.cancel):'<span style="color:var(--ghost)">0</span>'}</td></tr>`;};
     const orders=new Set(), tq=sups.reduce((t,x)=>{x.orders.forEach(o=>orders.add(o));return t+x.qty;},0);
     body=`<div class="st-kpis">
       <div class="st-kpi"><div class="l">공급사</div><div class="n">${sups.length}곳</div></div>
@@ -439,14 +461,13 @@ function step1(){
       <div class="st-bar"><span class="st-note" style="margin:0">주문일 ${monthRange(S.month).from} ~ ${monthRange(S.month).to} · 취소·미결제·개인결제창 제외</span><span class="sp"></span>
         <button class="st-dl" data-a="c24dl">판매 리스트 xlsx</button></div>
       <div class="st-scroll"><table class="st-t"><thead><tr><th class="l">공급사</th><th class="l">계약</th><th class="l">정산 서류</th><th>수수료율</th><th>주문 줄</th><th>주문</th><th>수량</th><th>상품구매금액</th><th>매출(할인 후)</th><th>취소 수량</th></tr></thead><tbody>
-      ${sups.map(x=>{const s=S.sup&&S.sup.byCode[x.code];return `<tr><td class="l"><b>${esc(s?s.name:x.name)}</b> <span class="st-sub" style="display:inline">${esc(x.code)}${S.mgr===ALL?' · '+esc(mgrOf(x.code)):''}</span></td>
-        <td class="l">${esc(s?s.type||'—':'시트에 없음')}</td><td class="l">${esc(s&&s.doc||'—')}</td>
-        <td>${s?(s.rate!=null?Math.round(s.rate*1000)/10+'%':`<span class="st-badge st-warn" style="margin:0">${esc(s.rateRaw||'없음')}</span>`):'—'}</td>
-        <td>${n(x.lines.filter(l=>l.ok).length)}</td><td>${n(x.orders.size)}</td><td>${n(x.qty)}</td><td>${n(x.sale)}</td><td>${n(x.net)}</td><td>${x.cancel?n(x.cancel):'<span style="color:var(--ghost)">0</span>'}</td></tr>`;}).join('')}
-      </tbody></table></div>`;
+      ${sups.map(row).join('')}
+      </tbody></table></div>
+      ${buys.length?`<p class="st-note" style="margin-top:var(--s4)"><b style="color:var(--ink-2)">매입 계약 ${buys.length}곳 — 대사·정산 제외</b> · 이카운트 재고2(위탁)에 들어오지 않는 업체입니다 (상품구매금액 ${n(buys.reduce((t,x)=>t+x.sale,0))}원)</p>
+      <div class="st-scroll"><table class="st-t" style="opacity:.6"><tbody>${buys.map(row).join('')}</tbody></table></div>`:''}`;
   }
   return `<div class="st-card"><h2><span class="st-step">1</span>카페24 판매 현황</h2>
-    <p class="st-lead">정산 월과 담당자를 고르면 그 담당자가 맡은 공급사의 카페24 판매를 불러옵니다. 담당자는 담당자 탭과 같은 기준(거래처 LIST + 화면에서 고친 값)입니다.</p>
+    <p class="st-lead">정산 월과 담당자를 고르면 그 담당자가 맡은 공급사의 카페24 판매를 불러옵니다. 담당자는 거래처 LIST 의 담당자 열 기준입니다(대시보드 담당자 탭과 다를 수 있음).</p>
     <div class="st-form">
       <label>정산 월<input type="month" id="stMonth" value="${esc(S.month)}"></label>
       <label>담당자<select id="stMgr"><option value="">선택</option>${mgrs.map(m=>`<option ${S.mgr===m?'selected':''}>${esc(m)}</option>`).join('')}<option value="(미지정)" ${S.mgr==='(미지정)'?'selected':''}>(미지정)</option><option value="${ALL}" ${S.mgr===ALL?'selected':''}>전체</option></select></label>
@@ -619,9 +640,8 @@ window.loadSettleTab=async function(el){
   if(!document.getElementById('stCss')){ const s=document.createElement('style'); s.id='stCss'; s.textContent=CSS; document.head.appendChild(s); }
   S.root=el;
   if(!S.month){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); S.month=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; }   // 기본은 지난달
-  el.innerHTML='<div class="state"><div class="spinner"></div>담당자·거래처 LIST 불러오는 중…</div>';
+  el.innerHTML='<div class="state"><div class="spinner"></div>거래처 LIST 불러오는 중…</div>';
   wire(el);
-  try{ S.map=await supplierMap(); }catch(e){ S.map={}; }   // 담당자 탭과 같은 맵(supplier-managers.json + /supplier-map)
   try{ await loadLibs(); }catch(e){ S.salesErr=e; }
   await loadSheet(false);
 };
