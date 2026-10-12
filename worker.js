@@ -123,7 +123,7 @@ var worker_default = {
       // ponytail: /supplier-map 과 같이 맵 전체를 키 하나에 둔다.
       if (url.pathname === "/settle") {
         const kv0 = env.CAFE24_TOKEN_KV;
-        const MAP_KEY = "settlemap:v1", SHEET_KEY = "settle:sheet:v2";
+        const MAP_KEY = "settlemap:v1", SHEET_KEY = "settle:sheet:v3";
         if (request.method === "POST") {
           if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
           let b = {};
@@ -1112,8 +1112,8 @@ var SETTLE_SHEET_ID = "1_murW4zNdM5lYIUG5vM1F-LARA3Q7lfLLBtArvtYA0c";
 // 담당자는 대시보드 담당자 탭(supplier-managers.json)이 아니라 거래처 LIST 의 '담당자' 열을 따른다(아트·라이프 탭).
 var SETTLE_TABS = {
   "카페 24 등록 공급사": null,
-  "거래처 LIST (아트)": ["입점여부", "브랜드명", "담당자", "카페24 공급사명", "카페24 공급사코드"],
-  "거래처 LIST (라이프)": ["입점여부", "브랜드명", "담당자", "카페24 공급사명", "카페24 공급사코드"],
+  "거래처 LIST (아트)": ["입점여부", "브랜드명", "담당자", "계약 형태", "카페24 공급사명", "카페24 공급사코드"],
+  "거래처 LIST (라이프)": ["입점여부", "브랜드명", "담당자", "계약 형태", "카페24 공급사명", "카페24 공급사코드"],
   "거래처 LIST (구)": ["입점여부", "작가/브랜드명", "카페24 공급사명", "공급사 코드"]
 };
 async function readSettleSheet(env) {

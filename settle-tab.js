@@ -191,6 +191,7 @@ function parseSuppliers(sheets){
     const cb=[hh.col('브랜드명'),hh.col('작가/브랜드명')].find(i=>i>=0);
     const cc=[hh.col('카페24 공급사코드'),hh.col('공급사 코드')].find(i=>i>=0);
     const cn=hh.col('카페24 공급사명'), cm=/구\)/.test(t)?-1:hh.col('담당자');   // 구 탭 담당자는 옛 값이라 안 쓴다
+    const ct=/구\)/.test(t)?-1:hh.col('계약 형태');
     if(cb==null) continue;
     for(const r of rs.slice(hh.idx+1)){
       const code=codeOfRow(cc==null?'':String(r[cc]||'').trim(), cn<0?'':String(r[cn]||'').trim(), r[cb]);
@@ -198,6 +199,8 @@ function parseSuppliers(sheets){
       addAlias(r[cb],code);
       const m=cm<0?'':String(r[cm]||'').trim();
       if(m&&!mgr[code]) mgr[code]=m;   // 같은 공급사가 여러 줄이면 먼저 나온 담당자
+      const ty=ct<0?'':String(r[ct]||'').trim();
+      if(ty&&!byCode[code].type) byCode[code].type=ty;   // '카페 24 등록 공급사' 탭이 비었을 때만 채운다
     }
   }
   S.map=Object.fromEntries(Object.entries(mgr).map(([k,v])=>[k,{mgr:v}]));
@@ -220,9 +223,12 @@ async function loadC24(){
   rebuild(); render();
 }
 // 담당자 공급사만, 공급사별로 묶는다
-// 매입 계약 공급사는 이카운트 재고2(위탁)에 애초에 안 들어온다 → 대사·정산 대상이 아니다.
-// (2026-10-12 실측: 정윤희 8월 불일치 125건 대부분이 허명욱·윤여동 등 매입 업체였다.) '매입 + 위탁' 혼합은 대상으로 둔다.
-const isBuyIn=code=>{ const s=S.sup&&S.sup.byCode[code]; return !!s&&s.type==='매입'; };
+// 위탁 정산이라 ①부터 거래처 LIST 계약 형태가 위탁(또는 '매입 + 위탁')인 공급사만 다룬다.
+// 매입은 이카운트 재고2(위탁)에 애초에 없어 넣으면 전부 '이카운트 누락'으로 뜬다
+// (2026-10-12 실측: 정윤희 8월 불일치 125건 대부분이 허명욱·윤여동 등 매입). 계약 형태가 빈 곳은 따로 알린다.
+const contractOf=code=>{ const s=S.sup&&S.sup.byCode[code]; return s?s.type:''; };
+const isConsign=code=>/위탁/.test(contractOf(code));
+const contractName=x=>{ const s=S.sup&&S.sup.byCode[x.code]; return s?s.name:x.name; };
 function c24BySupplier(){
   const g={};
   for(const l of (S.c24?S.c24.lines:[])){
@@ -238,7 +244,7 @@ function c24Workbook(){
   ws.columns=[{header:'주문일',width:12},{header:'주문번호',width:20},{header:'담당자',width:10},{header:'공급사코드',width:12},{header:'공급사명',width:24},
     {header:'계약 형태',width:10},{header:'상품번호',width:10},{header:'상품명',width:60},{header:'수량',width:7},{header:'판매가',width:12},{header:'할인',width:11},{header:'매출',width:12},{header:'상태',width:10},{header:'제외',width:12}];
   ws.getRow(1).eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7CAAC'}};c.font={bold:true};});
-  for(const l of S.c24.lines.filter(l=>inMgr(l.supplier_id))){
+  for(const l of S.c24.lines.filter(l=>inMgr(l.supplier_id)&&isConsign(l.supplier_id))){
     const s=S.sup&&S.sup.byCode[l.supplier_id];
     const r=ws.addRow([l.date,l.order_id,mgrOf(l.supplier_id),l.supplier_id,l.supplier_name,s?s.type:'',l.product_no,l.product_name,l.qty,Math.round(l.sale),Math.round(l.disc),Math.round(l.net),l.status,l.ok?'':(l.canceled==='Y'?'취소':'미결제')]);
     [9,10,11,12].forEach(i=>{r.getCell(i).numFmt='#,##0';});
@@ -303,7 +309,7 @@ function reconcile(){
   const ymd=o=>{const m=String(o||'').match(/^(\d{4})(\d{2})(\d{2})-/);return m?`${m[1]}-${m[2]}-${m[3]}`:'';};
   const keys=new Map();
   const K=(order,code)=>{const k=order+'|'+code; if(!keys.has(k)) keys.set(k,{order,code,c24:0,c24c:0,c24amt:0,ec:0,ecamt:0,c24lines:[],eclines:[]}); return keys.get(k);};
-  for(const l of S.c24.lines){ if(!inMgr(l.supplier_id)||isBuyIn(l.supplier_id)) continue; const x=K(l.order_id,l.supplier_id); x.c24lines.push(l); if(l.ok){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); } else x.c24c+=l.qty; }
+  for(const l of S.c24.lines){ if(!inMgr(l.supplier_id)||!isConsign(l.supplier_id)) continue; const x=K(l.order_id,l.supplier_id); x.c24lines.push(l); if(l.ok){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); } else x.c24c+=l.qty; }
   for(const r of S.sales.rows){ if(!r.sup||!inMgr(r.sup.code)) continue; const x=K(r.order||'(주문번호 없음)',r.sup.code); x.ec+=r.qty; x.ecamt+=r.qty*r.price; x.eclines.push(r); }
   const rows=[...keys.values()].map(x=>{
     const od=x.c24lines[0]?x.c24lines[0].date:ymd(x.order), inMonth=od>=from&&od<=to;
@@ -446,7 +452,8 @@ function step1(){
   if(S.c24Loading) body='<div class="st-stat">카페24 주문 불러오는 중… (한 달치는 10~20초 걸립니다)</div>';
   else if(S.c24Err) body=`<div class="st-stat err">${esc(S.c24Err.message)}</div>`;
   else if(S.c24){
-    const all=c24BySupplier(), sups=all.filter(x=>!isBuyIn(x.code)), buys=all.filter(x=>isBuyIn(x.code));
+    const all=c24BySupplier(), sups=all.filter(x=>isConsign(x.code));
+    const buys=all.filter(x=>/매입/.test(contractOf(x.code))&&!isConsign(x.code)), unknown=all.filter(x=>!contractOf(x.code));
     const row=x=>{const s=S.sup&&S.sup.byCode[x.code];return `<tr><td class="l"><b>${esc(s?s.name:x.name)}</b> <span class="st-sub" style="display:inline">${esc(x.code)}${S.mgr===ALL?' · '+esc(mgrOf(x.code)):''}</span></td>
         <td class="l">${esc(s?s.type||'—':'시트에 없음')}</td><td class="l">${esc(s&&s.doc||'—')}</td>
         <td>${s?(s.rate!=null?Math.round(s.rate*1000)/10+'%':`<span class="st-badge st-warn" style="margin:0">${esc(s.rateRaw||'없음')}</span>`):'—'}</td>
@@ -463,11 +470,10 @@ function step1(){
       <div class="st-scroll"><table class="st-t"><thead><tr><th class="l">공급사</th><th class="l">계약</th><th class="l">정산 서류</th><th>수수료율</th><th>주문 줄</th><th>주문</th><th>수량</th><th>상품구매금액</th><th>매출(할인 후)</th><th>취소 수량</th></tr></thead><tbody>
       ${sups.map(row).join('')}
       </tbody></table></div>
-      ${buys.length?`<p class="st-note" style="margin-top:var(--s4)"><b style="color:var(--ink-2)">매입 계약 ${buys.length}곳 — 대사·정산 제외</b> · 이카운트 재고2(위탁)에 들어오지 않는 업체입니다 (상품구매금액 ${n(buys.reduce((t,x)=>t+x.sale,0))}원)</p>
-      <div class="st-scroll"><table class="st-t" style="opacity:.6"><tbody>${buys.map(row).join('')}</tbody></table></div>`:''}`;
+      ${buys.length||unknown.length?`<p class="st-note" style="margin-top:var(--s3)">제외: ${buys.length?`매입 계약 ${buys.length}곳(${buys.map(x=>esc(contractName(x))).join(', ')})`:''}${buys.length&&unknown.length?' · ':''}${unknown.length?`<span style="color:var(--down)">계약 형태 미기재 ${unknown.length}곳 — 거래처 LIST 확인 필요(${unknown.map(x=>esc(contractName(x))).join(', ')})</span>`:''}</p>`:''}`;
   }
   return `<div class="st-card"><h2><span class="st-step">1</span>카페24 판매 현황</h2>
-    <p class="st-lead">정산 월과 담당자를 고르면 그 담당자가 맡은 공급사의 카페24 판매를 불러옵니다. 담당자는 거래처 LIST 의 담당자 열 기준입니다(대시보드 담당자 탭과 다를 수 있음).</p>
+    <p class="st-lead">정산 월과 담당자를 고르면 그 담당자가 맡은 <b>위탁</b> 공급사(위탁 · 매입+위탁)의 카페24 판매를 불러옵니다. 담당자·계약 형태는 거래처 LIST 기준입니다.</p>
     <div class="st-form">
       <label>정산 월<input type="month" id="stMonth" value="${esc(S.month)}"></label>
       <label>담당자<select id="stMgr"><option value="">선택</option>${mgrs.map(m=>`<option ${S.mgr===m?'selected':''}>${esc(m)}</option>`).join('')}<option value="(미지정)" ${S.mgr==='(미지정)'?'selected':''}>(미지정)</option><option value="${ALL}" ${S.mgr===ALL?'selected':''}>전체</option></select></label>
