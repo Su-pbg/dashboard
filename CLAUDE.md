@@ -373,14 +373,26 @@ products?limit=1 + 2026-03-01 → 200
 `trend-tab.js` + `radar-config.json`. **워커를 안 쓴다.** 데이터는 slackbot 이 매일 06:50 KST 에
 `trend-metrics.json` · `keyword-pool.json` · `shopping-insight.json` · `product-snapshot.json` 으로 push.
 씨앗·사전·제외어는 `radar-config.json` 에서 고친다(다음 날 아침 반영).
-- **네이버 쇼핑 검색 API — '종료' 가 아니라 '키가 없다'** (2026-10-12 재확인).
-  `openapi.naver.com/v1/search/shop.json` 은 살아 있다. 실측으로 가른 것:
-  - API HUB 키로 `X-NCP-APIGW-*` 헤더 → `401 Not Exist Client ID` (= Client-Id 헤더가 없다는 뜻)
-  - 아무 값이나 `X-Naver-Client-Id` 로 → `401 NID AUTH Result Invalid (1000)` (= 키가 틀렸다는 뜻)
-  - NCP 게이트웨이 `naveropenapi.apigw.ntruss.com/v1/search/shop.json` → **404** (NCP 엔 그 경로가 없다)
-  → 필요한 건 **개발자센터 Client ID/Secret** 인데 **신규 발급이 막혀 있다(2026-10-12 확인).**
-  그래서 결과적으로 못 쓴다. 경쟁강도는 검색광고 경쟁정도로 대신한다.
-  `trend-metrics.json` 의 `compTop`·`compPrice`·`marketPrice`·`priceGap` 은 **7일 내내 0/120** 으로 비어 있다.
+- **네이버 쇼핑 검색 API — 경로별로 실측해둔다 (2026-10-12 확정)**
+  | 호스트 · 경로 | 헤더 | 결과 |
+  |---|---|---|
+  | `naverapihub.apigw.ntruss.com/search/v1/blog` | `X-NCP-APIGW-*` | 401 Auth Failed → **경로 있음** |
+  | `naverapihub.apigw.ntruss.com/search/v1/shop` | `X-NCP-APIGW-*` | **404 URL not found → 경로 없음** |
+  | `openapi.naver.com/v1/search/shop.json` | `X-Naver-Client-Id` | 401 NID AUTH → **API 는 살아 있음** |
+  | `naveropenapi.apigw.ntruss.com/**` | 어느 쪽이든 | 404 (여긴 아예 아니다) |
+
+  정리: **쇼핑검색 API 는 멀쩡한데 부를 키가 없다.** API HUB 에는 쇼핑이 없고(404),
+  개발자센터 키가 있어야 하는데 **신규 발급이 막혀 있다(2026-10-12 확인)**.
+  `NAVER_CLIENT_ID`/`SECRET` 은 slackbot 에 설정돼 있지 않다.
+  → **남은 길은 하나다.** 회사에 예전에 등록된 개발자센터 앱이 있으면 그 키로
+  **2027-06-30 까지** 쓸 수 있다(`trend_metrics.py` 주석). 기존 앱에 '검색' API 추가는 열려 있을 수 있다.
+
+  실제 호출부는 `trend_metrics.py` 의 `HUB = 'https://naverapihub.apigw.ntruss.com'` 과
+  `naver_endpoint(kind)` 다. **추측으로 호스트를 찍지 말고 이 두 줄을 먼저 봐라** —
+  이번에 `openapi.naver.com` · `naveropenapi.apigw.ntruss.com` · `apihub.naver.com` 으로
+  세 번 헛짚었고, 코드 두 줄이 한 번에 끝냈다.
+
+  그래서 `trend-metrics.json` 의 `compTop`·`compPrice`·`marketPrice`·`priceGap` 은 계속 빈다(7일 내내 0/120).
   **시장가가 필요하면 사람이 네이버 쇼핑을 열어 적는 수밖에 없다.**
 - 개발자센터 신규 키 발급이 막혀 API HUB 키(`NAVER_APIHUB_KEY_ID/KEY`)를 쓴다.
 
