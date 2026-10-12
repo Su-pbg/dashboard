@@ -8,6 +8,7 @@
 //   DASHBOARD_KEY=... node scripts/check-search-results.mjs [--max 1200] [--min 3]
 //     --max  확인할 검색어 수 (광고 제외 세션 많은 순, 기본 1200)
 //     --min  이 세션 수 미만은 건너뜀 (기본 3)
+//     --force 같은 날 캐시를 무시하고 다시 센다
 //
 // 결과 한 줄: { term, organic, paid, results, pages, checkedAt }
 //   results = 검색 결과 1쪽에 걸린 상품 수(최대 20). pages>1 이면 그보다 많다.
@@ -20,6 +21,7 @@ const argv = process.argv.slice(2);
 const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const MAX = Number(arg('--max', 1200));
 const MIN = Number(arg('--min', 3));
+const FORCE = argv.includes('--force');   // 같은 날 이미 센 것도 다시 센다
 const KEY = process.env.DASHBOARD_KEY;
 const WORKER = 'https://proud-sea-35f9.sugim-386.workers.dev';
 const MALL = 'https://www.printbakery.com';
@@ -66,7 +68,7 @@ await Promise.all([...Array(CONC)].map(async () => {
     const k = i++; if (k >= terms.length) break;
     const t = terms[k];
     const old = prev[t.term];
-    if (old && old.checkedAt === to) { out.push({ ...t, results: old.results, pages: old.pages, checkedAt: to }); reused++; continue; }
+    if (!FORCE && old && old.checkedAt === to) { out.push({ ...t, results: old.results, pages: old.pages, checkedAt: to }); reused++; continue; }
     try {
       const c = await count(t.term);
       out.push({ ...t, ...c, checkedAt: to });

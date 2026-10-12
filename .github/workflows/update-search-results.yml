@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       max:
-        description: '확인할 검색어 수'
-        default: '1200'
+        description: '확인할 검색어 수 (광고제외 세션 많은 순)'
+        default: '2500'
       min:
         description: '이 세션 수 미만은 건너뜀'
-        default: '3'
+        default: '1'
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ jobs:
       - name: Count search results
         env:
           DASHBOARD_KEY: ${{ secrets.DASHBOARD_KEY }}
-        run: node scripts/check-search-results.mjs --max "${{ github.event.inputs.max || '1200' }}" --min "${{ github.event.inputs.min || '3' }}"
+        run: node scripts/check-search-results.mjs --max "${{ github.event.inputs.max || '2500' }}" --min "${{ github.event.inputs.min || '1' }}"
 
       - name: Commit search-results.json
         run: |

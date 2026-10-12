@@ -373,7 +373,15 @@ products?limit=1 + 2026-03-01 → 200
 `trend-tab.js` + `radar-config.json`. **워커를 안 쓴다.** 데이터는 slackbot 이 매일 06:50 KST 에
 `trend-metrics.json` · `keyword-pool.json` · `shopping-insight.json` · `product-snapshot.json` 으로 push.
 씨앗·사전·제외어는 `radar-config.json` 에서 고친다(다음 날 아침 반영).
-- 네이버 쇼핑 검색 API 는 2026-07-31 종료(대체 없음) → 경쟁강도 대신 검색광고 경쟁정도를 쓴다.
+- **네이버 쇼핑 검색 API — '종료' 가 아니라 '키가 없다'** (2026-10-12 재확인).
+  `openapi.naver.com/v1/search/shop.json` 은 살아 있다. 실측으로 가른 것:
+  - API HUB 키로 `X-NCP-APIGW-*` 헤더 → `401 Not Exist Client ID` (= Client-Id 헤더가 없다는 뜻)
+  - 아무 값이나 `X-Naver-Client-Id` 로 → `401 NID AUTH Result Invalid (1000)` (= 키가 틀렸다는 뜻)
+  - NCP 게이트웨이 `naveropenapi.apigw.ntruss.com/v1/search/shop.json` → **404** (NCP 엔 그 경로가 없다)
+  → 필요한 건 **개발자센터 Client ID/Secret** 인데 **신규 발급이 막혀 있다(2026-10-12 확인).**
+  그래서 결과적으로 못 쓴다. 경쟁강도는 검색광고 경쟁정도로 대신한다.
+  `trend-metrics.json` 의 `compTop`·`compPrice`·`marketPrice`·`priceGap` 은 **7일 내내 0/120** 으로 비어 있다.
+  **시장가가 필요하면 사람이 네이버 쇼핑을 열어 적는 수밖에 없다.**
 - 개발자센터 신규 키 발급이 막혀 API HUB 키(`NAVER_APIHUB_KEY_ID/KEY`)를 쓴다.
 
 ### 경비환급 (`expense.html`)
@@ -459,8 +467,8 @@ DASHBOARD_KEY=... node scripts/check-search-results.mjs [--max 1200] [--min 3]
 → `search-results.json`. 액션 `update-search-results` 가 매일 06:20 KST 에 돌린다.
 **주의: GitHub Secret `DASHBOARD_KEY` 가 옛 값이면 403 이다** (3-1 참조. `update-members` 도 같은 문제).
 
-실측(2026-10-12, 559개 확인): **결과 0건 48개(351세션) · 1~3종 46개(317세션)**.
-광고 제외 12,581세션의 5.3%다. 0건 상위는 `방진태 65` · `연호경 50` · `김슬기 16` · `윤형근 14` 로
+실측(2026-10-12, `--min 1` 전수 2,238개): **결과 0건 696개 · 1~3종 430개**.
+(`--min 3` 으로 559개만 보면 0건 48 · 1~3종 46 — 롱테일일수록 결과가 없다.) 0건 상위는 `방진태 65` · `연호경 50` · `김슬기 16` · `윤형근 14` 로
 **전부 작가명**이고, `김창렬`(오타, 맞는 표기는 김창열) · `Younglee`(영문) 같은 표기 문제도 섞여 있다.
 
 ---
