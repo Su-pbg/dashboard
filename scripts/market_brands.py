@@ -24,6 +24,11 @@
        titles = [it['snippet']['title'] for it in r.json().get('items', [])]
   3) build_keyword_radar.py
        row['marketBrands'] = extract(blog_titles + yt_titles, k)
+  4) searchad_volume() 이 받는 r.json()['keywordList'] 의 relKeyword 를 버리지 말고
+       rel = [row['relKeyword'] for row in r.json().get('keywordList', [])]
+     로 모아 두었다가
+       row['relBrands'] = from_rel_keywords(rel, k)
+     연관어는 호출을 더 하지 않는다 — 이미 풀 확장에 쓰고 버리는 값이다.
 
 자체 검사:  python3 scripts/market_brands.py
 """
@@ -88,6 +93,28 @@ def extract(titles, keyword, top=8, min_docs=2, max_share=0.6):
     return out[:top]
 
 
+def from_rel_keywords(rel, keyword, top=8, min_hits=2):
+    """검색광고 연관검색어(relKeyword)에서 브랜드 후보를 뽑는다.
+    연관어는 '마리몬드디퓨저' '디퓨저추천' 처럼 씨앗이 붙어 오므로, 씨앗을 떼어낸 나머지를 본다.
+    제목과 달리 문장이 아니라 덩어리라 문서빈도 대신 '몇 개의 연관어에 나왔나' 로 센다."""
+    kw = re.sub(r'\s+', '', keyword or '')
+    cnt = Counter()
+    for r in rel or []:
+        t = re.sub(r'\s+', '', str(r or ''))
+        if not t or t == kw:
+            continue
+        rest = t.replace(kw, ' ') if kw and kw in t else t
+        for w in RE_TOKEN.findall(rest):
+            w = strip_josa(w)
+            if len(w) < 2 or w in STOP or w.lower() in STOP:
+                continue
+            if kw and (w in kw or kw in w):
+                continue
+            cnt[w] += 1
+    out = [{'name': w, 'hits': c} for w, c in cnt.most_common(40) if c >= min_hits]
+    return out[:top]
+
+
 def demo():
     sample = [
         "[마리몬드] 인센스홀더 추천 내돈내산 후기",
@@ -109,11 +136,21 @@ def demo():
     assert '인센스홀더' not in names, names     # 검색어 자신은 빠진다
     # 한 글에만 나온 이름은 안 올라온다
     assert all(g['docs'] >= 2 for g in got), got
+
+    # 검색광고 연관어에서도 뽑힌다 (씨앗이 붙어 오는 덩어리 형태)
+    rel = ['디퓨저추천', '마리몬드디퓨저', '마리몬드디퓨저추천', '챕터원디퓨저',
+           '디퓨저선물', '마리몬드', '논픽션디퓨저', '논픽션디퓨저추천', '디퓨저가격']
+    names2 = [r['name'] for r in from_rel_keywords(rel, '디퓨저')]
+    assert '마리몬드' in names2, names2
+    assert '논픽션' in names2, names2
+    assert '디퓨저' not in names2, names2       # 씨앗은 빠진다
+    assert '추천' not in names2, names2         # 일반어는 빠진다
     # 조사가 떨어져 '오늘의집' 과 '오늘의집에서' 가 한 이름으로 합쳐진다
     assert strip_josa('오늘의집에서') == '오늘의집'
     assert strip_josa('마리몬드') == '마리몬드'      # 브랜드는 안 깎는다
     assert strip_josa('에서') == '에서'              # 줄기가 2자 미만이면 그대로
     print('전부 통과')
+    print('  [연관어]', ', '.join(f"{r['name']}({r['hits']})" for r in from_rel_keywords(rel, '디퓨저')))
     for g in got:
         print(f"  {g['name']:<12} 글 {g['docs']}개 ({int(g['share']*100)}%) 대괄호 {g['bracket']}")
 

@@ -554,11 +554,41 @@ https://api.printbakery.com/v1/search/products?q=…&limit=  →  { total, data[
   `shopping-insight` · `datalab` 접두어는 전부 404 다. 경로를 모르면 **404/401 로 훑어서 찾는다**
   (404=없음, 401=있고 키만 필요). 이번엔 8가지 찍어서 한 번에 나왔다.
 
-### 시장 브랜드는 블로그·유튜브 제목에서 뽑는다
-`scripts/market_brands.py` — 네이버 쇼핑 API 가 없으니 **이미 부르고 있는** 블로그·카페·유튜브
-검색의 **제목을 버리지 말고** 거기서 같이 나오는 이름을 뽑는다. 추가 키·쿼터 없음.
-slackbot 의 `trend_metrics.py` 에 복사해 넣는다(붙이는 법은 파일 주석에).
-자체검사: `python3 scripts/market_brands.py`
+### 시장 브랜드 — 외부 검색 결과에서 뽑는다 (`scripts/market_signals.py`)
+
+네이버 쇼핑 검색 API 가 없으니 **이미 키가 있는 HUB 검색**에서 글 제목을 받아 이름을 줍는다.
+`market_brands.py`(추출기·불용어) + `market_signals.py`(수집·조합) 두 파일이다.
+slackbot 에 복사하고 두 줄이면 끝난다:
+
+```python
+from market_signals import market_brands
+row['marketBrands'] = market_brands(k, tm.HUB_ID, tm.HUB_KEY, rel=rel_keywords_for_k)
+```
+
+**쓰는 경로 — 전부 401 로 실재 확인(2026-10-12), 키는 이미 있다**
+```
+/search/v1/blog         이미 호출 중 (개수만 세고 제목은 버리고 있었다)
+/search/v1/cafearticle  〃
+/search/v1/webkr        ◀ 안 쓰던 것
+/search/v1/news         ◀ 안 쓰던 것
++ 검색광고 relKeyword    ◀ 풀 확장에만 쓰고 버리던 것 — 연관어에 브랜드가 그대로 섞여 온다
+```
+한도 여유: 블로그 당월 **3,063 / 775,000 (0.4%)**. 네 경로를 다 써도 넉넉하다.
+추출은 **문서빈도**(한 글에 여러 번 나와도 1)라 제목 반복에 안 속고, 조사를 떼어
+`오늘의집` 과 `오늘의집에서` 를 한 이름으로 합친다. 자체검사 포함.
+
+**판정이 아니라 단서다.** 작가명·몰 이름·일반어가 섞인다. 화면엔 '같이 자주 나오는 이름' 으로.
+
+#### 안 되는 것 / 보류
+- **쿠팡 파트너스 · 11번가** — API 는 살아 있지만(401 / unregisteredKey) 쓰지 않기로 했다(Su).
+- **오늘의집 403 · 29CM 404 · 텐바이텐 404** — 공개 API 없음. 프론트 엔드포인트 뚫는 건 약관 위반.
+- **인스타그램** — `graph.facebook.com/v21.0/ig_hashtag_search` 는 **400**(경로 정상, 파라미터만 없음).
+  **해시태그 30개/7일** 한도라 주 30개 로테이션이면 분기 ~390품목을 돈다. `top_media` 캡션에
+  브랜드가 박혀 있어 같은 추출기를 쓸 수 있다. 필요한 것: IG 비즈니스 계정 ID + 장기 토큰.
+  ※ 내가 "발견용으로 못 쓴다" 고 단정했다가 되돌렸다. 로테이션을 안 따져본 탓이다.
+- **구글 Custom Search JSON API** — **400 "API key not valid"**(경로 정상). 무료 하루 100쿼리,
+  이후 1,000건당 $5. 해외 브랜드·영문 표기가 네이버보다 잘 잡힌다. 키 발급만 하면 된다.
+
 
 ---
 
