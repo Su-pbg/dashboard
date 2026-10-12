@@ -3698,7 +3698,7 @@ async function enterSettle(){
   if(SETTLE_LOADED) return;
   SETTLE_LOADED=true;
   try{
-    if(!window.loadSettleTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='settle-tab.js?v='+Math.floor(Date.now()/3600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    if(!window.loadSettleTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='settle-tab.js?v='+Math.floor(Date.now()/600000);   // 10분 단위 — 배포 후 예전 화면이 오래 남지 않게(Pages 캐시도 10분)sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
     await window.loadSettleTab($('settleContent'));
   }catch(e){ SETTLE_LOADED=false; $('settleContent').innerHTML='<div class="err">위탁 정산 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }
