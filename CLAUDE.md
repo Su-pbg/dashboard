@@ -472,16 +472,33 @@ Basic Display API 는 종료됐다. → `radar-config.json` 의 `instagramWatch`
 유튜브는 이미 들어오지만 `search.list` 가 100 units/호출, 일 10,000 → **하루 100회**가 상한이라
 120행 중 30행만 채워진다. 로테이션하거나 후보 좁힌 뒤 붙이는 게 맞다.
 
-### 몰 검색어 전수 확인 — 배치
-```bash
-DASHBOARD_KEY=... node scripts/check-search-results.mjs [--max 1200] [--min 3]
-```
-→ `search-results.json`. 액션 `update-search-results` 가 매일 06:20 KST 에 돌린다.
-**주의: GitHub Secret `DASHBOARD_KEY` 가 옛 값이면 403 이다** (3-1 참조. `update-members` 도 같은 문제).
+### 몰 검색어 — GA4 는 쓰고, 결과 건수는 세지 않는다
 
-실측(2026-10-12, `--min 1` 전수 2,238개): **결과 0건 696개 · 1~3종 430개**.
-(`--min 3` 으로 559개만 보면 0건 48 · 1~3종 46 — 롱테일일수록 결과가 없다.) 0건 상위는 `방진태 65` · `연호경 50` · `김슬기 16` · `윤형근 14` 로
-**전부 작가명**이고, `김창렬`(오타, 맞는 표기는 김창열) · `Younglee`(영문) 같은 표기 문제도 섞여 있다.
+`tab=searchterms` 로 GA4 `searchTerm` 을 **광고 유입과 갈라서** 본다. 이건 믿을 수 있다.
+실측(최근 30일): 전체 22,811 세션 중 **10,230(45%)이 광고**. `lee bae` 는 1,781 중 1,455 가 광고라
+빼면 332 다. **광고 랜딩은 수요가 아니다** — 수요는 `organic` 으로만 읽는다.
+
+#### [2026-10-12 실패 기록] 결과 건수를 두 번 틀렸다
+1. **상품 스냅샷 대조** — `lee bae` 가 스냅샷엔 0종인데 실제론 나온다. cafe24 가 스냅샷에 없는
+   필드까지 인덱싱한다. "검색어의 33%가 상품 0개" 라고 했는데 전부 무효였다.
+2. **엉뚱한 엔드포인트** — `www.printbakery.com/product/search.html?keyword=` 를 긁어
+   "0건 696개" 를 냈다. 그런데 **사용자가 쓰는 검색은 `printbakery.com/search.html?q=`** 다.
+   검색창에 치면 그리로 간다. 둘은 결과가 다르다 — `30만원대 선물` 이 구형은 0건, 실제는 19건.
+   게다가 실제 검색은 **SPA** 라 HTML 에 결과가 없고(모든 검색어가 198KB 동일) 상품 XHR 도 안 잡힌다
+   (Datarize 등 외부 검색으로 보인다). **서버에서 셀 수 없다.**
+
+→ 그래서 **결과 건수 기능은 뺐다.** `scripts/check-search-results.mjs` · `search-results.json` ·
+`update-search-results` 액션 모두 삭제. 검색어 목록과 광고 분리만 남긴다.
+다시 하려면 헤드리스 브라우저로 `/search.html?q=` 를 띄워 세야 한다.
+
+**교훈:** 긁기 전에 **사용자가 실제로 쓰는 URL** 을 브라우저로 먼저 확인한다.
+상태코드·HTML 파싱으로 추측하면 두 번 다 틀린다.
+
+### 시장 브랜드는 블로그·유튜브 제목에서 뽑는다
+`scripts/market_brands.py` — 네이버 쇼핑 API 가 없으니 **이미 부르고 있는** 블로그·카페·유튜브
+검색의 **제목을 버리지 말고** 거기서 같이 나오는 이름을 뽑는다. 추가 키·쿼터 없음.
+slackbot 의 `trend_metrics.py` 에 복사해 넣는다(붙이는 법은 파일 주석에).
+자체검사: `python3 scripts/market_brands.py`
 
 ---
 
