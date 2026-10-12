@@ -472,27 +472,42 @@ Basic Display API 는 종료됐다. → `radar-config.json` 의 `instagramWatch`
 유튜브는 이미 들어오지만 `search.list` 가 100 units/호출, 일 10,000 → **하루 100회**가 상한이라
 120행 중 30행만 채워진다. 로테이션하거나 후보 좁힌 뒤 붙이는 게 맞다.
 
-### 몰 검색어 — GA4 는 쓰고, 결과 건수는 세지 않는다
+### 몰 검색 — 우리가 만든 API 가 따로 있다
 
-`tab=searchterms` 로 GA4 `searchTerm` 을 **광고 유입과 갈라서** 본다. 이건 믿을 수 있다.
-실측(최근 30일): 전체 22,811 세션 중 **10,230(45%)이 광고**. `lee bae` 는 1,781 중 1,455 가 광고라
-빼면 332 다. **광고 랜딩은 수요가 아니다** — 수요는 `organic` 으로만 읽는다.
+**사용자가 쓰는 검색은 cafe24 가 아니다.** 검색창은 `printbakery.com/search.html?q=` 로 가고,
+그 페이지가 부르는 건 우리 API 다. 경로는 `search.html` 인라인의 `window.APP_CONFIG.API_URL` 에 있다.
 
-#### [2026-10-12 실패 기록] 결과 건수를 두 번 틀렸다
-1. **상품 스냅샷 대조** — `lee bae` 가 스냅샷엔 0종인데 실제론 나온다. cafe24 가 스냅샷에 없는
-   필드까지 인덱싱한다. "검색어의 33%가 상품 0개" 라고 했는데 전부 무효였다.
-2. **엉뚱한 엔드포인트** — `www.printbakery.com/product/search.html?keyword=` 를 긁어
-   "0건 696개" 를 냈다. 그런데 **사용자가 쓰는 검색은 `printbakery.com/search.html?q=`** 다.
-   검색창에 치면 그리로 간다. 둘은 결과가 다르다 — `30만원대 선물` 이 구형은 0건, 실제는 19건.
-   게다가 실제 검색은 **SPA** 라 HTML 에 결과가 없고(모든 검색어가 198KB 동일) 상품 XHR 도 안 잡힌다
-   (Datarize 등 외부 검색으로 보인다). **서버에서 셀 수 없다.**
+```
+https://api.printbakery.com/v1/search/products?q=…&limit=  →  { total, data[{brand_name, supplier_name, price, …}] }
+                              /search/products/brand?q=<code>   (이름 아니라 코드)
+                              /search/autocomplete?q=
+                              /search/ranking                   몰 실시간 인기 검색어 10위
+```
+`total` 이 사용자가 보는 그 숫자다. `data[]` 에 `brand_name`(한글+영문)이 같이 온다.
 
-→ 그래서 **결과 건수 기능은 뺐다.** `scripts/check-search-results.mjs` · `search-results.json` ·
-`update-search-results` 액션 모두 삭제. 검색어 목록과 광고 분리만 남긴다.
-다시 하려면 헤드리스 브라우저로 `/search.html?q=` 를 띄워 세야 한다.
+#### ⚠ 전수로 때리지 말 것
+[2026-10-12] 2,238개를 동시 5개·60ms 로 돌렸다가 **AWS ALB 에 막혔다**
+(`HTTP 429` · `server: awselb/2.0` · 본문 없음 — IP 단위 레이트룰로 보인다).
+그 뒤로 이 IP 에서는 `ranking` 조차 전부 429 였다. 몰 페이지(`search.html`·메인)는 200 으로 멀쩡했다.
+**고객 검색이 같은 엔드포인트를 쓴다.** 많이 필요하면 백엔드(검색 인덱스)에서 뽑아야 한다.
+→ `scripts/check-search-results.mjs` 는 기본 **상위 100개 · 동시 1 · 초당 1회**로 묶었고,
+429 를 만나면 바로 중단한다. 액션 기본값도 같다.
 
-**교훈:** 긁기 전에 **사용자가 실제로 쓰는 URL** 을 브라우저로 먼저 확인한다.
-상태코드·HTML 파싱으로 추측하면 두 번 다 틀린다.
+#### [실패 기록] 결과 건수를 세 번 틀렸다
+1. **상품 스냅샷 대조** — cafe24 가 스냅샷에 없는 필드도 인덱싱한다. "33%가 상품 0개" 무효.
+2. **`/product/search.html?keyword=` 긁기** — cafe24 기본 검색이고 사용자는 안 쓴다.
+   `30만원대 선물` 이 구형 0건 / 실제 19건. "0건 696개" 무효.
+3. **"SPA 라 셀 수 없다" 고 기능을 지움** — 우리가 만든 API 가 있었다.
+
+세 번 다 **우리 코드를 안 보고 바깥에서 추측**해서 틀렸다. `search.html` 인라인에 API 주소가 그냥
+적혀 있었다. **긁기 전에 우리 프론트 코드를 먼저 읽는다.**
+
+#### 지금 쓰는 것
+- 워커 `tab=searchterms` — GA4 검색어를 **광고 유입과 갈라서** 준다. 이건 믿을 수 있다.
+  실측: 전체 22,811 세션 중 **45%가 광고**. `lee bae` 는 1,781 중 1,455 가 광고.
+  **광고 랜딩은 수요가 아니다** — `organic` 으로만 읽는다.
+- `scripts/check-search-results.mjs` → `search-results.json` (상위 100개 결과 수 + 브랜드 + 인기검색어)
+- 띄어쓰기 버그: `정희진 도자기` 0건 → `정희진도자기` **44건**. 공백을 AND 로 처리한다.
 
 ### 시장 브랜드는 블로그·유튜브 제목에서 뽑는다
 `scripts/market_brands.py` — 네이버 쇼핑 API 가 없으니 **이미 부르고 있는** 블로그·카페·유튜브

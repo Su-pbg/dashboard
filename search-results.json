@@ -1,0 +1,15 @@
+{
+ "updatedAt": "2026-10-12T06:53:21.822Z",
+ "window": {
+  "from": "2026-09-13",
+  "to": "2026-10-12"
+ },
+ "_설명": "results = api.printbakery.com/v1/search/products 의 total (사용자가 쓰는 그 검색). brands = 상위 결과의 브랜드. noSpace = 공백을 뺐을 때 결과 수(띄어쓰기 버그). organic = 광고 외 세션.",
+ "counted": 0,
+ "zero": 0,
+ "thin": 0,
+ "spaceBug": 0,
+ "ranking": null,
+ "terms": [],
+ "_주의": "2026-10-12 전수 시도 중 429 로 976개가 실패해 그 행들은 뺐다. 전수는 하지 않는다(CLAUDE.md 참조)."
+}

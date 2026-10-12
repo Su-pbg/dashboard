@@ -79,7 +79,7 @@ const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절'
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
   '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
-const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
+const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,sres:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
 const pct=v=>{if(v==null)return '<span class="tr-flat">—</span>';const p=Math.round(v*100);const c=p>=10?'tr-up':p<=-10?'tr-down':'tr-flat';return `<span class="${c}">${p>0?'+':''}${p}%</span>`;};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -283,28 +283,38 @@ function renderInsta(){
 // 없으면 워커가 즉석에서 센 상위 24개로 버틴다.
 function searchRows(){
   const code=/^B[0-9A-Z]{6,}$/i, enc=/%[0-9A-F]{2}/i;
-  const T = (S.terms||{}).terms||[];
-  return T.map(x=>({...x, junk:code.test(x.term)||enc.test(x.term)}));
+  const batch=(S.sres||{}).terms;
+  const byTerm={}; for(const b of (batch||[])) byTerm[b.term]=b;
+  const T=(S.terms||{}).terms||[];
+  return T.map(x=>({...x, ...(byTerm[x.term]||{}), junk:code.test(x.term)||enc.test(x.term)}));
 }
 function renderSearch(){
   const el=document.getElementById('trSearch'); if(!el) return;
   if(!S.terms){ el.innerHTML='<div class="tr-sub">검색어 불러오는 중…</div>'; return; }
   if(S.terms.error){ el.innerHTML='<div class="tr-sub">검색어를 불러오지 못했습니다: '+esc(String(S.terms.error)).slice(0,120)+'</div>'; return; }
-  const R=searchRows();
+  const R=searchRows(), has=!!(S.sres&&S.sres.counted);
+  const res=x=>x.results==null?'<span class="t">—</span>':(x.results===0?'<b style="color:var(--down)">0건</b>':n(x.results)+'건');
+  const li=x=>`<li><span>${esc(x.term)} ${links(x.term)}${x.brands&&x.brands.length?`<div class="tr-sub">${esc(x.brands.join(', ')).slice(0,60)}</div>`:''}</span>`
+    +`<span>${n(x.organic)}<span class="t"> 세션${x.paid?' · 광고 '+n(x.paid):''} · </span>${res(x)}</span></li>`;
   const top=R.filter(x=>!x.junk).slice(0,15);
+  const bad=R.filter(x=>!x.junk&&x.results!=null&&x.results<=3).sort((a,b)=>b.organic-a.organic).slice(0,15);
+  const sp=R.filter(x=>x.noSpace).sort((a,b)=>b.organic-a.organic).slice(0,8);
   const adHeavy=R.filter(x=>!x.junk&&x.total>=40&&x.paid/x.total>=.5).sort((a,b)=>b.paid-a.paid).slice(0,10);
   const junk=R.filter(x=>x.junk&&x.organic>=5).sort((a,b)=>b.organic-a.organic).slice(0,8);
-  const li=x=>`<li><span>${esc(x.term)} ${links(x.term)}</span><span>${n(x.organic)}<span class="t"> 세션${x.paid?' · 광고 '+n(x.paid):''}</span></span></li>`;
+  const rank=(S.sres||{}).ranking||[];
   el.innerHTML=`<div class="tr-two">
     <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">많이 찾는 것 (광고 제외 상위 15)</h4>
-      <div class="tr-sub" style="margin:0 0 6px">우리 몰 검색창에 실제로 친 말. 옆 링크로 바깥 반응을 바로 볼 수 있다.</div>
+      <div class="tr-sub" style="margin:0 0 6px">'건'은 우리 검색 API(<code>/v1/search/products</code>)의 total — 사용자가 보는 그 숫자다.</div>
       <ul class="tr-list">${top.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">광고가 절반 넘는 검색어 (${adHeavy.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">수요가 아니라 광고가 보여준 것이다. 수요로 읽으면 안 된다.</div>
-      <ul class="tr-list">${adHeavy.map(x=>`<li><span>${esc(x.term)}</span><span>${n(x.paid)}<span class="t"> / ${n(x.total)}</span></span></li>`).join('')||'<li class="tr-sub">없음</li>'}</ul></div></div>
-   ${junk.length?`<div class="tr-sub" style="margin-top:10px"><b>깨진 검색어</b> — 인코딩이 안 풀렸거나 공급사 코드다. 검색창 연동을 봐야 한다:<br>${junk.map(x=>esc(x.term)+' ('+n(x.organic)+')').join(' · ')}</div>`:''}
-   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · 검색어 ${n(R.length)}개.
-     결과 건수는 싣지 않는다 — 실제 검색은 <code>/search.html?q=</code> 인데 SPA 라 서버에서 셀 수 없다.</div>`;
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">결과가 없거나 얇은 것 (${bad.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">0건은 소싱·표기, 1~3건은 상품이 모자란 것.</div>
+      <ul class="tr-list">${has?(bad.map(li).join('')||'<li class="tr-sub">없음</li>'):'<li class="tr-sub">search-results.json 이 아직 없습니다</li>'}</ul></div></div>
+   ${rank.length?`<div style="margin-top:12px"><h4 class="tr-sub" style="font-weight:600;margin:0 0 4px">몰 실시간 인기 검색어 (우리 API)</h4>
+     <div style="display:flex;flex-wrap:wrap;gap:6px">${rank.slice(0,10).map(r=>`<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)">${r.new_rank}. ${esc(r.keyword)}${r.old_rank&&r.old_rank!==r.new_rank?` <span class="t">${r.old_rank>r.new_rank?'▲':'▼'}</span>`:''}</span>`).join('')}</div></div>`:''}
+   ${sp.length?`<div class="tr-sub" style="margin-top:10px"><b>띄어쓰기 때문에 0건</b> — 공백을 빼면 결과가 나온다:<br>${sp.map(x=>esc(x.term)+' → '+n(x.noSpace)+'건').join(' · ')}</div>`:''}
+   ${adHeavy.length?`<div class="tr-sub" style="margin-top:8px"><b>광고가 절반 넘는 검색어</b> — 수요가 아니라 광고가 보여준 것이다:<br>${adHeavy.map(x=>esc(x.term)+' ('+n(x.paid)+'/'+n(x.total)+')').join(' · ')}</div>`:''}
+   ${junk.length?`<div class="tr-sub" style="margin-top:8px"><b>깨진 검색어</b> — 인코딩이 안 풀렸거나 공급사 코드다:<br>${junk.map(x=>esc(x.term)+' ('+n(x.organic)+')').join(' · ')}</div>`:''}
+   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · 검색어 ${n(R.length)}개${has?` · 결과 수는 매일 06:20 배치(${esc((S.sres.window||{}).to||'')})`:''}</div>`;
 }
 
 // 키워드 하나를 바깥에서 더 파볼 수 있는 링크 — 어디서 왜 뜨는지는 우리 데이터로 안 나온다
@@ -371,7 +381,7 @@ window.loadTrendTab=async function(){
        <label><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>뜨는 것만 (4주 +20% · 전년 +30%)</label></div>
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
-   <div class="tr-card"><h2>몰 안 검색어 — 광고 제외</h2><p class="tr-lead">우리 몰 검색창에 뭘 치는지. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 싣지 않는다 — 사용자가 쓰는 검색은 <code>/search.html?q=</code> 인데 SPA 라 서버에서 셀 수 없다.</p><div id="trSearch"></div></div>
+   <div class="tr-card"><h2>몰 안 검색어 — 광고 제외</h2><p class="tr-lead">우리 몰 검색창에 뭘 치는지. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
    <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">인스타는 해시태그 검색이 30개/7일 제한이라 발견 도구로 못 쓴다. 매출·판매수량 상위에서 고른 아래 목록만 주 1회 찍어 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
@@ -392,6 +402,7 @@ window.loadTrendTab=async function(){
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
   document.getElementById('trRise').onchange=e=>{S.onlyRising=e.target.checked;renderTable();};
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
+  fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
