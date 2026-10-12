@@ -49,7 +49,7 @@
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
     -webkit-font-smoothing:antialiased;letter-spacing:-.01em;
     font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1;}  /* 숫자 폭 고정 → 모노 없이도 표가 안 흔들림 */
-  .wrap{max-width:1120px;margin:0 auto;padding:var(--s8) var(--s6) 96px;}
+  .wrap{max-width:1600px;margin:0 auto;padding:var(--s8) var(--s6) 96px;}   /* [2026-10-07→10-12] 왼쪽 메뉴가 생기면서 본문이 좁아져 1120 → 1600. 경비환급은 아래에서 따로 잡는다 */
   .top-rule{display:none;}   /* 장식용 막대 제거 — 이 톤에서는 여백이 그 역할을 한다 */
   .eyebrow{font-size:12px;letter-spacing:0;text-transform:none;color:var(--muted);font-weight:600;margin:0 0 var(--s2);}
   h1{font-size:28px;font-weight:700;margin:0 0 var(--s2);letter-spacing:-.03em;line-height:1.25;}
@@ -380,7 +380,7 @@
   .nav-item.active .nav-tag{background:#fff;color:var(--accent-press);}
   .main{margin-left:var(--side-w);min-width:0;}
   #expenseView[hidden]{display:none;}
-  #expenseView.wrap{max-width:1440px;}   /* 경비환급 표는 칸이 많아서 더 넓게 */
+  #expenseView.wrap{max-width:1440px;}   /* 경비환급은 1440 로 고정. 본문 기본값(1600)보다 좁다 — 영수증 표가 너무 늘어지면 읽기 나빠서. */
   #expenseFrame{display:block;width:100%;height:1200px;border:0;background:transparent;}
   @media(max-width:860px){
     :root{--side-w:0px;}
