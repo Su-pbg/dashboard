@@ -331,8 +331,34 @@ var worker_default = {
           }
           const list = Object.values(by).map((o) => ({ ...o, total: o.organic + o.paid }))
             .sort((a, b) => b.organic - a.organic);
-          return json({ from: ranges.after.start, to: ranges.after.end, count: list.length,
-            note: "organic = 광고 외 유입 세션. 수요는 organic 으로 읽는다.", terms: list }, 200);
+          // [2026-10-12] 결과 수는 GA4 가 모른다. 상품 스냅샷(상품명·태그·분류)으로 대신 세봤더니 틀렸다 —
+          //   'lee bae' 가 스냅샷엔 0종인데 몰 검색은 6종을 돌려준다(cafe24 가 더 넓게 인덱싱한다).
+          //   그래서 진짜 검색 결과 페이지를 직접 받아 센다. 워커 서브요청 한도(50) 때문에 상위 N개만,
+          //   KV 에 하루 캐시한다. check=0 이면 건너뛴다.
+          const nCheck = Math.min(Number(q.get("check") ?? 24), 24);
+          if (nCheck > 0) {
+            const day = new Date().toISOString().slice(0, 10);
+            const head = list.slice(0, nCheck);
+            await Promise.all(head.map(async (o) => {
+              const ck = `srch:${day}:${o.term}`;
+              try {
+                const hit = await env.CAFE24_TOKEN_KV.get(ck);
+                if (hit != null) { const [a, b] = String(hit).split("|"); o.results = Number(a); o.pages = Number(b || 1); return; }
+                const r = await fetch(`https://www.printbakery.com/product/search.html?keyword=${encodeURIComponent(o.term)}`,
+                  { headers: { "User-Agent": "Mozilla/5.0 (compatible; pbg-dashboard/1.0)" } });
+                if (!r.ok) { o.results = null; return; }
+                const html = await r.text();
+                const set = new Set((html.match(/product_no=(\d+)/g) || []).map((m) => m.slice(11)));
+                // 한 페이지에 20종까지만 나온다(실측). 페이지가 더 있으면 그 수로 하한을 잡는다.
+                const pages = Math.max(1, ...(html.match(/page=(\d+)/g) || []).map((m) => Number(m.slice(5)) || 1));
+                o.results = set.size; o.pages = pages;
+                await env.CAFE24_TOKEN_KV.put(ck, set.size + "|" + pages, { expirationTtl: 86400 });
+              } catch (e) { o.results = null; }
+            }));
+          }
+          return json({ from: ranges.after.start, to: ranges.after.end, count: list.length, checked: nCheck,
+            note: "organic = 광고 외 유입 세션. results = 실제 몰 검색 결과 상품 수(상위 " + nCheck + "개만, 하루 캐시).",
+            terms: list }, 200);
         } catch (e) {
           return json({ error: String(e && e.message || e) }, 200);
         }

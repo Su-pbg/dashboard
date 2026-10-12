@@ -275,33 +275,38 @@ function renderInsta(){
 //   'lee bae' 는 1,781 중 1,455 가 광고라 빼면 326 으로 5분의 1이 된다.
 //   결과 수는 GA4 가 모르므로 상품 스냅샷과 대조해 '상품 0개'를 찾는다.
 function searchRows(){
-  const T=(S.terms||{}).terms||[]; const H=S.prods;
+  const T=(S.terms||{}).terms||[];
   const code=/^B[0-9A-Z]{6,}$/i, enc=/%[0-9A-F]{2}/i;
-  return T.map(x=>{
-    let n=0,sold=0;
-    if(H){const k=x.term.toLowerCase().replace(/\s+/g,''); for(let i=0;i<H.length;i++) if(H[i].sl.includes(k)){n++;sold+=H[i].q;}}
-    return {...x,n,sold,junk:code.test(x.term)||enc.test(x.term)};
-  });
+  return T.map(x=>({...x, junk:code.test(x.term)||enc.test(x.term)}));
+}
+function resText(x){
+  if(x.results==null) return '<span class="t">미확인</span>';
+  if(x.results===0) return '<b style="color:var(--down)">결과 0건</b>';
+  const more=(x.pages||1)>1;
+  return `${n(x.results)}종${more?'+ <span class="t">('+x.pages+'쪽)</span>':''}`;
 }
 function renderSearch(){
   const el=document.getElementById('trSearch'); if(!el) return;
   if(!S.terms){ el.innerHTML='<div class="tr-sub">검색어 불러오는 중…</div>'; return; }
-  if(S.terms.error){ el.innerHTML='<div class="tr-sub">검색어를 불러오지 못했습니다: '+esc(S.terms.error).slice(0,120)+'</div>'; return; }
-  if(!S.prods){ el.innerHTML='<div class="tr-sub">상품 대조 중… (스냅샷 5.8MB)</div>'; return; }
-  const R=searchRows().filter(x=>!x.junk&&x.organic>=5);
-  const zero=R.filter(x=>x.n===0).sort((a,b)=>b.organic-a.organic).slice(0,15);
-  const dead=R.filter(x=>x.n>0&&x.sold===0).sort((a,b)=>b.organic-a.organic).slice(0,15);
-  const junk=searchRows().filter(x=>x.junk&&x.organic>=5).sort((a,b)=>b.organic-a.organic).slice(0,8);
-  const li=(x,extra)=>`<li><span>${esc(x.term)} ${links(x.term)}</span><span>${n(x.organic)}<span class="t"> 세션${x.paid?' · 광고 '+n(x.paid):''}${extra||''}</span></span></li>`;
+  if(S.terms.error){ el.innerHTML='<div class="tr-sub">검색어를 불러오지 못했습니다: '+esc(String(S.terms.error)).slice(0,120)+'</div>'; return; }
+  const R=searchRows();
+  const checked=R.filter(x=>!x.junk&&x.results!=null);
+  const zero=checked.filter(x=>x.results===0).sort((a,b)=>b.organic-a.organic);
+  const thin=checked.filter(x=>x.results>0&&x.results<=3&&(x.pages||1)===1).sort((a,b)=>b.organic-a.organic).slice(0,10);
+  const adHeavy=R.filter(x=>!x.junk&&x.total>=40&&x.paid/x.total>=.5).sort((a,b)=>b.paid-a.paid).slice(0,10);
+  const junk=R.filter(x=>x.junk&&x.organic>=5).sort((a,b)=>b.organic-a.organic).slice(0,8);
+  const li=(x,right)=>`<li><span>${esc(x.term)} ${links(x.term)}</span><span>${right}</span></li>`;
+  const top=checked.slice(0,12).map(x=>li(x,`${n(x.organic)}<span class="t"> 세션${x.paid?' · 광고 '+n(x.paid):''} · </span>${resText(x)}`)).join('');
   el.innerHTML=`<div class="tr-two">
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">찾는데 상품이 0개 (${zero.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">검색은 되는데 걸리는 상품이 없다. 소싱이거나, 이름·태그가 안 맞는 것.</div>
-      <ul class="tr-list">${zero.map(x=>li(x)).join('')||'<li class="tr-sub">해당 없음</li>'}</ul></div>
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">상품은 있는데 30일 0개 (${dead.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">수요도 상품도 있는데 안 팔린다. 가격·진열·상품 수를 본다.</div>
-      <ul class="tr-list">${dead.map(x=>li(x,' · 상품 '+n(x.n))).join('')||'<li class="tr-sub">해당 없음</li>'}</ul></div></div>
-   ${junk.length?`<div class="tr-sub" style="margin-top:10px"><b>깨진 검색어</b> — 인코딩이 안 풀렸거나 공급사 코드다. 검색창 연동을 봐야 한다:<br>${junk.map(x=>esc(x.term)+' ('+n(x.organic)+')').join(' · ')}</div>`:''}
-   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · 5세션 이상만. 전체 ${n((S.terms.terms||[]).length)}개 검색어 중.</div>`;
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">많이 찾는 것 (광고 제외 상위 ${checked.length?12:0})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">'종'은 몰 검색을 실제로 걸어 센 결과다. '+N쪽'이면 20종 넘는다.</div>
+      <ul class="tr-list">${top||'<li class="tr-sub">확인 중…</li>'}</ul></div>
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">결과가 없거나 얇은 것 (${zero.length+thin.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">0건은 소싱·검색어 설정, 1~3종은 상품이 모자란 것.</div>
+      <ul class="tr-list">${[...zero,...thin].map(x=>li(x,`${n(x.organic)}<span class="t"> 세션 · </span>${resText(x)}`)).join('')||'<li class="tr-sub">상위 구간엔 없음</li>'}</ul></div></div>
+   ${adHeavy.length?`<div class="tr-sub" style="margin-top:10px"><b>광고가 절반 넘는 검색어</b> — 수요가 아니라 광고가 보여준 것이다:<br>${adHeavy.map(x=>esc(x.term)+' ('+n(x.paid)+'/'+n(x.total)+')').join(' · ')}</div>`:''}
+   ${junk.length?`<div class="tr-sub" style="margin-top:8px"><b>깨진 검색어</b> — 인코딩이 안 풀렸거나 공급사 코드다. 검색창 연동을 봐야 한다:<br>${junk.map(x=>esc(x.term)+' ('+n(x.organic)+')').join(' · ')}</div>`:''}
+   <div class="tr-sub" style="margin-top:8px">최근 30일 · <b>광고 유입 제외</b> · 검색어 ${n(R.length)}개 중 상위 ${n((S.terms||{}).checked||0)}개만 실제 검색을 걸어 확인한다(워커 서브요청 한도, 하루 캐시).</div>`;
 }
 // 키워드 하나를 바깥에서 더 파볼 수 있는 링크 — 어디서 왜 뜨는지는 우리 데이터로 안 나온다
 // 상세 패널용 — 작게 붙는 links() 와 달리 눌러보기 쉬운 버튼
@@ -367,7 +372,7 @@ window.loadTrendTab=async function(){
        <label><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>뜨는 것만 (4주 +20% · 전년 +30%)</label></div>
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
-   <div class="tr-card"><h2>몰 안 검색어 — 광고 제외</h2><p class="tr-lead">우리 몰 검색창에 뭘 치는지. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 45%가 광고). 결과 수는 GA4 가 모르므로 상품 스냅샷과 대조해 0개인 것을 찾는다.</p><div id="trSearch"></div></div>
+   <div class="tr-card"><h2>몰 안 검색어 — 광고 제외</h2><p class="tr-lead">우리 몰 검색창에 뭘 치는지. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 수는 GA4 가 모르므로 <b>상위 검색어는 몰 검색을 실제로 걸어서</b> 센다.</p><div id="trSearch"></div></div>
    <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">인스타는 해시태그 검색이 30개/7일 제한이라 발견 도구로 못 쓴다. 매출·판매수량 상위에서 고른 아래 목록만 주 1회 찍어 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
@@ -393,7 +398,7 @@ window.loadTrendTab=async function(){
   fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
     S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
       .map(p=>{const t=((p.name||'')+' '+(p.tags||[]).join(' ')+' '+(p.categories||[]).join(' ')).replace(/\s+/g,'');return {q:p.q30||0,s:t,sl:t.toLowerCase()};});
-    renderRising(); renderSearch();
+    renderRising();
   }).catch(()=>{});
 };
 })();
