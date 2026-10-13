@@ -73,6 +73,10 @@ table.st-mini{width:100%;border-collapse:collapse;font-size:12px;background:var(
 .st-seg button{border:0;background:none;border-radius:9px;height:30px;padding:0 12px;font:600 12px var(--sans);color:var(--ink-2);cursor:pointer;}
 .st-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06);}
 .st-note{font-size:12px;color:var(--muted);line-height:1.6;margin:var(--s2) 0 0;}
+/* ② 대조 펼침 표: 전부 가운데 정렬 */
+table.st-recon th,table.st-recon td,table.st-recon td.r{text-align:center;vertical-align:middle;}
+table.st-recon .st-in{text-align:center;}
+table.st-recon .st-item{display:flex;justify-content:center;gap:8px;line-height:1.5;}
 .st-lock{font-size:13px;color:var(--muted);background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s4);}
 `;
 const LIBS=[
@@ -629,16 +633,16 @@ function reconBody(){
       return `<tr><td class="l"><button class="st-name" data-a="ropen" data-c="${esc(b.code)}">${open?'▾':'▸'} ${esc(nameOf(b.code))}</button>${S.mgr===ALL?`<span class="st-sub" style="display:inline"> · ${esc(mgrOf(b.code))}</span>`:''}</td>
         <td>${n(b.c24o)}</td><td>${n(b.eco)}</td><td>${n(b.c24)}</td><td>${n(b.ec)}</td><td>${n(b.c24amt)}</td><td>${n(b.ecamt)}</td>
         <td class="l">${mm?`<span class="st-badge st-bad">미처리 ${mm}</span>`:(b.rows.some(r=>BAD.includes(r.status))?'<span class="st-badge st-warn">처리됨</span>':'<span class="st-badge st-ok">일치</span>')}${b.cnt['금액 다름']?`<span class="st-badge st-warn">금액 다름 ${b.cnt['금액 다름']}</span>`:''}${b.cnt['전월 주문']?`<span class="st-badge st-info">전월 ${b.cnt['전월 주문']}</span>`:''}</td></tr>
-        ${open?`<tr class="st-detail"><td colspan="8"><table class="st-mini"><thead><tr><th>주문번호 · 주문일</th><th>결과</th><th>카페24 품목</th><th>이카운트 품목</th><th class="r">카페24 합계</th><th class="r">이카운트 합계<br>(고칠 수 있음)</th><th>처리 · 메모</th></tr></thead><tbody>
-          ${b.rows.slice().sort((x,y)=>BAD.includes(y.status)-BAD.includes(x.status)||x.order.localeCompare(y.order)).map(r=>{const [cl,el]=itemCols(r); return `<tr style="vertical-align:top">
+        ${open?`<tr class="st-detail"><td colspan="8"><table class="st-mini st-recon"><thead><tr><th>주문번호 · 주문일</th><th>결과</th><th>카페24 품목</th><th>이카운트 품목</th><th>카페24 합계</th><th>이카운트 합계<br>(고칠 수 있음)</th><th>처리 · 메모</th></tr></thead><tbody>
+          ${b.rows.slice().sort((x,y)=>BAD.includes(y.status)-BAD.includes(x.status)||x.order.localeCompare(y.order)).map(r=>{const [cl,el]=itemCols(r); return `<tr>
             <td><b>${esc(r.order)}</b><div class="st-sub">${esc(r.date)}</div></td>
             <td>${tag(r.status)}</td>
             <td style="white-space:normal;min-width:240px">${cl}</td>
             <td style="white-space:normal;min-width:240px">${el}</td>
             <td class="r">${r.c24}개${r.c24c?`<div class="st-sub">취소 ${r.c24c}</div>`:''}<div>${r.c24lines.length?n(r.c24amt)+'원':'—'}</div></td>
             <td class="r">${ecInput(r,'ecq')}<div style="margin-top:4px">${ecInput(r,'eca')}</div></td>
-            <td>${r.status==='일치'?'':`<select class="st-in" style="text-align:left;width:150px" data-a="res" data-k="${esc(rkey(r.order,r.code))}"><option value="">${BAD.includes(r.status)?'미확인':'—'}</option>${RES.map(o=>`<option ${editOf(r).res===o?'selected':''}>${o}</option>`).join('')}</select>
-              <div style="margin-top:4px"><input class="st-in" style="text-align:left;width:150px" data-a="memo" data-k="${esc(rkey(r.order,r.code))}" value="${esc(editOf(r).memo||'')}" placeholder="메모"></div>`}</td></tr>`;}).join('')}
+            <td>${r.status==='일치'?'':`<select class="st-in" style="text-align:center;width:150px" data-a="res" data-k="${esc(rkey(r.order,r.code))}"><option value="">${BAD.includes(r.status)?'미확인':'—'}</option>${RES.map(o=>`<option ${editOf(r).res===o?'selected':''}>${o}</option>`).join('')}</select>
+              <div style="margin-top:4px"><input class="st-in" style="text-align:center;width:150px" data-a="memo" data-k="${esc(rkey(r.order,r.code))}" value="${esc(editOf(r).memo||'')}" placeholder="메모"></div>`}</td></tr>`;}).join('')}
           </tbody></table></td></tr>`:''}`;}).join(''):'<tr><td class="l" colspan="8" style="color:var(--muted)">불일치가 없습니다.</td></tr>'}
     </tbody></table></div>
     <p class="st-note">판정은 주문 × 공급사의 수량·금액 합계로 합니다. 품목은 양쪽을 그대로 보여 줍니다 · 선수금 = 이카운트에 선수금 품목으로만 있음 · 선수금 전환 = 예전 선수금을 상품으로 바꾼 전표(정상) · 이카운트 누락 = 카페24 주문인데 이카운트에 없음(다음 달 출고·전표 누락) · 카페24에 없음 = 이번 달 주문번호인데 카페24 담당자 공급사에 없음(공급사 매칭 확인) · 금액 다름 = 수량은 같고 카페24 상품구매금액과 이카운트 정가 합계가 다름(할인 판매 등, 참고) · 전월 주문 = 이전 달 주문의 반품·이월·선수금 전표라 정상</p>`;
@@ -648,7 +652,7 @@ function reconBody(){
 const shortName=(nm,ec)=>{ let x=String(nm||'').replace(/^(\s*\[[^\]]*\]\s*)+/,''); return ec?x.replace(/^[^/]*\/\s*/,''):x; };
 function itemCols(r){
   const it=itemLists(r);
-  const list=(arr,ec)=>arr.length?arr.map(x=>`<div style="display:flex;gap:8px;line-height:1.5" title="${esc(x.name)}"><span style="flex:1">${esc(shortName(x.name,ec))}</span><span style="white-space:nowrap;color:var(--ink-2)">${x.qty}개 · ${n(x.amt)}원</span></div>`).join('')
+  const list=(arr,ec)=>arr.length?arr.map(x=>`<div class="st-item" title="${esc(x.name)}"><span>${esc(shortName(x.name,ec))}</span><span style="white-space:nowrap;color:var(--ink-2)">${x.qty}개 · ${n(x.amt)}원</span></div>`).join('')
     :'<span style="color:var(--ghost)">—</span>';
   const pre=r.prepay&&r.prepay.length?`<div style="color:var(--muted)">선수금 ${r.prepay.length}행</div>`:'';
   return [list(it.c24,false), pre+(it.ec.length||!pre?list(it.ec,true):'')];
