@@ -263,6 +263,40 @@ function renderRising(){
   const sel=document.getElementById('trBand');
   if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
 }
+// ── 브랜드·작가 후보 ────────────────────────────────────────────────
+// [2026-10-13] 연관검색어 풀에서 카테고리 단어를 떼고 남는 말. 추가 API 호출이 없다.
+//   브랜드는 혼자 안 온다 — FLOS조명 · 루이스폴센조명 · 웨지우드접시 · 나그참파인센스.
+//   블로그 제목에서 뽑는 방식은 폐기했다(129개 중 브랜드 4개, 나머지는 '있는'·'함께'·'맛집').
+//   소재·대상·용도가 섞이는 건 알고 있다. 판정이 아니라 훑어보는 목록이다.
+function renderBrands(){
+  const el=document.getElementById('trBrands'); if(!el) return;
+  const run=S.data.runs[S.data.runs.length-1];
+  const B=run.brands;
+  if(!Array.isArray(B)){ el.innerHTML='<div class="tr-sub">brands 가 아직 없습니다 — 다음 아침 실행부터 들어옵니다.</div>'; return; }
+  const seeded=new Set(); const sd=(S.cfg||{}).seeds||{};
+  for(const ws of Object.values(sd)) for(const w of ws) seeded.add(String(w).replace(/\s+/g,''));
+  const isSeed=x=>seeded.has(x.name)||[...seeded].some(w=>w.includes(x.name)&&w!==x.name);
+  const li=x=>`<li><span>${esc(x.name)} ${x.latin?'<span class="t">EN</span> ':''}${links(x.name)}`
+    +`<div class="tr-sub">${esc(x.keywords.slice(0,3).join(' · '))}</div></span>`
+    +`<span>${n(x.search)}<span class="t"> 검색</span></span></li>`;
+  // 검색량 순으로 두면 일반명사가 위를 먹는다 — 그 말들이 검색량 큰 카테고리어에 붙어 오기 때문.
+  // 고유명사는 길다: 루이스폴센5 웨지우드4 나그참파4 허먼밀러4 호텔도슨4. 2글자는 거의 다 일반명사다.
+  const tier=x=>x.latin?3:(x.name.length>=4?2:(x.name.length===3?1:0));
+  const out=B.filter(x=>!x.ours&&!isSeed(x)&&tier(x)>0)
+              .sort((a,b)=>tier(b)-tier(a)||b.search-a.search).slice(0,24);
+  const have=B.filter(x=>x.ours&&tier(x)>0).slice(0,12);
+  el.innerHTML=`<div class="tr-two">
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리에게 없는 이름 (${out.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">소싱 후보. 로마자·긴 이름 순 — 고유명사는 길고 2글자는 거의 일반명사다. 링크로 바로 확인할 것.</div>
+      <ul class="tr-list">${out.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리가 이미 가진 이름 (${have.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">상품명에 그 말이 들어 있는 것. 2글자 한글은 오탐이 섞인다.</div>
+      <ul class="tr-list">${have.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div></div>
+   <div class="tr-sub" style="margin-top:8px">후보 ${B.length}종 중 씨앗에 이미 넣은 것은 뺐다.
+     진짜 브랜드다 싶으면 <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> 의
+     <b>그 브랜드가 속한 테마</b>에 넣는다 — 다음 날 연관검색어가 그 브랜드의 제품군·경쟁 브랜드를 물어온다(추가 호출 없음).
+     화장품·바디 브랜드는 이름만 넣으면 핸드크림·샴푸가 딸려 오니 '○○디퓨저' 꼴로 넣을 것.</div>`;
+}
 function renderInsta(){
   const el=document.getElementById('trInsta'); if(!el) return;
   const w=(S.cfg||{}).instagramWatch;
@@ -383,6 +417,7 @@ window.loadTrendTab=async function(){
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
+   <div class="tr-card"><h2>브랜드·작가 후보</h2><p class="tr-lead">연관검색어 풀에서 카테고리 단어를 떼고 <b>남는 말</b>이다. 브랜드는 혼자 오지 않고 <code>루이스폴센조명</code>·<code>웨지우드접시</code>처럼 붙어서 들어온다. <b>추가 API 호출이 없다</b> — 이미 받아둔 풀을 다시 보는 것뿐. 소재·대상·용도가 섞이니 <b>판정이 아니라 훑어보는 목록</b>으로 쓸 것.</p><div id="trBrands"></div></div>
    <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">시장이 뭘 하고 있나를 보는 목록이다. <b>우리 브랜드는 넣지 않는다</b> — 그건 우리 반응 확인이지 트렌드 발견이 아니다. 해시태그 검색이 30개/7일 제한이라 주 1회 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
@@ -398,7 +433,7 @@ window.loadTrendTab=async function(){
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
-  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch();
+  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch(); renderBrands();
   document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
@@ -406,7 +441,7 @@ window.loadTrendTab=async function(){
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
   fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
-  fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();}).catch(()=>{});
+  fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();renderBrands();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
   fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
     S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
