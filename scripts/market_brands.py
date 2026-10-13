@@ -1,158 +1,133 @@
 # -*- coding: utf-8 -*-
-"""검색 결과 제목에서 '시장에서 같이 자주 나오는 이름'(브랜드·작가·몰)을 뽑는다.
+"""풀 키워드에서 브랜드·작가 이름 후보를 뽑는다. **추가 API 호출이 없다.**
 
-왜 필요한가: 네이버 쇼핑 검색 API 가 2026-07-31 에 종료돼(유예 없음, 대체 없음)
-키워드별 시장 상품·브랜드를 받을 길이 없다. 그런데 블로그·카페·유튜브 검색은
-살아 있고 slackbot 이 이미 매일 부르고 있다 — 다만 **개수만 세고 제목은 버린다.**
-그 제목에 브랜드가 들어 있다. 호출을 더 하지 않으므로 키도 쿼터도 추가로 안 든다.
+왜 이 방식인가 (2026-10-13, 앞선 방식을 실측으로 폐기하고 다시 짰다)
+  처음엔 블로그·카페·웹문서·뉴스 **제목에서** 브랜드를 뽑으려 했다. 실제로 돌려보니
+  129개 이름 중 브랜드는 LG·디오스·제네시스·GV90 4개뿐이었고(그마저 '오브제'가 LG 가전과
+  충돌한 것) 나머지는 '있는'(27개 키워드) · '함께' · '작은' · '맛집' · 'quot' · '안녕하세요'.
+  한국어 리빙 블로그 제목은 구어체 산문이라 브랜드가 빈도로 구분되지 않는다.
+  불용어를 늘려도 안 된다 — 남는 것도 브랜드가 아니었다. 그 경로는 버렸다.
 
-어디서 도나: 이 파일은 참고 구현이다. 실제로는 slackbot 의 trend_metrics.py 에
-복사해 넣고 build_keyword_radar.py 에서 부른다 (아래 '붙이는 법').
+  대신 **검색광고 연관검색어로 만든 풀 자체**에 브랜드가 이미 들어와 있다.
+  다만 혼자 오지 않고 카테고리 단어에 붙어서 온다:
+      FLOS조명 · 루이스폴센조명 · 웨지우드접시 · 나그참파인센스 · 허먼밀러조명
+  그래서 씨앗·사전·수식어를 떼고 **남는 말**을 세면 그대로 떨어진다.
+  실측(풀 1,187개): 잔여 토큰 약 180종 중 진짜 브랜드 15~20개.
 
-판정이 아니라 단서다. 작가명·몰 이름·일반어가 섞일 수 있으니 화면에도
-'같이 자주 나오는 이름' 으로 보여줄 것.
+판정이 아니라 **소싱 후보 목록**이다. 소재(본차이나·디아섹)·대상(교수님·신생아)이 섞인다.
+사람이 한 번 훑는 분량이라 정밀도 100%일 필요가 없다.
 
-붙이는 법 (slackbot):
-  1) trend_metrics.py — naver_blog_7d 가 제목도 돌려주게
-       fresh = [it for it in items if (it.get('postdate') or '') >= since]
-       count += len(fresh)
-       titles += [f"{it.get('title','')} {it.get('description','')}" for it in fresh]
-       ...
-       return count, titles
-  2) trend_metrics.py — youtube_7d 는 part 를 id → snippet 으로
-       params={"key": YT_KEY, "part": "snippet", ...}
-       titles = [it['snippet']['title'] for it in r.json().get('items', [])]
-  3) build_keyword_radar.py
-       row['marketBrands'] = extract(blog_titles + yt_titles, k)
-  4) searchad_volume() 이 받는 r.json()['keywordList'] 의 relKeyword 를 버리지 말고
-       rel = [row['relKeyword'] for row in r.json().get('keywordList', [])]
-     로 모아 두었다가
-       row['relBrands'] = from_rel_keywords(rel, k)
-     연관어는 호출을 더 하지 않는다 — 이미 풀 확장에 쓰고 버리는 값이다.
+한계: 풀에 들어온 것만 보인다(월 300회 미만은 애초에 안 들어온다).
+넓히려면 확인된 브랜드를 radar-config.json 의 seeds 에 되먹이면 된다 — 연관검색어가
+그 브랜드의 제품군과 경쟁 브랜드를 물어온다. 역시 추가 호출이 없다.
 
 자체 검사:  python3 scripts/market_brands.py
 """
 import re
-from collections import Counter
+from collections import defaultdict
 
-# 브랜드가 아닌 말. 리빙·공예 블로그에 흔한 일반어 + 협찬 글 상용구.
-STOP = set("""추천 후기 내돈내산 리뷰 비교 정리 솔직 사용기 언박싱 구매 가격 최저가 할인 세일
-브이로그 일상 집들이 선물 인테리어 소품 꾸미기 데일리 추천템 아이템 모음 베스트 top 신상
-진짜 완전 너무 정말 그냥 요즘 올해 이번 한번 하기 좋은 예쁜 이쁜 괜찮은 쓰는 사는 산
-홈카페 홈파티 집꾸미기 오늘 어제 가성비 득템 세트 시리즈 공식 정품 무료배송 당일발송
-vs VS ft FT with and the for 광고 협찬 체험단 내돈 구입 개봉 세팅 사용 설치 제품 상품
-스타일링 코디 활용 후기글 솔직후기 느낌 분위기 감성 인기 요즘핫한 나만의""".split())
+# 떼어낼 말 — 카테고리·수식어·대상·용도. 씨앗/사전/제외어는 config 에서 받아 여기에 더한다.
+GENERIC = set("""
+추천 선물 세트 가격 브랜드 종류 사이즈 인기 순위 후기 모음 비교 저렴한 저렴 고급 명품 가성비
+모던 심플 미니멀 미니 대형 소형 중형 원형 사각 라운드 led 전구 리빙 집 방 거실 주방 침실 욕실
+현관 베란다 사무실 카페 매장 아울렛 백화점 쇼핑몰 파는곳 업체 온라인 대여 할인 프레임
+돌잔치 집들이 개업 결혼 생일 기념일 환갑 칠순 생신 어버이날 스승의날 명절 추석 설날 한가위
+크리스마스 발렌타인 빼빼로데이 청첩장 예단 답례품 답례 축하 이사 입학 졸업 승진 퇴직 정년퇴직
+첫월급 합격기원 주년 백일 신생아 임산부 어린이 유치원 중학생 교수님 선생님 상사 직장상사 회사단체
+남자 여자 남친 여친 엄마 아빠 부모님 어머니 아버지 어머님 아버님 할머니 할아버지 와이프 친구
+아이 신혼 부부 커플 외국인 기독교
+조명 액자 포스터 그림 쿠션 러그 캔들 향 그릇 접시 컵 잔 머그 머그컵 찻잔 트레이 화병 꽃병 수저
+수저통 도자기 소품 굿즈 오브제 인테리어 디퓨저 향수 스프레이 스탠드 램프 장식 테이블 의자 소파
+쇼파 선반 수납 홀더 스틱 커버 패드 매트 침구 이불 베개 시계 거울 화분 식물 거치대 정리대 건조대
+받침 등받이 라이터 파우치 명함케이스 보석함 펜던트 팬던트 플로어 스탠딩 디자인 플레이팅 티라이트
+나무 스텐 빈티지 아크릴 라탄 종이 수입 티타늄 알루미늄 세라믹 유리 내열 천연 본차이나 오일파스텔
+수채화 유화 가을풍경 해바라기 고양이 매듭 나전칠기 디아섹 워셔블 물빠짐 먼지없는 촉촉한 비정형
+전통 한국 한지 유기 자개 옻칠 백자 청자 달항아리 인센스 사이즈별 실내 실외 사진 촬영 북유럽 일본
+식탁 화장대 화장실 벽난로 바닥 오븐 에어프라이어 그라탕 비빔밥 영양제 초콜릿 그래놀라 표고버섯
+만원 센스있는 간단한 예쁜 이쁜 감성 무선 충전식 휴대용 벽걸이 스마트 할로겐 케이블 공익광고
+책상 가구 레일 시세 퇴사 재료 문양 증상 의미 나눔 남편 아내 초등학생 고등학생 대학생
+안방 서재 다용도실 제주도 셀프 캔버스 멜라민 워머 귀여운 심플한 따뜻한 시원한 부드러운
+원목 대리석 스테인리스 사용법 세척 관리 보관 설치 조립 배송 반품 교환 초등 중등 고등
+""".split())
 
-# 29CM·W컨셉처럼 숫자·영문·한글이 섞인 브랜드도 한 덩어리로 잡는다
-RE_TOKEN = re.compile(r"\d{0,3}[A-Za-z][A-Za-z0-9&'\-\.]{1,19}|[A-Za-z]?[가-힣]{2,10}\d{0,2}")
-RE_TAG = re.compile(r'<[^>]+>')
-# 조사를 안 떼면 '오늘의집' 과 '오늘의집에서' 가 다른 이름으로 세어져 둘 다 문턱을 못 넘는다.
-# 여러 글자 조사만 뗀다(한 글자는 브랜드 끝글자를 깎을 위험이 크다). 남는 줄기가 2자 이상일 때만.
-JOSA = ('에서는', '에서도', '으로는', '이랑은', '에서', '에게', '으로', '이랑', '부터', '까지',
-        '에는', '에도', '하고', '라고', '처럼', '보다', '마다', '밖에')
-RE_BRACKET = re.compile(r'[\[\(]\s*([^\]\)]{2,20})\s*[\]\)]')   # "[브랜드] 상품명" 패턴
-
-
-def strip_josa(w):
-    for j in JOSA:
-        if w.endswith(j) and len(w) - len(j) >= 2:
-            return w[:-len(j)]
-    return w
-
-
-def extract(titles, keyword, top=8, min_docs=2, max_share=0.6):
-    """titles: 블로그/유튜브 제목(+설명) 문자열 목록. keyword: 그 검색어.
-    반환: [{name, docs, share, bracket}] — docs 는 '몇 개의 글에 나왔나'(문서빈도)."""
-    kw = re.sub(r'\s+', '', keyword or '')
-    docs, bracket = [], Counter()
-    for t in titles or []:
-        t = RE_TAG.sub(' ', t or '')
-        for b in RE_BRACKET.findall(t):
-            b = re.sub(r'\s+', '', b)
-            if b and b not in STOP and (not kw or kw not in b):
-                bracket[b] += 1
-        toks = {strip_josa(w) for w in RE_TOKEN.findall(t)}
-        docs.append({w for w in toks
-                     if w.lower() not in STOP and w not in STOP
-                     and (not kw or (kw not in w and w not in kw))})
-
-    df = Counter()                      # 한 글에서 여러 번 나와도 1 — 제목 반복에 안 속는다
-    for d in docs:
-        for w in d:
-            df[w] += 1
-    n = max(len(docs), 1)
-    out = []
-    for w, c in df.most_common(80):
-        if c < min_docs:
-            break
-        if c / n > max_share:           # 거의 모든 글에 나오면 브랜드가 아니라 일반어다
-            continue
-        out.append({'name': w, 'docs': c, 'share': round(c / n, 2), 'bracket': bracket.get(w, 0)})
-    # 대괄호 안에 있던 건 브랜드일 확률이 높다 → 가산
-    out.sort(key=lambda x: (-(x['docs'] + x['bracket'] * 2), x['name']))
-    return out[:top]
+RE_LATIN = re.compile(r'[A-Za-z]{2,}')
 
 
-def from_rel_keywords(rel, keyword, top=8, min_hits=2):
-    """검색광고 연관검색어(relKeyword)에서 브랜드 후보를 뽑는다.
-    연관어는 '마리몬드디퓨저' '디퓨저추천' 처럼 씨앗이 붙어 오므로, 씨앗을 떼어낸 나머지를 본다.
-    제목과 달리 문장이 아니라 덩어리라 문서빈도 대신 '몇 개의 연관어에 나왔나' 로 센다."""
-    kw = re.sub(r'\s+', '', keyword or '')
-    cnt = Counter()
-    for r in rel or []:
-        t = re.sub(r'\s+', '', str(r or ''))
-        if not t or t == kw:
-            continue
-        rest = t.replace(kw, ' ') if kw and kw in t else t
-        for w in RE_TOKEN.findall(rest):
-            w = strip_josa(w)
-            if len(w) < 2 or w in STOP or w.lower() in STOP:
+def _strip_set(config):
+    s = set(GENERIC)
+    seeds = (config or {}).get('seeds') or {}
+    for k, v in (seeds.items() if isinstance(seeds, dict) else [(x, []) for x in seeds]):
+        s.add(k)
+        s.update(v or [])
+    s.update((config or {}).get('lexicon') or [])
+    s.update((config or {}).get('exclude') or [])
+    # 띄어쓴 씨앗('리빙 오브제')은 조각으로도 떼야 한다
+    for w in list(s):
+        for part in re.split(r'\s+', w):
+            if len(part) >= 2:
+                s.add(part)
+    return sorted({w for w in s if len(w) >= 2}, key=len, reverse=True)
+
+
+def _vol(entry):
+    h = (entry or {}).get('hist') or {}
+    return max(h.values()) if h else 0
+
+
+def brand_candidates(pool, config, products=None, top=120, min_len=2):
+    """pool: keyword-pool.json 의 keywords. config: radar-config.json.
+    products: product-snapshot.json 의 products (우리가 이미 가진 이름인지 표시용).
+    반환: [{name, search, keywordCount, keywords, latin, ours}] — 검색량 내림차순."""
+    strip = _strip_set(config)
+    ours_text = ' '.join((p.get('name') or '') for p in (products or [])).lower()
+
+    agg = defaultdict(lambda: {'search': 0, 'keywords': []})
+    for k, e in (pool or {}).items():
+        s = re.sub(r'\s+', '', k)
+        for g in strip:
+            s = s.replace(g, '|')
+        for part in re.split(r'[|\d]+', s):
+            part = part.strip()
+            if len(part) < min_len or part.lower() in GENERIC:
                 continue
-            if kw and (w in kw or kw in w):
-                continue
-            cnt[w] += 1
-    out = [{'name': w, 'hits': c} for w, c in cnt.most_common(40) if c >= min_hits]
+            a = agg[part]
+            a['search'] = max(a['search'], _vol(e))
+            a['keywords'].append(k)
+
+    out = [{'name': n, 'search': v['search'], 'keywordCount': len(v['keywords']),
+            'keywords': sorted(v['keywords'])[:8],
+            'latin': bool(RE_LATIN.search(n)),
+            # ponytail: 상품명 부분일치. 2자 한글은 9,317개 중 아무데나 걸려 전부 True 가 되므로
+            #   3자 이상 또는 로마자일 때만 본다. 정확히 하려면 상품 브랜드 필드가 필요하다.
+            'ours': (len(n) >= 3 or RE_LATIN.fullmatch(n) is not None) and n.lower() in ours_text}
+           for n, v in agg.items()]
+    out.sort(key=lambda x: -x['search'])
     return out[:top]
 
 
 def demo():
-    sample = [
-        "[마리몬드] 인센스홀더 추천 내돈내산 후기",
-        "집들이 선물로 좋은 인센스홀더 BEST 5 - 마리몬드, 그릿시즌 비교",
-        "그릿시즌 인센스홀더 솔직 리뷰 (ft. 오늘의집 구매)",
-        "오늘의집에서 산 인센스홀더 3종 비교 / 마리몬드 vs 챕터원",
-        "챕터원 인센스홀더 언박싱, 가격 할인 정보",
-        "인센스홀더 추천 | 무신사 vs 29CM 가격비교",
-        "[29CM] 인센스홀더 세일 소식",
-        "요즘 유행하는 인센스홀더 인테리어 - 챕터원 신상",
-    ]
-    got = extract(sample, "인센스홀더")
-    names = [g['name'] for g in got]
-    assert '마리몬드' in names, names
-    assert '챕터원' in names, names
-    assert '29CM' in names, names            # 숫자로 시작하는 브랜드가 잘리지 않는다
-    assert '오늘의집' in names, names          # 경쟁 채널도 같이 잡힌다
-    assert 'vs' not in names and 'CM' not in names, names
-    assert '인센스홀더' not in names, names     # 검색어 자신은 빠진다
-    # 한 글에만 나온 이름은 안 올라온다
-    assert all(g['docs'] >= 2 for g in got), got
+    cfg = {'seeds': {'조명': ['무드등', '스탠드조명'], '테이블웨어': ['접시', '그릇']},
+           'lexicon': ['오브제', '소품'], 'exclude': ['도매']}
+    pool = {
+        'FLOS조명':      {'hist': {'2026-10-13': 880}},
+        '루이스폴센조명':   {'hist': {'2026-10-13': 3960}},
+        '웨지우드접시':     {'hist': {'2026-10-13': 3020}},
+        '스탠드조명추천':   {'hist': {'2026-10-13': 5000}},
+        '2단트레이':      {'hist': {'2026-10-13': 900}},
+        '빈티지오브제':     {'hist': {'2026-10-13': 2050}},
+    }
+    got = {b['name']: b for b in brand_candidates(pool, cfg)}
+    for want in ('FLOS', '루이스폴센', '웨지우드'):
+        assert want in got, (want, sorted(got))
+    for junk in ('추천', '빈티지', '트레이', '조명', '접시'):
+        assert junk not in got, (junk, sorted(got))
+    assert got['FLOS']['latin'] and not got['루이스폴센']['latin']
+    assert got['루이스폴센']['search'] == 3960
 
-    # 검색광고 연관어에서도 뽑힌다 (씨앗이 붙어 오는 덩어리 형태)
-    rel = ['디퓨저추천', '마리몬드디퓨저', '마리몬드디퓨저추천', '챕터원디퓨저',
-           '디퓨저선물', '마리몬드', '논픽션디퓨저', '논픽션디퓨저추천', '디퓨저가격']
-    names2 = [r['name'] for r in from_rel_keywords(rel, '디퓨저')]
-    assert '마리몬드' in names2, names2
-    assert '논픽션' in names2, names2
-    assert '디퓨저' not in names2, names2       # 씨앗은 빠진다
-    assert '추천' not in names2, names2         # 일반어는 빠진다
-    # 조사가 떨어져 '오늘의집' 과 '오늘의집에서' 가 한 이름으로 합쳐진다
-    assert strip_josa('오늘의집에서') == '오늘의집'
-    assert strip_josa('마리몬드') == '마리몬드'      # 브랜드는 안 깎는다
-    assert strip_josa('에서') == '에서'              # 줄기가 2자 미만이면 그대로
-    print('전부 통과')
-    print('  [연관어]', ', '.join(f"{r['name']}({r['hits']})" for r in from_rel_keywords(rel, '디퓨저')))
-    for g in got:
-        print(f"  {g['name']:<12} 글 {g['docs']}개 ({int(g['share']*100)}%) 대괄호 {g['bracket']}")
+    # 우리가 가진 브랜드는 표시된다
+    got2 = {b['name']: b for b in brand_candidates(pool, cfg, products=[{'name': 'FLOS IC Lights T'}])}
+    assert got2['FLOS']['ours'] and not got2['웨지우드']['ours']
+    print('market_brands 자체검사 통과')
 
 
 if __name__ == '__main__':
