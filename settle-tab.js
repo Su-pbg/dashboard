@@ -251,7 +251,8 @@ async function loadC24(){
     // 그 달 말일 기준으로 본다. 카페24 의 canceled 는 '지금' 상태라 그대로 쓰면 지난달 대조가 틀린다
     // (2026-10-13 실측: 8월 주문을 10월에 취소신청한 펠트로 건들이 8월 대조에서 취소로 빠졌다).
     //   · 취소·반품은 환불(완료)이 말일까지 끝난 것만 뺀다. 신청만 됐거나 다음 달에 끝난 건 그 달엔 판매다.
-    //   · 이카운트 판매 전표는 출고 때 만든다 → 대사는 '그 달에 출고된 수량'과 비교한다.
+    //   · 이카운트 판매 전표 날짜는 출고일이 아니라 주문일이었다(실측: 출고 전 취소신청된 0822-247 도 8/22 전표).
+    //     그래서 수량은 출고와 무관하게 그 달 주문분으로 비교하고, 출고일은 참고로만 보여 준다.
     const lines=(d.lines||[]).filter(l=>l.paywin!=='Y').map(l=>{
       const cancelIn=l.canceled==='Y'&&(l.cancel_done?l.cancel_done<=to:!l.cancel_req);
       const ok=l.paid==='Y'&&!cancelIn;
@@ -376,9 +377,8 @@ function reconcile(){
   for(const l of S.c24.lines){
     if(!inMgr(l.supplier_id)||!isConsign(l.supplier_id)) continue;
     const x=K(l.order_id,l.supplier_id); x.c24lines.push(l);
-    if(l.shippedIn){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); }   // 그 달 출고분만 이카운트와 비교
-    else if(l.ok) x.c24later=(x.c24later||0)+l.qty;                   // 판매됐지만 다음 달 출고(또는 미출고)
-    else x.c24c+=l.qty;                                                // 그 달 안에 취소·반품 완료
+    if(l.ok){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); if(!l.shippedIn) x.c24later=(x.c24later||0)+l.qty; }   // 출고 안 된 건 참고로만 센다
+    else x.c24c+=l.qty;                                                // 그 달 안에 환불까지 끝난 취소·반품
   }
   for(const r of S.sales.rows){
     if(!r.sup||!inMgr(r.sup.code)) continue;
@@ -400,7 +400,7 @@ function reconcile(){
     // 판정은 주문 × 공급사의 수량·금액 합계로만 한다. 품목은 양쪽을 각각 보여 줄 뿐 상품명으로 짝짓지 않는다
     // (카페24 세트 상품이 이카운트에선 구성품으로 찍히는 등 이름으로는 못 맞춘다 — 2026-10-13 펠트로 스튜디오).
     if(x.c24lines.length&&hasEc) st=x.c24!==x.ec?'수량 다름':(x.c24amt!==x.ecamt?'금액 다름':'일치');
-    else if(x.c24lines.length) st=x.c24>0?(x.prepay.length?'선수금':'이카운트 누락'):(x.c24later?'다음 달 출고':(x.prepay.length?'선수금':'취소'));
+    else if(x.c24lines.length) st=x.c24===0?'취소':(x.prepay.length?'선수금':'이카운트 누락');
     else if(prepMemo) st='선수금 전환';   // 적요 'MM/DD-NN 선수금처리' · '선수금 본코드로 전환' — 예전에 받은 선수금을 상품으로 바꾼 전표
     else st=inMonth?'카페24에 없음':'전월 주문';
     return {...x,date:od,status:st};
@@ -422,9 +422,10 @@ function itemLists(x){
   // 카페24 품목은 그 달 기준 상태를 같이 적는다: 다음 달 출고 · 말일 이후 취소신청/완료 · 그 달 취소
   const md=v=>v?`${+v.slice(5,7)}/${+v.slice(8,10)}`:'';
   for(const l of x.c24lines){
-    const tag=l.cancelIn?`취소 ${md(l.cancel_done)}`:!l.ok?'미결제':!l.shippedIn?(l.shipped?`${md(l.shipped)} 출고(다음 달)`:'미출고')
-      :l.cancelLater?(l.cancel_done?`${md(l.cancel_done)} 취소완료(다음 달)`:`${md(l.cancel_req)} 취소신청`):'';
-    const g=(cg[l.product_no+'|'+tag] ||= {name:l.product_name,no:l.product_no,qty:0,amt:0,tag,off:!l.shippedIn}); g.qty+=l.qty; g.amt+=Math.round(l.sale);
+    const tag=l.cancelIn?`취소 ${md(l.cancel_done)}`:!l.ok?'미결제'
+      :l.cancelLater?(l.cancel_done?`${md(l.cancel_done)} 환불(다음 달)`:`${md(l.cancel_req)} 취소신청`)
+      :!l.shippedIn?(l.shipped?`${md(l.shipped)} 출고`:'미출고'):'';
+    const g=(cg[l.product_no+'|'+tag] ||= {name:l.product_name,no:l.product_no,qty:0,amt:0,tag,off:!l.ok}); g.qty+=l.qty; g.amt+=Math.round(l.sale);
   }
   for(const r of x.eclines){ const g=(eg[r.code] ||= {name:r.name,code:r.code,voucher:r.voucher,qty:0,amt:0}); g.qty+=r.qty; g.amt+=r.qty*r.price; }
   return {c24:Object.values(cg).filter(g=>g.qty).sort((a,b)=>a.off-b.off),ec:Object.values(eg).filter(g=>g.qty)};
@@ -443,9 +444,9 @@ const nameOf=code=>(S.sup&&S.sup.byCode[code]&&S.sup.byCode[code].name)||(S.c24&
 function reconWorkbook(){
   const wb=new ExcelJS.Workbook(), ws=wb.addWorksheet('대조');
   ws.columns=[{header:'결과',width:12},{header:'담당자',width:10},{header:'공급사코드',width:12},{header:'공급사',width:24},{header:'브랜드',width:24},{header:'주문번호',width:20},{header:'주문일',width:12},
-    {header:'카페24 출고 수량',width:12},{header:'카페24 그 달 취소',width:12},{header:'이카운트 수량',width:12},{header:'카페24 금액',width:13},{header:'이카운트 금액',width:13},{header:'차이금액',width:12},{header:'수정 전 이카운트 수량',width:14},{header:'수정 전 이카운트 금액',width:16},{header:'처리',width:16},{header:'메모',width:30},{header:'카페24 상품',width:50},{header:'이카운트 전표',width:24},{header:'이카운트 품명',width:50}];
+    {header:'카페24 수량(말일 기준)',width:14},{header:'카페24 그 달 취소·반품',width:14},{header:'이카운트 수량',width:12},{header:'카페24 금액',width:13},{header:'이카운트 금액',width:13},{header:'차이금액',width:12},{header:'수정 전 이카운트 수량',width:14},{header:'수정 전 이카운트 금액',width:16},{header:'처리',width:16},{header:'메모',width:30},{header:'카페24 상품',width:50},{header:'이카운트 전표',width:24},{header:'이카운트 품명',width:50}];
   ws.getRow(1).eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7CAAC'}};c.font={bold:true};});
-  const order=['수량 다름','이카운트 누락','카페24에 없음','금액 다름','다음 달 출고','선수금','선수금 전환','전월 주문','취소','일치'];
+  const order=['수량 다름','이카운트 누락','카페24에 없음','금액 다름','선수금','선수금 전환','전월 주문','취소','일치'];
   for(const r of S.recon.rows.slice().sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status)||nameOf(a.code).localeCompare(nameOf(b.code),'ko'))){
     const e=editOf(r);
     const row=ws.addRow([r.status,mgrOf(r.code),r.code,nameOf(r.code),brandsOf(r.c24lines).join(', '),r.order,r.date,r.c24,r.c24c,r.ec,r.c24amt,r.ecamt,r.c24amt-r.ecamt,r.fixed?r.ec0:'',r.fixed?r.ecamt0:'',e.res||(BAD.includes(r.status)?'미확인':''),e.memo||'',
@@ -654,19 +655,19 @@ function reconBody(){
       return `<tr><td class="l"><button class="st-name" data-a="ropen" data-c="${esc(b.code)}">${open?'▾':'▸'} ${esc(nameOf(b.code))}</button>${S.mgr===ALL?`<span class="st-sub" style="display:inline"> · ${esc(mgrOf(b.code))}</span>`:''}</td>
         <td>${n(b.c24o)}</td><td>${n(b.eco)}</td><td>${n(b.c24)}</td><td>${n(b.ec)}</td><td>${n(b.c24amt)}</td><td>${n(b.ecamt)}</td>
         <td class="l">${mm?`<span class="st-badge st-bad">미처리 ${mm}</span>`:(b.rows.some(r=>BAD.includes(r.status))?'<span class="st-badge st-warn">처리됨</span>':'<span class="st-badge st-ok">일치</span>')}${b.cnt['금액 다름']?`<span class="st-badge st-warn">금액 다름 ${b.cnt['금액 다름']}</span>`:''}${b.cnt['전월 주문']?`<span class="st-badge st-info">전월 ${b.cnt['전월 주문']}</span>`:''}</td></tr>
-        ${open?`<tr class="st-detail"><td colspan="8"><table class="st-mini st-recon"><thead><tr><th>주문번호 · 주문일</th><th>결과</th><th>카페24 품목</th><th>이카운트 품목</th><th>카페24 합계<br>(그 달 출고분)</th><th>이카운트 합계<br>(고칠 수 있음)</th><th>처리 · 메모</th></tr></thead><tbody>
+        ${open?`<tr class="st-detail"><td colspan="8"><table class="st-mini st-recon"><thead><tr><th>주문번호 · 주문일</th><th>결과</th><th>카페24 품목</th><th>이카운트 품목</th><th>카페24 합계<br>(말일 기준)</th><th>이카운트 합계<br>(고칠 수 있음)</th><th>처리 · 메모</th></tr></thead><tbody>
           ${b.rows.slice().sort((x,y)=>BAD.includes(y.status)-BAD.includes(x.status)||x.order.localeCompare(y.order)).map(r=>{const [cl,el]=itemCols(r); return `<tr>
             <td><b>${esc(r.order)}</b><div class="st-sub">${esc(r.date)}</div></td>
             <td>${tag(r.status)}</td>
             <td style="white-space:normal;min-width:240px">${cl}</td>
             <td style="white-space:normal;min-width:240px">${el}</td>
-            <td class="r">출고 ${r.c24}개${r.c24later?`<div class="st-sub">다음 달 출고 ${r.c24later}</div>`:''}${r.c24c?`<div class="st-sub">그 달 취소 ${r.c24c}</div>`:''}<div>${r.c24lines.length?n(r.c24amt)+'원':'—'}</div></td>
+            <td class="r">${r.c24}개${r.c24later?`<div class="st-sub">그중 ${S.month.slice(5)*1}월 안 출고 안 됨 ${r.c24later}</div>`:''}${r.c24c?`<div class="st-sub">그 달 취소·반품 ${r.c24c}</div>`:''}<div>${r.c24lines.length?n(r.c24amt)+'원':'—'}</div></td>
             <td class="r">${ecInput(r,'ecq')}<div style="margin-top:4px">${ecInput(r,'eca')}</div></td>
             <td>${r.status==='일치'?'':`<select class="st-in" style="text-align:center;width:150px" data-a="res" data-k="${esc(rkey(r.order,r.code))}"><option value="">${BAD.includes(r.status)?'미확인':'—'}</option>${RES.map(o=>`<option ${editOf(r).res===o?'selected':''}>${o}</option>`).join('')}</select>
               <div style="margin-top:4px"><input class="st-in" style="text-align:center;width:150px" data-a="memo" data-k="${esc(rkey(r.order,r.code))}" value="${esc(editOf(r).memo||'')}" placeholder="메모"></div>`}</td></tr>`;}).join('')}
           </tbody></table></td></tr>`:''}`;}).join(''):'<tr><td class="l" colspan="8" style="color:var(--muted)">불일치가 없습니다.</td></tr>'}
     </tbody></table></div>
-    <p class="st-note">판정은 주문 × 공급사의 수량·금액 합계로, 카페24 는 <b>그 달 말일 기준</b>으로 봅니다 — 이카운트 전표는 출고 때 만들어지므로 그 달에 출고된 수량과 비교하고, 취소·반품은 환불이 그 달 안에 끝난 것만 뺍니다(다음 달 반품은 다음 달 반품 전표로) · 다음 달 출고 = 판매는 됐고 출고가 다음 달이라 이카운트엔 다음 달에 들어옴(정상) · 선수금 = 이카운트에 선수금 품목으로만 있음 · 선수금 전환 = 예전 선수금을 상품으로 바꾼 전표(정상) · 이카운트 누락 = 카페24 주문인데 이카운트에 없음(다음 달 출고·전표 누락) · 카페24에 없음 = 이번 달 주문번호인데 카페24 담당자 공급사에 없음(공급사 매칭 확인) · 금액 다름 = 수량은 같고 카페24 상품구매금액과 이카운트 정가 합계가 다름(할인 판매 등, 참고) · 전월 주문 = 이전 달 주문의 반품·이월·선수금 전표라 정상</p>`;
+    <p class="st-note">판정은 주문 × 공급사의 수량·금액 합계로, 카페24 는 <b>그 달 말일 기준</b>으로 봅니다 — 취소·반품은 환불이 그 달 안에 끝난 것만 빼고(다음 달에 끝난 건 다음 달 반품 전표로), 출고일은 참고로만 표시합니다 · 선수금 = 이카운트에 선수금 품목으로만 있음 · 선수금 전환 = 예전 선수금을 상품으로 바꾼 전표(정상) · 이카운트 누락 = 카페24 주문인데 이카운트에 없음(다음 달 출고·전표 누락) · 카페24에 없음 = 이번 달 주문번호인데 카페24 담당자 공급사에 없음(공급사 매칭 확인) · 금액 다름 = 수량은 같고 카페24 상품구매금액과 이카운트 정가 합계가 다름(할인 판매 등, 참고) · 전월 주문 = 이전 달 주문의 반품·이월·선수금 전표라 정상</p>`;
 }
 // ② 주문 안 품목: 카페24 · 이카운트를 각각 그대로 보여 준다(짝짓지 않음).
 // 이름 앞 [가격 인상 전…] 태그는 떼고, 이카운트 품명의 '브랜드 / ' 도 뗀다(전체 이름은 마우스를 올리면 보인다).
