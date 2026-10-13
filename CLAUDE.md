@@ -677,6 +677,10 @@ row['marketBrands'] = market_brands(k, tm.HUB_ID, tm.HUB_KEY, rel=rel_keywords_f
 
 ## 8. 하지 말 것 (과거 실패)
 
+- **[2026-10-12] 한 줄짜리 코드 중간에 `//` 주석을 넣어 index.html 메인 스크립트가 통째로 죽었다**(다음 날 오전까지 대시보드 먹통).
+  index.html 을 고치면 푸시 전에 반드시 `<script>` 를 뽑아 `node --check` 한다:
+  `node -e "const fs=require('fs');const s=fs.readFileSync('index.html','utf8');fs.writeFileSync('/tmp/c.js',[...s.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n'))" && node --check /tmp/c.js`
+
 - **`newMembers` 가 안 나온다고 "고장났다" 고 하지 말 것.**
   2026-08-03 에 **의도적으로 폐기**하고 GA4 `joinDone` 기반 '신규 가입' KPI 로 대체했다.
   워커 주석에 그렇게 적혀 있었는데 안 읽고 세 번 연속 엉뚱한 원인을 짚었다.
