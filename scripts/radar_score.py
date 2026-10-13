@@ -113,39 +113,47 @@ def season_calendar(rows, month, lead=2):
 
 
 def brand_rows(rows, top=40):
-    """브랜드 축. 키워드 행의 marketBrands(외부에서 도는 이름) + 우리 몰 상품의 브랜드를 합친다.
-    한 브랜드가 여러 키워드에 나오면 그만큼 넓게 도는 것이다."""
+    """브랜드 축. **소싱 목적이라 '외부에서 도는데 우리에겐 없는 브랜드' 가 핵심이다.**
+
+    세 갈래로 들어온다:
+      marketBrands  블로그·카페·웹문서·뉴스 제목에서 뽑은 이름  (외부)
+      relBrands     검색광고 연관검색어에서 뽑은 이름            (외부)
+      ourTop        우리 몰 상품의 브랜드                       (내부)
+
+    `ours` 로 갈라서 돌려준다. 한 브랜드가 여러 키워드에 나오면 그만큼 넓게 도는 것이라
+    `keywordCount` 가 1차 정렬이다."""
     agg = defaultdict(lambda: {'brand': '', 'keywords': set(), 'mentions': 0,
-                               'searchSum': 0, 'ourSales30': 0, 'ourCount': 0})
+                               'ourSales30': 0, 'ourCount': 0, 'ext': 0})
+    ours = set()
     for r in rows:
-        ms = r.get('monthlySearch') or 0
+        kw = r.get('keyword')
         for b in (r.get('marketBrands') or []):
-            a = agg[b['name']]
-            a['brand'] = b['name']
-            a['keywords'].add(r.get('keyword'))
-            a['mentions'] += b.get('docs', 1)
-            a['searchSum'] += ms
+            a = agg[b['name']]; a['brand'] = b['name']
+            a['keywords'].add(kw); a['mentions'] += b.get('docs', 1); a['ext'] += 1
         for b in (r.get('relBrands') or []):
-            a = agg[b['name']]
-            a['brand'] = b['name']
-            a['keywords'].add(r.get('keyword'))
-            a['mentions'] += b.get('hits', 1)
-            a['searchSum'] += ms
+            a = agg[b['name']]; a['brand'] = b['name']
+            a['keywords'].add(kw); a['mentions'] += b.get('hits', 1); a['ext'] += 1
         for p in (r.get('ourTop') or []):
             nm = p.get('brand_name') or p.get('brand')
             if not nm:
                 continue
-            a = agg[nm]
-            a['brand'] = nm
-            a['keywords'].add(r.get('keyword'))
-            a['ourSales30'] += p.get('q30', 0)
-            a['ourCount'] += 1
+            ours.add(nm)
+            a = agg[nm]; a['brand'] = nm
+            a['keywords'].add(kw); a['ourSales30'] += p.get('q30', 0); a['ourCount'] += 1
+
     out = []
     for v in agg.values():
-        out.append({**v, 'keywords': sorted(v['keywords']), 'keywordCount': len(v['keywords']),
-                    'ours': v['ourCount'] > 0})
+        out.append({**v, 'keywords': sorted(v['keywords']),
+                    'keywordCount': len(v['keywords']),
+                    'ours': v['brand'] in ours or v['ourCount'] > 0})
     out.sort(key=lambda x: (-x['keywordCount'], -x['mentions']))
-    return out[:top]
+    外 = [b for b in out if not b['ours'] and b['ext'] > 0]
+    return {
+        # 소싱 후보: 외부에서 2개 이상 키워드에 걸쳐 도는데 우리에겐 없는 것
+        'sourcing': [b for b in 外 if b['keywordCount'] >= 2][:top],
+        'external': 外[:top],
+        'ours': [b for b in out if b['ours']][:top],
+    }
 
 
 def demo():
@@ -170,14 +178,21 @@ def demo():
 
     br = brand_rows([
         {'keyword': '디퓨저', 'monthlySearch': 34100,
-         'marketBrands': [{'name': '마리몬드', 'docs': 3}, {'name': '논픽션', 'docs': 2}]},
+         'marketBrands': [{'name': '마리몬드', 'docs': 3}, {'name': '논픽션', 'docs': 2}],
+         'ourTop': [{'brand_name': '플로미', 'q30': 4}]},
         {'keyword': '인센스홀더', 'monthlySearch': 7680,
-         'marketBrands': [{'name': '마리몬드', 'docs': 2}]},
+         'marketBrands': [{'name': '마리몬드', 'docs': 2}, {'name': '플로미', 'docs': 1}]},
     ])
-    assert br[0]['brand'] == '마리몬드' and br[0]['keywordCount'] == 2, br[:2]
+    src = [b['brand'] for b in br['sourcing']]
+    assert src == ['마리몬드'], src                 # 2개 키워드 + 우리에게 없음
+    assert '논픽션' not in src                      # 1개 키워드뿐이라 아직 아님
+    assert '플로미' not in src                      # 외부에 나와도 우리가 이미 가진 브랜드
+    assert [b['brand'] for b in br['ours']] == ['플로미']
     print('전부 통과')
     print(f"  점수: 도자기(7,680·전환높음) {score(mid_highconv,10)}  >  국중박굿즈(45,680·전환0) {score(big_lowconv,10)}")
-    print(f"  브랜드 축: {br[0]['brand']} — 키워드 {br[0]['keywordCount']}개에 등장, 언급 {br[0]['mentions']}")
+    b = br['sourcing'][0]
+    print(f"  소싱 후보(외부·우리에게 없음): {b['brand']} — 키워드 {b['keywordCount']}개, 언급 {b['mentions']}")
+    print(f"  우리 브랜드: {', '.join(x['brand'] for x in br['ours'])}")
 
 
 if __name__ == '__main__':

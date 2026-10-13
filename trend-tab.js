@@ -154,7 +154,7 @@ function rowHTML(x,i){
   const fem=x.femaleShare!=null?`${Math.round(x.femaleShare)}%<div class="tr-sub">${AGE[x.topAge]||''}</div>`:'—';
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
   const yt=(x.ytViews7d!=null||x.blog7d!=null||x.cafeTotal!=null)?`${x.ytViews7d!=null?n(x.ytViews7d)+'회':'—'}<div class="tr-sub">블로그 ${n(x.blog7d)} · 카페 ${x.cafeNew!=null?'+'+n(x.cafeNew):'—'}</div>`:'—';
-  return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · '+esc(x.trendType):''}${x.seasonal?' · <b>'+x.peakMonth+'월 시즌</b>':''}</div></td>
+  return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · <span class="tr-sub">'+esc(x.trendType)+'</span>':''}${x.seasonal?' · <b>'+x.peakMonth+'월 시즌</b>':''}</div></td>
   <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td>${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
   <td>${pct(x.volGrowth28)}</td><td><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
   <td>${pct(x.yoy)}</td><td>${shopc}</td><td>${fem}</td><td>${esc(x.adCompetition||'—')}</td><td>${yt}</td><td>${our}</td></tr>`;
@@ -379,7 +379,7 @@ window.loadTrendTab=async function(){
      <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="${esc(S.q)}">
        <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option ${S.theme===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
        <label><input type="checkbox" id="trNew" ${S.onlyNew?'checked':''}>신규만</label>
-       <label><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>뜨는 것만 (4주 +20% · 전년 +30%)</label></div>
+       <label title="백테스트에서 모멘텀 적중률 46% — 동전던지기보다 낮다. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
@@ -392,7 +392,8 @@ window.loadTrendTab=async function(){
      쇼핑 클릭·여성·연령 = 쇼핑인사이트(가구/인테리어·생활/건강 중 클릭이 많은 쪽) · 광고 경쟁 = 검색광고 경쟁 정도(네이버 쇼핑 검색 API 종료로 상품 수 대신) ·
      유튜브 = 최근 7일 올라온 영상의 조회수 합(상위 30개 키워드) · 블로그 = 최근 7일 새 글 · 카페 = 카페 글 누적 수의 전날 대비 증가분 ·
      우리 몰 = 상품명·분류·태그에 키워드가 들어간 상품, 30일 판매수량.<br>
-     흐름: <b>뜨는 중</b> 4주 +20% 또는 전년 +30% 또는 검색수 28일 +20% · <b>식는 중</b> 4주·전년 모두 −20% · <b>상시</b> 60일 일별 등락이 작고(변동계수 0.3 미만) 전년과 ±25% 안 · <b>불규칙</b> 그 외(등락이 크거나 전년과 차이가 큼) ·
+     <b>※ 모멘텀은 예측력이 없다.</b> 120키워드×60일 백테스트: '이번 주 상승 → 다음 주도 상승' 적중률 <b>46%</b>(동전 50%), 예측오차 모멘텀 1.94 vs 단순유지 1.41. 검색량은 평균회귀한다 — <b>'뜨는 중' 으로 소싱을 결정하지 말 것.</b> 판정은 수준×전환효율×경쟁여지×시즌으로 한다.<br>
+     흐름(참고): <b>뜨는 중</b> 4주 +20% 또는 전년 +30% 또는 검색수 28일 +20% · <b>식는 중</b> 4주·전년 모두 −20% · <b>상시</b> 60일 일별 등락이 작고(변동계수 0.3 미만) 전년과 ±25% 안 · <b>불규칙</b> 그 외(등락이 크거나 전년과 차이가 큼) ·
      <b>시즌</b> 최근 3년 월별 검색에서 같은 달이 평균의 1.5배 이상이고 매년 그 달(±1개월)에 정점이 옴.<br>
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
