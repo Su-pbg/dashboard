@@ -288,16 +288,30 @@ function parseSales(wb){
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null,blankrows:false});
   const h=findHeader(rows,['일자','품목코드','품명 및 규격','수량','정가']);
   if(!h) throw new Error('판매내역서 머리글(일자·품목코드·품명 및 규격·수량·정가)을 찾지 못했습니다. 이카운트 판매현황 엑셀이 맞는지 확인해 주세요.');
-  const c={v:h.col('일자'),o:h.col('결제일'),code:h.col('품목코드'),name:h.col('품명 및 규격'),q:h.col('수량'),p:h.col('정가'),cust:h.col('고객명'),memo:h.col('적요')};
+  const c={v:h.col('일자'),o:-1,code:h.col('품목코드'),name:h.col('품명 및 규격'),q:h.col('수량'),p:h.col('정가'),sum:h.col('합 계'),cust:h.col('고객명'),memo:h.col('적요')};
+  // 주문번호 열: 이카운트 양식마다 머리글이 '결제일'·'주문일'·'주문번호' 로 다르다(값은 카페24 주문번호).
+  // 머리글 대신 값이 주문번호 모양(20260801-0000047)인 열을 고른다.
+  const body=rows.slice(h.idx+1).filter(r=>r[c.code]);
+  const ORD=/^\d{8}-\d{7}$/;
+  let best=-1, bestN=0;
+  for(let i=0;i<(rows[h.idx]||[]).length;i++){
+    const k=body.reduce((t,r)=>t+(ORD.test(String(r[i]??'').trim())?1:0),0);
+    if(k>bestN){ best=i; bestN=k; }
+  }
+  c.o=bestN>=body.length*0.3?best:-1;
   const pm=rows.slice(0,h.idx).flat().join(' ').match(/(\d{4})\/(\d{2})\/\d{2}\s*~/);
   const at=(r,i)=>i<0?'':String(r[i]??'').trim();
   const out=[];
-  for(const r of rows.slice(h.idx+1)){
-    if(!r[c.code]) continue;   // 일계·총합계 행
-    out.push({voucher:at(r,c.v),order:at(r,c.o),code:at(r,c.code),name:at(r,c.name),
-      qty:num(r[c.q])||0,price:Math.round(num(r[c.p])||0),cust:at(r,c.cust),memo:at(r,c.memo)});
+  for(const r of body){
+    const code=at(r,c.code), name=at(r,c.name);
+    // 품목 자체가 '선수금'인 행: 실제 상품이 아니라 미리 받은 돈이다. 주문번호로만 카페24 와 맞추고 정산서엔 넣지 않는다.
+    const prepay=/선수금/.test(code+' '+name);
+    const price=Math.round(num(r[c.p])||0);
+    out.push({voucher:at(r,c.v),order:at(r,c.o),code,name,qty:num(r[c.q])||0,
+      price:prepay&&!price?Math.round(num(r[c.sum])||0):price,cust:at(r,c.cust),memo:at(r,c.memo),prepay});
   }
   if(!out.length) throw new Error('판매 행을 하나도 읽지 못했습니다.');
+  if(c.o<0) throw new Error('주문번호(예: 20260801-0000047) 열을 찾지 못했습니다. 카페24 와 주문번호로 대조해야 해서 이 열이 꼭 필요합니다.');
   return {rows:out,month:pm?`${pm[1]}-${pm[2]}`:null};
 }
 // 상품명 "[온라인전용] 크놀라 / 데일리팩 [..]" → "크놀라"
@@ -306,6 +320,13 @@ const bigrams=s=>{s=norm(s.replace(/\[[^\]]*\]/g,''));const g=new Set();for(let 
 function sim(a,b){const A=bigrams(a),B=bigrams(b);if(!A.size||!B.size)return 0;let k=0;for(const x of A)if(B.has(x))k++;return 2*k/(A.size+B.size);}
 // 공급사 찾기: 직접 연결 → 카페24 공급사명 → 같은 주문의 카페24 품목 → 거래처 LIST·담당자 맵 브랜드명
 function matchRow(r,byOrder){
+  if(r.prepay){
+    const ls=(byOrder&&r.order&&byOrder.get(r.order))||[];
+    const by={}; for(const l of ls) by[l.supplier_id]=(by[l.supplier_id]||0)+Math.round(l.sale);
+    const codes=Object.keys(by), amt=Math.abs(r.qty*r.price);
+    const pick=codes.length===1?codes[0]:codes.find(c=>by[c]===amt);
+    return pick&&S.sup.byCode[pick]?{sup:S.sup.byCode[pick],via:'선수금·주문번호',brand:'선수금'}:{sup:null,candidates:codes.map(c=>S.sup.byCode[c]).filter(Boolean),brand:`선수금 (${r.order||'주문번호 없음'})`};
+  }
   const sp=S.sup, brand=brandOf(r.name), m=(S.sheet.brandMap||{})[brand];
   if(m&&sp.byCode[m.code]) return {sup:sp.byCode[m.code],via:'직접 연결',brand};
   const vs=nameVariants(brand);
@@ -338,14 +359,30 @@ function reconcile(){
   const {from,to}=monthRange(S.month);
   const ymd=o=>{const m=String(o||'').match(/^(\d{4})(\d{2})(\d{2})-/);return m?`${m[1]}-${m[2]}-${m[3]}`:'';};
   const keys=new Map();
-  const K=(order,code)=>{const k=order+'|'+code; if(!keys.has(k)) keys.set(k,{order,code,c24:0,c24c:0,c24amt:0,ec:0,ecamt:0,c24lines:[],eclines:[]}); return keys.get(k);};
+  const K=(order,code)=>{const k=order+'|'+code; if(!keys.has(k)) keys.set(k,{order,code,c24:0,c24c:0,c24amt:0,ec:0,ecamt:0,c24lines:[],eclines:[],prepay:[]}); return keys.get(k);};
   for(const l of S.c24.lines){ if(!inMgr(l.supplier_id)||!isConsign(l.supplier_id)) continue; const x=K(l.order_id,l.supplier_id); x.c24lines.push(l); if(l.ok){ x.c24+=l.qty; x.c24amt+=Math.round(l.sale); } else x.c24c+=l.qty; }
-  for(const r of S.sales.rows){ if(!r.sup||!inMgr(r.sup.code)) continue; const x=K(r.order||'(주문번호 없음)',r.sup.code); x.ec+=r.qty; x.ecamt+=r.qty*r.price; x.eclines.push(r); }
+  for(const r of S.sales.rows){
+    if(!r.sup||!inMgr(r.sup.code)) continue;
+    const x=K(r.order||'(주문번호 없음)',r.sup.code);
+    if(r.prepay){ x.prepay.push(r); continue; }   // 선수금 품목은 수량·금액에 안 넣는다
+    x.ec+=r.qty; x.ecamt+=r.qty*r.price; x.eclines.push(r);
+  }
   const rows=[...keys.values()].map(x=>{
     const od=x.c24lines[0]?x.c24lines[0].date:ymd(x.order), inMonth=od>=from&&od<=to;
+    // ② 에서 고친 이카운트 수량·금액이 있으면 그 값으로 판정한다(원래 값은 ec0·ecamt0 에 남긴다)
+    const e=S.edits[rkey(x.order,x.code)]||{};
+    x.ec0=x.ec; x.ecamt0=x.ecamt;
+    if(e.ecq!=null) x.ec=e.ecq;
+    if(e.eca!=null) x.ecamt=e.eca;
+    x.fixed=e.ecq!=null||e.eca!=null;
+    const hasEc=x.eclines.length||x.fixed;
+    x.items=pairItems(x);
+    const itemBad=x.items.some(it=>it.status!=='일치'&&it.status!=='금액 다름');
+    const prepMemo=x.eclines.length&&x.eclines.every(r=>/선수금/.test(r.memo));
     let st;
-    if(x.c24lines.length&&x.eclines.length) st=x.c24!==x.ec?'수량 다름':(x.c24amt!==x.ecamt?'금액 다름':'일치');
-    else if(x.c24lines.length) st=x.c24===0?'취소':'이카운트 누락';
+    if(x.c24lines.length&&hasEc) st=x.c24!==x.ec?'수량 다름':(!x.fixed&&itemBad?'품목 다름':(x.c24amt!==x.ecamt?'금액 다름':'일치'));
+    else if(x.c24lines.length) st=x.c24===0?'취소':(x.prepay.length?'선수금':'이카운트 누락');
+    else if(prepMemo) st='선수금 전환';   // 적요 'MM/DD-NN 선수금처리' · '선수금 본코드로 전환' — 예전에 받은 선수금을 상품으로 바꾼 전표
     else st=inMonth?'카페24에 없음':'전월 주문';
     return {...x,date:od,status:st};
   });
@@ -358,7 +395,40 @@ function reconcile(){
   const unmatchedRows=S.sales.rows.filter(r=>!r.sup).length;
   return {rows,bySup:Object.values(bySup).sort((a,b)=>mismatch(b)-mismatch(a)||nameOf(a.code).localeCompare(nameOf(b.code),'ko')),unmatchedRows};
 }
-const BAD=['수량 다름','이카운트 누락','카페24에 없음'];
+const BAD=['수량 다름','품목 다름','이카운트 누락','카페24에 없음'];
+// 주문 안 품목 대조: 카페24 는 상품번호별, 이카운트는 품목코드별로 수량·금액을 합친 뒤 상품명이 가장 비슷한 것끼리 짝짓는다.
+// (같은 주문 안에서 반품 -1 · 재판매 +1 처럼 0 이 된 품목은 버린다)
+function pairItems(x){
+  const cg={}, eg={};
+  for(const l of x.c24lines){ if(!l.ok) continue; const g=(cg[l.product_no] ||= {name:l.product_name,no:l.product_no,qty:0,amt:0}); g.qty+=l.qty; g.amt+=Math.round(l.sale); }
+  for(const r of x.eclines){ const g=(eg[r.code] ||= {name:r.name,code:r.code,qty:0,amt:0}); g.qty+=r.qty; g.amt+=r.qty*r.price; }
+  const C=Object.values(cg).filter(g=>g.qty||g.amt), E=Object.values(eg).filter(g=>g.qty||g.amt);
+  const prod=n=>String(n).split(/\s*\/\s*/).slice(1).join(' ')||n;
+  const pairs=[];
+  for(const e of E) for(const c of C) pairs.push([sim(prod(e.name),c.name),e,c]);
+  pairs.sort((a,b)=>b[0]-a[0]);
+  // 1) 가장 비슷한 것끼리 1:1 로 짝짓는다
+  const usedE=new Set(), usedC=new Set(), grp=[];
+  for(const [sc,e,c] of pairs){
+    if(usedE.has(e)||usedC.has(c)||sc<0.2) continue;
+    usedE.add(e); usedC.add(c); grp.push({cs:[c],es:[e]});
+  }
+  // 2) 남은 품목이 이미 짝지어진 품목과 이름이 비슷하면 그 묶음에 합친다
+  //    (카페24 한 상품의 옵션이 이카운트에선 품목코드 여러 개로 나뉘는 경우 — 예: 차임벨 골드/블루그린)
+  //    이름이 전혀 다른 품목은 억지로 붙이지 않는다 → 다른 상품으로 바뀐 주문은 '품목 다름'으로 잡힌다
+  const bestGrp=(name,side)=>{ let b=null,bs=0.2; for(const g of grp){ const sc=Math.max(...(side==='c'?g.cs:g.es).map(x=>sim(prod(name),prod(x.name)))); if(sc>=bs){bs=sc;b=g;} } return b; };
+  for(const e of E) if(!usedE.has(e)){ const g=bestGrp(e.name,'e'); if(g){ g.es.push(e); usedE.add(e); } }
+  for(const c of C) if(!usedC.has(c)){ const g=bestGrp(c.name,'c'); if(g){ g.cs.push(c); usedC.add(c); } }
+  const sum=(a,k)=>a.reduce((t,x)=>t+x[k],0), out=[];
+  for(const g of grp){
+    const c={name:g.cs.map(x=>x.name).join(' + '),no:g.cs.map(x=>x.no).join(','),qty:sum(g.cs,'qty'),amt:sum(g.cs,'amt')};
+    const e={name:g.es.map(x=>x.name).join(' + '),code:g.es.map(x=>x.code).join(','),qty:sum(g.es,'qty'),amt:sum(g.es,'amt')};
+    out.push({c24:c,ec:e,status:c.qty!==e.qty?'수량 다름':(c.amt!==e.amt?'금액 다름':'일치')});
+  }
+  for(const c of C) if(!usedC.has(c)) out.push({c24:c,ec:null,status:'이카운트에 없는 품목'});
+  for(const e of E) if(!usedE.has(e)) out.push({c24:null,ec:e,status:'카페24에 없는 품목'});
+  return out;
+}
 // ② 처리: 불일치를 사람이 확인하고 남기는 값. '정산 제외'·'다음 달 정산'은 그 주문의 이카운트 행을 ③ 정산서에서 뺀다.
 const RES=['확인 — 정상','다음 달 정산','이카운트 수정 요청','정산 제외'];
 const SKIP_RES=['다음 달 정산','정산 제외'];
@@ -373,18 +443,31 @@ const nameOf=code=>(S.sup&&S.sup.byCode[code]&&S.sup.byCode[code].name)||(S.c24&
 function reconWorkbook(){
   const wb=new ExcelJS.Workbook(), ws=wb.addWorksheet('대조');
   ws.columns=[{header:'결과',width:12},{header:'담당자',width:10},{header:'공급사코드',width:12},{header:'공급사',width:24},{header:'브랜드',width:24},{header:'주문번호',width:20},{header:'주문일',width:12},
-    {header:'카페24 수량',width:11},{header:'카페24 취소',width:11},{header:'이카운트 수량',width:12},{header:'카페24 금액',width:13},{header:'이카운트 금액',width:13},{header:'차이금액',width:12},{header:'처리',width:16},{header:'메모',width:30},{header:'카페24 상품',width:50},{header:'이카운트 전표',width:24},{header:'이카운트 품명',width:50}];
+    {header:'카페24 수량',width:11},{header:'카페24 취소',width:11},{header:'이카운트 수량',width:12},{header:'카페24 금액',width:13},{header:'이카운트 금액',width:13},{header:'차이금액',width:12},{header:'수정 전 이카운트 수량',width:14},{header:'수정 전 이카운트 금액',width:16},{header:'처리',width:16},{header:'메모',width:30},{header:'카페24 상품',width:50},{header:'이카운트 전표',width:24},{header:'이카운트 품명',width:50}];
   ws.getRow(1).eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7CAAC'}};c.font={bold:true};});
-  const order=['수량 다름','이카운트 누락','카페24에 없음','금액 다름','전월 주문','취소','일치'];
+  const order=['수량 다름','품목 다름','이카운트 누락','카페24에 없음','금액 다름','선수금','선수금 전환','전월 주문','취소','일치'];
   for(const r of S.recon.rows.slice().sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status)||nameOf(a.code).localeCompare(nameOf(b.code),'ko'))){
     const e=editOf(r);
-    const row=ws.addRow([r.status,mgrOf(r.code),r.code,nameOf(r.code),brandsOf(r.c24lines).join(', '),r.order,r.date,r.c24,r.c24c,r.ec,r.c24amt,r.ecamt,r.c24amt-r.ecamt,e.res||(BAD.includes(r.status)?'미확인':''),e.memo||'',
+    const row=ws.addRow([r.status,mgrOf(r.code),r.code,nameOf(r.code),brandsOf(r.c24lines).join(', '),r.order,r.date,r.c24,r.c24c,r.ec,r.c24amt,r.ecamt,r.c24amt-r.ecamt,r.fixed?r.ec0:'',r.fixed?r.ecamt0:'',e.res||(BAD.includes(r.status)?'미확인':''),e.memo||'',
       r.c24lines.map(l=>`${l.product_name} ×${l.qty}`).join('\n'),[...new Set(r.eclines.map(e=>e.voucher))].join(', '),r.eclines.map(e=>`${e.name} ×${e.qty}`).join('\n')]);
-    [11,12,13].forEach(i=>{row.getCell(i).numFmt='#,##0';});
+    [11,12,13,15].forEach(i=>{row.getCell(i).numFmt='#,##0';});
+    if(r.fixed) [10,12].forEach(i=>{row.getCell(i).font={bold:true,color:{argb:'FF1B64DA'}};});
     if(open_(r)) row.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFEECEE'}};
     else if(BAD.includes(r.status)) row.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF3E0'}};
   }
   ws.views=[{state:'frozen',ySplit:1}];
+  // 품목 대조 시트: 주문 안 품목별로 카페24 ↔ 이카운트
+  const wi=wb.addWorksheet('품목 대조');
+  wi.columns=[{header:'품목 결과',width:16},{header:'주문 결과',width:12},{header:'공급사',width:22},{header:'주문번호',width:20},{header:'카페24 상품번호',width:12},{header:'카페24 상품',width:46},
+    {header:'카페24 수량',width:10},{header:'카페24 금액',width:12},{header:'이카운트 품목코드',width:16},{header:'이카운트 품명',width:46},{header:'이카운트 수량',width:11},{header:'이카운트 금액',width:12}];
+  wi.getRow(1).eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7CAAC'}};c.font={bold:true};});
+  for(const r of S.recon.rows.slice().sort((a,b)=>order.indexOf(a.status)-order.indexOf(b.status)||a.order.localeCompare(b.order)))
+    for(const it of (r.items||[])){
+      const row=wi.addRow([it.status,r.status,nameOf(r.code),r.order,it.c24?it.c24.no:'',it.c24?it.c24.name:'',it.c24?it.c24.qty:'',it.c24?it.c24.amt:'',it.ec?it.ec.code:'',it.ec?it.ec.name:'',it.ec?it.ec.qty:'',it.ec?it.ec.amt:'']);
+      [8,12].forEach(i=>{row.getCell(i).numFmt='#,##0';});
+      if(it.status!=='일치') row.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:it.status==='금액 다름'?'FFFFF3E0':'FFFEECEE'}};
+    }
+  wi.views=[{state:'frozen',ySplit:1}];
   return wb;
 }
 
@@ -404,10 +487,23 @@ function rebuild(){
   const groups={}, buyIn={};
   for(const r of S.sales.rows){
     if(!r.sup||!inMgr(r.sup.code)) continue;
+    if(r.prepay) continue;   // 선수금 품목은 상품 판매가 아니다 — 본코드로 바뀐 전표에서 정산한다
     if(SKIP_RES.includes((S.edits[rkey(r.order||'(주문번호 없음)',r.sup.code)]||{}).res)) continue;   // ② 에서 뺀 주문
     if(r.sup.type==='매입'){ (buyIn[r.sup.code] ||= {sup:r.sup,rows:0}).rows++; continue; }
     const g=(groups[r.sup.code] ||= {sup:r.sup,rows:[],brands:{}});
     g.rows.push(r); g.brands[r.brand]=r.via;
+  }
+  // ② 에서 이카운트 수량·금액을 고친 주문은 차이만큼 '대조 조정' 줄을 붙인다(이카운트 누락 주문에 값을 넣으면 그 판매가 들어간다).
+  // 정가 합계 기준 금액이므로 정산금액은 다른 줄과 똑같이 × (1 − 요율).
+  for(const x of (S.recon?S.recon.rows:[])){
+    if(!x.fixed||SKIP_RES.includes(editOf(x).res)) continue;
+    const dq=x.ec-x.ec0, da=x.ecamt-x.ecamt0, sup=S.sup.byCode[x.code];
+    if((!dq&&!da)||!sup||!isConsign(x.code)) continue;
+    const ref=x.eclines[0]||{}, c24=x.c24lines[0]||{};
+    const g=(groups[x.code] ||= {sup,rows:[],brands:{}});
+    g.rows.push({voucher:ref.voucher||'대조 조정',order:x.order==='(주문번호 없음)'?'':x.order,code:ref.code||'',
+      name:`[대조 조정] ${ref.name||c24.product_name||''}`,qty:dq,price:dq?Math.round(da/dq):da,tot:da,
+      cust:ref.cust||'',memo:editOf(x).memo||'',adj:true});
   }
   S.groups=Object.values(groups).map(g=>{
     const p=prev[g.sup.code];
@@ -423,7 +519,7 @@ function compute(g){
   const rate=g.rateOverride!=null?g.rateOverride:s.rate;
   if(rate==null){ blocking.push('rate'); issues.push(s.rateRaw?`요율 "${s.rateRaw}" 확인`:'요율 없음'); }
   if(!s.doc){ blocking.push('doc'); issues.push('정산 서류 없음'); }
-  const items=g.rows.map(r=>{const tot=r.qty*r.price; return {...r,tot,settle:rate==null?null:Math.round(tot*(1-rate))};});
+  const items=g.rows.map(r=>{const tot=r.tot!=null?r.tot:r.qty*r.price; return {...r,tot,settle:rate==null?null:Math.round(tot*(1-rate))};});
   // 주문당 배송비: 화면에서 넣은 값 → 거래처 LIST → 카페24 공급사 배송비 정책 순
   const fee=g.feeOverride!=null?g.feeOverride:(s.fee!=null?s.fee:c24Fee(s.code));
   // 업체 배송인데 어디에도 배송비가 없으면 배송비 행이 통째로 빠진다 → 알리고 표에서 바로 넣게 한다(막지는 않는다)
@@ -458,7 +554,7 @@ function settleWorkbook(g){
   const total=(label,q,f,gv)=>{const r=line([label,'','',q,'',f,gv,'']); [1,4,6,7].forEach(i=>{r.getCell(i).font={bold:true};}); return r;};
   head(['일자','품목코드','품명 및 규격','수량','개당 소비자가','합 계','정산금액','비고']);
   const v=x=>x==null?'':x;   // 요율 미확정이면 정산금액 칸을 비운다
-  for(const it of c.items) line([it.voucher,it.code,it.name,it.qty,it.price,it.tot,v(it.settle),'']);
+  for(const it of c.items) line([it.voucher,it.code,it.name,it.qty,it.price,it.tot,v(it.settle),it.adj?(it.memo||'대조에서 수정'):'']);
   total('판매 계',c.saleQ,c.saleF,v(c.saleG));
   ws.addRow([]);
   head(['주문번호','일자','품명 및 규격','수량','주문 금액 합계','배송비','정산 금액','비고']);
@@ -546,28 +642,49 @@ function reconBody(){
   const bad=R.rows.filter(open_).length, done=R.rows.filter(r=>BAD.includes(r.status)&&editOf(r).res).length;
   const view=S.reconView;
   const list=R.bySup.filter(b=>view==='all'||b.rows.some(r=>BAD.includes(r.status)));
-  const tag=st=>`<span class="st-badge ${st==='일치'?'st-ok':BAD.includes(st)?'st-bad':st==='금액 다름'?'st-warn':'st-info'}">${st}</span>`;
+  const tag=st=>`<span class="st-badge ${st==='일치'?'st-ok':BAD.includes(st)?'st-bad':st==='금액 다름'?'st-warn':'st-info'}">${st}</span>`;   // 선수금·선수금 전환·전월 주문·취소 = 참고
   return `<div class="st-kpis">
       <div class="st-kpi"><div class="l">일치</div><div class="n ok">${n(cnt['일치']||0)}건</div></div>
       <div class="st-kpi"><div class="l">불일치 (수량·누락) 미처리</div><div class="n ${bad?'warn':''}">${n(bad)}건${done?`<span style="font-size:13px;color:var(--muted);font-weight:600"> · 처리 ${n(done)}</span>`:''}</div></div>
-      <div class="st-kpi"><div class="l">전월 주문 (이월·반품)</div><div class="n">${n(cnt['전월 주문']||0)}건</div></div>
+      <div class="st-kpi"><div class="l">전월 주문 · 선수금</div><div class="n">${n((cnt['전월 주문']||0)+(cnt['선수금 전환']||0)+(cnt['선수금']||0))}건</div></div>
       <div class="st-kpi"><div class="l">공급사 못 찾은 이카운트 행</div><div class="n ${R.unmatchedRows?'warn':''}">${n(R.unmatchedRows)}행</div></div></div>
     ${S.unmatched.length?unmatchedTable():''}
     <div class="st-bar"><div class="st-seg"><button data-a="view" data-v="diff" class="${view==='diff'?'on':''}">불일치 있는 공급사</button><button data-a="view" data-v="all" class="${view==='all'?'on':''}">전체</button></div>
-      <span class="st-note" style="margin:0">공급사를 누르면 주문별로 처리·메모를 남길 수 있고, 대조표 엑셀에 그대로 들어갑니다</span><span class="sp"></span><button class="go" data-a="recondl" style="height:36px">대조표 엑셀 받기</button></div>
+      <span class="st-note" style="margin:0">공급사를 누르면 주문별로 이카운트 수량·금액을 고치고 처리·메모를 남길 수 있습니다. 대조표 엑셀과 ③ 정산서(대조 조정 줄)에 반영됩니다</span><span class="sp"></span><button class="go" data-a="recondl" style="height:36px">대조표 엑셀 받기</button></div>
     <div class="st-scroll"><table class="st-t"><thead><tr><th class="l">공급사</th><th>카페24 주문</th><th>이카운트 주문</th><th>카페24 수량</th><th>이카운트 수량</th><th>카페24 금액</th><th>이카운트 금액</th><th class="l">결과</th></tr></thead><tbody>
     ${list.length?list.map(b=>{const open=S.reconOpen===b.code, mm=mismatch(b);
       return `<tr><td class="l"><button class="st-name" data-a="ropen" data-c="${esc(b.code)}">${open?'▾':'▸'} ${esc(nameOf(b.code))}</button>${S.mgr===ALL?`<span class="st-sub" style="display:inline"> · ${esc(mgrOf(b.code))}</span>`:''}</td>
         <td>${n(b.c24o)}</td><td>${n(b.eco)}</td><td>${n(b.c24)}</td><td>${n(b.ec)}</td><td>${n(b.c24amt)}</td><td>${n(b.ecamt)}</td>
         <td class="l">${mm?`<span class="st-badge st-bad">미처리 ${mm}</span>`:(b.rows.some(r=>BAD.includes(r.status))?'<span class="st-badge st-warn">처리됨</span>':'<span class="st-badge st-ok">일치</span>')}${b.cnt['금액 다름']?`<span class="st-badge st-warn">금액 다름 ${b.cnt['금액 다름']}</span>`:''}${b.cnt['전월 주문']?`<span class="st-badge st-info">전월 ${b.cnt['전월 주문']}</span>`:''}</td></tr>
-        ${open?`<tr class="st-detail"><td colspan="8"><table class="st-mini"><thead><tr><th>주문번호</th><th>주문일</th><th class="r">카페24 수량</th><th class="r">이카운트 수량</th><th class="r">카페24 금액</th><th class="r">이카운트 금액</th><th>결과</th><th>처리</th><th>메모</th><th>상품</th></tr></thead><tbody>
-          ${b.rows.slice().sort((x,y)=>BAD.includes(y.status)-BAD.includes(x.status)||x.order.localeCompare(y.order)).map(r=>`<tr><td>${esc(r.order)}</td><td>${esc(r.date)}</td><td class="r">${r.c24}${r.c24c?` <span style="color:var(--muted)">(취소 ${r.c24c})</span>`:''}</td><td class="r">${r.eclines.length?r.ec:'—'}</td><td class="r">${r.c24lines.length?n(r.c24amt):'—'}</td><td class="r">${r.eclines.length?n(r.ecamt):'—'}</td><td>${tag(r.status)}</td>
+        ${open?`<tr class="st-detail"><td colspan="8"><table class="st-mini"><thead><tr><th>주문번호</th><th>주문일</th><th class="r">카페24 수량</th><th class="r">이카운트 수량</th><th class="r">카페24 금액</th><th class="r">이카운트 금액</th><th>결과</th><th>처리</th><th>메모</th><th>품목 대조 (✓ 일치 · ≈ 금액만 다름 · ✗ 다름)</th></tr></thead><tbody>
+          ${b.rows.slice().sort((x,y)=>BAD.includes(y.status)-BAD.includes(x.status)||x.order.localeCompare(y.order)).map(r=>`<tr><td>${esc(r.order)}</td><td>${esc(r.date)}</td><td class="r">${r.c24}${r.c24c?` <span style="color:var(--muted)">(취소 ${r.c24c})</span>`:''}</td><td class="r">${ecInput(r,'ecq')}</td><td class="r">${r.c24lines.length?n(r.c24amt):'—'}</td><td class="r">${ecInput(r,'eca')}</td><td>${tag(r.status)}</td>
             <td>${r.status==='일치'?'':`<select class="st-in" style="text-align:left;width:150px" data-a="res" data-k="${esc(rkey(r.order,r.code))}"><option value="">${BAD.includes(r.status)?'미확인':'—'}</option>${RES.map(o=>`<option ${editOf(r).res===o?'selected':''}>${o}</option>`).join('')}</select>`}</td>
             <td>${r.status==='일치'?'':`<input class="st-in" style="text-align:left;width:180px" data-a="memo" data-k="${esc(rkey(r.order,r.code))}" value="${esc(editOf(r).memo||'')}" placeholder="메모">`}</td>
-            <td>${r.c24lines[0]&&S.brandOf[r.c24lines[0].product_no]?`<span style="color:var(--muted)">${esc(S.brandOf[r.c24lines[0].product_no])} · </span>`:''}${esc((r.c24lines[0]||{}).product_name||(r.eclines[0]||{}).name||'')}${r.c24lines.length+r.eclines.length>1?` <span style="color:var(--muted)">외</span>`:''}</td></tr>`).join('')}
+            <td style="white-space:normal;min-width:320px">${itemsHTML(r)}</td></tr>`).join('')}
           </tbody></table></td></tr>`:''}`;}).join(''):'<tr><td class="l" colspan="8" style="color:var(--muted)">불일치가 없습니다.</td></tr>'}
     </tbody></table></div>
-    <p class="st-note">이카운트 누락 = 카페24 주문인데 이카운트에 없음(다음 달 출고·전표 누락) · 카페24에 없음 = 이번 달 주문번호인데 카페24 담당자 공급사에 없음(공급사 매칭 확인) · 금액 다름 = 수량은 같고 카페24 상품구매금액과 이카운트 정가 합계가 다름(할인 판매 등, 참고) · 전월 주문 = 이전 달 주문의 반품·이월·선수금 전표라 정상</p>`;
+    <p class="st-note">품목 다름 = 합계는 맞아도 주문 안 품목이 서로 다름 · 선수금 = 이카운트에 선수금 품목으로만 있음 · 선수금 전환 = 예전 선수금을 상품으로 바꾼 전표(정상) · 이카운트 누락 = 카페24 주문인데 이카운트에 없음(다음 달 출고·전표 누락) · 카페24에 없음 = 이번 달 주문번호인데 카페24 담당자 공급사에 없음(공급사 매칭 확인) · 금액 다름 = 수량은 같고 카페24 상품구매금액과 이카운트 정가 합계가 다름(할인 판매 등, 참고) · 전월 주문 = 이전 달 주문의 반품·이월·선수금 전표라 정상</p>`;
+}
+// ② 주문 안 품목별 대조(카페24 ↔ 이카운트)
+function itemsHTML(r){
+  const its=r.items||[];
+  if(!its.length) return r.prepay&&r.prepay.length?'<span style="color:var(--muted)">이카운트 선수금 품목</span>':'';
+  const br=r.c24lines[0]&&S.brandOf[r.c24lines[0].product_no];
+  return (br?`<div class="st-sub" style="margin:0 0 2px">${esc(br)}</div>`:'')+its.map(it=>{
+    const ok=it.status==='일치', warn=it.status==='금액 다름';
+    const nm=it.c24?it.c24.name:(it.ec.name.split(/\s*\/\s*/).slice(1).join(' / ')||it.ec.name);
+    const qty=`${it.c24?it.c24.qty:'—'} / ${it.ec?it.ec.qty:'—'}`;
+    return `<div style="display:flex;gap:6px;align-items:baseline;font-size:12px;line-height:1.5"><span style="color:${ok?'var(--up)':warn?'#C25E00':'var(--down)'};font-weight:700">${ok?'✓':warn?'≈':'✗'}</span>`
+      +`<span style="flex:1">${esc(nm)}${ok?'':` <span style="color:var(--muted)">· ${esc(it.status)}</span>`}</span><span style="color:var(--muted);white-space:nowrap">카페24/이카운트 ${qty}</span></div>`;
+  }).join('');
+}
+// ② 이카운트 수량·금액 입력칸. 고친 값은 굵게, 원래 값은 아래 작게. 일치 행도 고칠 수 있다.
+function ecInput(r,k){
+  const cur=k==='ecq'?r.ec:r.ecamt, orig=k==='ecq'?r.ec0:r.ecamt0, changed=(editOf(r)[k]!=null);
+  const shown=(r.eclines.length||r.fixed)?cur:'';
+  return `<input class="st-in" style="width:${k==='ecq'?56:100}px;${changed?'font-weight:700;box-shadow:inset 0 0 0 2px var(--accent);':''}" type="number" step="${k==='ecq'?1:100}"
+    data-a="${k}" data-k="${esc(rkey(r.order,r.code))}" value="${shown}" placeholder="—" aria-label="이카운트 ${k==='ecq'?'수량':'금액'} ${esc(r.order)}">`
+    +(changed?`<div class="st-sub">원래 ${r.eclines.length?n(orig):'없음'}</div>`:'');
 }
 function unmatchedTable(){
   const opts=S.sup.list.filter(s=>s.type!=='매입').map(s=>`<option value="${esc(s.name)} · ${s.code}"></option>`).join('');
@@ -673,6 +790,12 @@ function wire(root){
     }
     if(t.id==='stSalesFile'){ const f=t.files[0]; if(f) onSalesFile(f); t.value=''; return; }
     if(a==='map'){ const code=(t.value.match(/S0\w+$/)||[])[0]; if(code&&S.sup.byCode[code]) saveMap(t.dataset.b,code); return; }
+    if(a==='ecq'||a==='eca'){
+      const e=(S.edits[t.dataset.k] ||= {});
+      if(t.value===''){ delete e[a]; } else e[a]=a==='ecq'?parseInt(t.value,10):Math.round(parseFloat(t.value));
+      if(!Object.keys(e).length) delete S.edits[t.dataset.k];
+      saveEdits(); rebuild(); render(); return;
+    }
     if(a==='res'||a==='memo'){
       const e=(S.edits[t.dataset.k] ||= {}); e[a]=t.value.trim();
       if(!e.res&&!e.memo) delete S.edits[t.dataset.k];
