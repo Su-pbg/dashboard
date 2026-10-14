@@ -134,7 +134,8 @@ const ecRows = E.parseEcount({ SheetNames: ['s'], Sheets: { s: { rows: [['회사
 ] } } }, '가짜.xlsx', true);
 eq('판매조회 읽기: 줄 수', ecRows.length, 6);
 D.ec = ecRows; D.date = DATE; E.compute();
-eq('대조 상태', [O1, O2, O3, O4, O5].map((id) => row(id).st), ['정상', '정상', '정상', '정상', '미입력']);
+eq('대조 상태', [O1, O2, O3, O4, O5].map((id) => row(id).st), ['정상', '환불 대기 확인', '정상', '정상', '미입력']);
+eq('환불 전 예상 금액 비교', [row(O2).expect, row(O2).ecTot], [13000, 23000]);
 eq('선수금·퀵·정산 전표 표시', row(O1).tags, '선수금(완납) · 퀵 · 선수금 정산 전표 10/20');
 eq('파일 기간 (전표 10/14~10/20, 시작 2일 전부터)', [E.covered('2026-10-12'), E.covered('2026-10-11'), E.covered('2026-10-20')], [true, false, true]);
 
