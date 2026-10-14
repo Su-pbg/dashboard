@@ -151,6 +151,8 @@ var worker_default = {
         const entry = {
           id, at: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " "),
           dates, by: String(b.by || "").slice(0, 20), orders: Number(b.orders) || 0, rows: Number(b.rows) || 0,
+          // [2026-10-14] 이 파일에 넣은 주문번호 — 데일리 전표 생성에서 '이미 파일 있음' 표시(중복 입력 방지)
+          ids: (Array.isArray(b.ids) ? b.ids : []).map(String).filter((x) => /^\d{8}-\d{7}$/.test(x)).slice(0, 3000),
           filename: String(b.filename || "판매입력.xlsx").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120),
           size: Math.round(b64.length * 0.75)
         };
