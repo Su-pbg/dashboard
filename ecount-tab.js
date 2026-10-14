@@ -435,6 +435,18 @@ function ecTags(e){
 }
 const payNo=s=>{ const m=String(s||'').match(/^\s*(\d+)\s*\./); return m?m[1]:String(s||'').replace(/\s/g,''); };
 const paidOf=o=>(o.payment_amount||0)+(o.naver_point||0);
+// 부분취소 주문의 남은 금액 — 카페24 결제액은 환불이 끝나면 줄어든 값, 환불 전(취소·반품 신청 중)이면 원래 값 그대로다.
+//   실데이터(2026-10-14): 20260929-0000039 환불 완료 → 결제액 278,800 = 남은 상품 net. 20261011-0000132 반품 신청 → 결제액 354,460 그대로.
+//   결제액이 전체 상품 net 합 이상이면 '환불 전'으로 보고 취소된 상품 net 을 뺀다(배송비는 남긴다). 아니면 결제액이 이미 환불 반영된 값.
+function remainOf(r){
+  const paid=paidOf(r.o), canc=(r.ls||[]).filter(l=>l.canceled==='Y'&&l.paywin!=='Y');
+  if(!canc.length) return {amt:paid,mode:'none'};
+  const cancNet=canc.reduce((t,l)=>t+l.net,0), liveNet=(r.live||[]).reduce((t,l)=>t+l.net,0);
+  if(paid>=liveNet+cancNet-1) return {amt:paid-cancNet,mode:'pending',orig:paid,canc:cancNet,n:canc.length};
+  return {amt:paid,mode:'refunded',canc:cancNet,n:canc.length};
+}
+const remainTxt=m=>m.mode==='pending'?`부분취소: 원래 ${n(m.orig)} → 취소 ${n(m.canc)} → 남은 ${n(m.amt)}원 (환불 전 계산)`
+  :m.mode==='refunded'?`부분취소 ${m.n}줄: 카페24 결제액이 이미 환불 반영된 금액(${n(m.amt)}원)`:'';
 // 고객명 — 이카운트 실데이터(2026-08, 517건): 주문자=수령인이면 이름 하나, 다르면 대부분 '수령인(주문자)'(51건 중 39건). 연락처는 수령인 것.
 const diffRc=o=>!!(o.buyer&&o.rc_name&&o.buyer.replace(/\s/g,'')!==o.rc_name.replace(/\s/g,''));
 const custDefault=o=>diffRc(o)?`${o.rc_name}(${o.buyer})`:(o.rc_name||o.buyer||'');
@@ -660,7 +672,7 @@ function buildRows(){
     const E=ed(o.order_id), wh=E.wh||D.wh, preTxt=(E.pre||'').trim();
     const nm=D.names[o.order_id]??custDefault(o);
     const cust=preTxt?`${preTxt}${/[\s]$/.test(preTxt)?'':' '}${nm}`:nm;
-    const tot=paidOf(o), base=r.live.reduce((t,l)=>t+l.net,0);
+    const tot=remainOf(r).amt, base=r.live.reduce((t,l)=>t+l.net,0);   // 부분취소면 남은 금액만 나눈다
     let left=tot;
     r.live.forEach((l,i)=>{
       const amt=i===r.live.length-1?left:Math.round(l.net+(tot-base)*(base?l.net/base:1/r.live.length)); left-=amt;
@@ -682,8 +694,9 @@ async function generate(){
   if(!rows.length) return dflash('판매입력에 넣을 주문을 골라 주세요.',true);
   if(miss.length) return dflash(`품목코드가 없는 상품이 ${miss.length}줄 있습니다. 아래 빨간 칸에 품목코드를 넣어 주세요.`,true);
   const noPay=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length&&!r.want).length;
+  const partial=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length&&remainOf(r).mode==='pending');
   const newCodes=Object.entries(D.codes).filter(([k,c])=>c&&(!S.map[k]||S.map[k].code!==c));
-  if(!confirm(`${D.date} 판매입력 파일을 만듭니다.\n주문 ${orders.length}건 · ${rows.length}행 · 판매자 ${D.seller}`+(newCodes.length?`\n\n직접 넣은 품목코드 ${newCodes.length}건은 품목코드 맵핑에도 저장합니다.`:'')+(noPay?`\n\n결제유형을 정할 수 없는 주문 ${noPay}건은 결제유형 칸이 비어 있습니다 — 이카운트에서 넣어 주세요.`:'')+`\n\n만든 파일은 판매입력 파일 이력에 남습니다.`)) return;
+  if(!confirm(`${D.date} 판매입력 파일을 만듭니다.\n주문 ${orders.length}건 · ${rows.length}행 · 판매자 ${D.seller}`+(newCodes.length?`\n\n직접 넣은 품목코드 ${newCodes.length}건은 품목코드 맵핑에도 저장합니다.`:'')+(partial.length?`\n\n부분취소(환불 전) 주문 ${partial.length}건은 취소된 상품 금액을 빼고 넣습니다:\n${partial.slice(0,5).map(r=>`· ${r.o.order_id} ${remainTxt(remainOf(r))}`).join('\n')}`:'')+(noPay?`\n\n결제유형을 정할 수 없는 주문 ${noPay}건은 결제유형 칸이 비어 있습니다 — 이카운트에서 넣어 주세요.`:'')+`\n\n만든 파일은 판매입력 파일 이력에 남습니다.`)) return;
   await loadXLSX();
   const ws=XLSX.utils.aoa_to_sheet([TPL,...rows]);
   ws['!cols']=TPL.map((h,i)=>({wch:[12,5,12,12,8,14,14,22,8,18,10,14,20,8,30,14,40,8,6,8,10,10,8,10,10,24,8,8][i]||10}));
@@ -745,7 +758,7 @@ function renderDaily(){
     return `<tr><td><input type="checkbox" data-a="sel" data-o="${id}" ${D.sel[o.order_id]?'checked':''} ${r.live.length?'':'disabled'} aria-label="판매입력에 넣기"></td>
       <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div>${diffRc(o)?'<span class="ec-badge ec-warn">주문자≠수령인</span>':''}</td>
       <td class="l" style="min-width:280px">${itemsHtml(r)}</td>
-      <td>${n(r.paid)}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
+      <td>${(()=>{ const m=remainOf(r); return m.mode==='pending'?`<s style="color:var(--muted)">${n(m.orig)}</s><br><b>${n(m.amt)}</b><div><span class="ec-badge ec-warn">부분취소</span></div>`:`${n(r.paid)}${m.mode==='refunded'?'<div><span class="ec-badge ec-warn">부분취소·환불됨</span></div>':''}`; })()}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
       <td style="${r.want?'':'color:var(--down)'}">${esc(r.want||'(정할 수 없음)')}</td>
       <td><span class="ec-badge ${r.gst==='새 주문'?'ec-ok':r.gst==='파일 있음'?'ec-info':'ec-warn'}">${esc(r.gst)}</span>${mf?`<div class="ec-sub">${mf.map(f=>`${esc(f.by||'')} ${esc(f.at.slice(5))}`).join('<br>')}</div>`:''}</td></tr>`;
   }).join('');
@@ -845,7 +858,7 @@ function c24Info(o,r){
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;line-height:1.6">
       ${it('결제',esc([o.pay_name||o.method,o.easypay,o.pg].filter(Boolean).join(' · ')))}${it('→ 이카운트',esc(r.want||'정할 수 없음'))}
-      ${it('상품',n(o.order_price))}${it('배송비',o.shipping_fee?n(o.shipping_fee):'')}${it('할인',disc?'-'+n(disc):'')}${it('적립금',o.points_spent?'-'+n(o.points_spent):'')}${it('네이버포인트',o.naver_point?n(o.naver_point):'')}${it('실결제',`<b>${n(paidOf(o))}</b>`)}
+      ${it('상품',n(o.order_price))}${it('배송비',o.shipping_fee?n(o.shipping_fee):'')}${it('할인',disc?'-'+n(disc):'')}${it('적립금',o.points_spent?'-'+n(o.points_spent):'')}${it('네이버포인트',o.naver_point?n(o.naver_point):'')}${it('실결제',`<b>${n(paidOf(o))}</b>`)}${remainOf(r).mode!=='none'?it('→ 판매입력',`<b style="color:var(--down)">${esc(remainTxt(remainOf(r)))}</b>`):''}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px">
       <span class="ec-sub" style="margin:0">고객명 채우기</span>${fill(o.rc_name||'','수령인')}${fill(o.buyer||'','주문자')}${diffRc(o)?fill(`${o.rc_name}(${o.buyer})`,'수령인(주문자)'):''}
@@ -861,7 +874,8 @@ function formCard(){
       return `<div style="display:flex;gap:8px;align-items:center;margin:2px 0"><span style="flex:1">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}</span>
         <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드" style="width:140px;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}">
         <label style="font-size:12px;white-space:nowrap;display:flex;gap:4px;align-items:center;${signOn(l)?'color:var(--accent);font-weight:700':'color:var(--muted)'}"><input type="checkbox" data-a="sign" data-k="${esc(key)}" ${signOn(l)?'checked':''}>사인지${signOn(l)&&c?` <span class="ec-sub" style="display:inline;margin:0">${esc((S.sign||{})[c]||c+'SI')}</span>`:''}</label></div>`; }).join('');
-    return `<tr><td><b>${id}</b><div class="ec-sub">${n(paidOf(o))}원 · ${esc(r.want||'결제유형 확인')}</div></td>
+    const rm=remainOf(r);
+    return `<tr><td><b>${id}</b><div class="ec-sub">${n(rm.amt)}원 · ${esc(r.want||'결제유형 확인')}</div>${rm.mode!=='none'?`<div class="ec-sub" style="color:var(--down);font-weight:600;white-space:normal;max-width:180px">${esc(remainTxt(rm))}</div>`:''}</td>
       <td><input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:96px"></td>
       <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:150px">${diffRc(o)?'<div><span class="ec-badge ec-warn">주문자≠수령인</span></div>':''}</td>
       <td><select class="ec-in" data-a="wh" data-o="${id}">${WH.map(w=>`<option ${(E.wh||D.wh)===w?'selected':''}>${esc(w)}</option>`).join('')}</select></td>
