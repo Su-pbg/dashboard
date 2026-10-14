@@ -62,6 +62,13 @@ function loadXLSX(){ return window.XLSX?Promise.resolve():new Promise((ok,ng)=>{
 
 // ---------- 이카운트 판매현황(품목별) ----------
 // 머리글(일자·품목코드·품명 및 규격·수량)을 찾고, 주문번호 열은 값 모양(20260801-0000047)으로 찾는다(머리글이 결제일·주문일 등으로 다르다).
+// 전표 날짜 → 'MMDD' ('08/01-18' · '2026/08/01' · '20260801-3' · 엑셀 날짜 숫자)
+function vdayOf(v){
+  if(v==null||v==='') return '';
+  if(typeof v==='number'&&v>30000&&v<80000){ const d=new Date(Math.round((v-25569)*86400e3)); return String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0'); }
+  const t=String(v).trim(); let m=t.match(/^(\d{4})[\/.-]?(\d{2})[\/.-]?(\d{2})/); if(m) return m[2]+m[3];
+  m=t.match(/^(\d{1,2})\/(\d{1,2})/); return m?m[1].padStart(2,'0')+m[2].padStart(2,'0'):'';
+}
 function parseEcount(wb,fname,keepAdv){
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null,blankrows:false});
   let h=-1;
@@ -70,12 +77,13 @@ function parseEcount(wb,fname,keepAdv){
   const head=rows[h].map(c=>String(c??'').trim()), col=k=>head.indexOf(k);
   const cCode=col('품목코드'), cName=col('품명 및 규격')>=0?col('품명 및 규격'):col('품목명'), cQty=col('수량'), cPrice=col('정가');
   const cTot=head.findIndex(h=>h.replace(/\s/g,'')==='합계'), cPay=col('결제유형'), cCust=head.findIndex(h=>/고객명/.test(h));
+  const cDay=head.findIndex(h=>h==='일자'||/^판매일/.test(h));   // '08/01-18' 또는 '20260801-18' — 전표 날짜(MM/DD)
   const body=rows.slice(h+1).filter(r=>r[cCode]);
   let cOrd=-1,best=0;
   for(let i=0;i<head.length;i++){ const k=body.reduce((t,r)=>t+(ORD.test(String(r[i]??'').trim())?1:0),0); if(k>best){best=k;cOrd=i;} }
   if(best<body.length*0.3) throw new Error(`${fname}: 주문번호(예: 20260801-0000047) 열을 찾지 못했습니다.`);
   return body.map(r=>({order:String(r[cOrd]??'').trim(),code:String(r[cCode]).trim(),name:String(r[cName]??'').trim(),qty:Number(r[cQty])||0,price:cPrice<0?0:Math.round(Number(r[cPrice])||0),
-      total:cTot<0?0:Math.round(Number(r[cTot])||0),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim()}))
+      total:cTot<0?0:Math.round(Number(r[cTot])||0),vday:vdayOf(cDay<0?'':r[cDay]),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim()}))
     .map(r=>({...r,adv:/선수금/.test(r.code+r.name)}))
     .filter(r=>ORD.test(r.order)&&(keepAdv||!r.adv));   // 선수금 품목은 실제 상품이 아니다(데일리 금액 대조에는 합계로 넣는다)
 }
@@ -369,11 +377,13 @@ function payType(o){
   if(!main&&o.payment_amount===0) return '';   // 적립금·쿠폰으로만 결제
   return '';
 }
+// 선수금: 주문 첫 전표에 품목 '선수금(완납)'으로 전액 → 출고·정산 때 같은 주문번호로 선수금 차감 + 상품(합계 0원) 전표가 또 생긴다.
 // 예전 데일리 대사 시트 B열(선수금/설치): 이카운트 고객명 앞에 적은 선수금(발주필요)·퀵)·택배)·설치)·차량) 표기 + 선수금 품목
 const SHIP_RE=/(퀵|택배|설치|차량|용달|방문|픽업|직배송|직접수령)/;
 function ecTags(e){
   const t=[];
-  if(e.some(x=>x.adv)||e.some(x=>/선수금/.test(x.cust))) t.push(e.some(x=>/발주필요/.test(x.cust))?'선수금(발주필요)':'선수금');
+  // 선수금은 주문일 전표의 품목으로 본다(Su, 2026-10-14). 고객명의 '(발주필요)'는 덧붙이는 표시로만 쓴다.
+  if(e.some(x=>x.adv)) t.push(e.some(x=>/발주필요/.test(x.cust))?'선수금(발주필요)':'선수금');
   const c=(e.find(x=>x.cust)||{}).cust||'';
   const head=c.replace(/선수금\s*\([^)]*\)/,'').trim().slice(0,8), m=head.match(SHIP_RE);
   if(m&&/^[\s\[]*(퀵|택배|설치|차량|용달|방문|픽업|직배송|직접수령)/.test(head)) t.push(m[1]);
@@ -440,14 +450,24 @@ async function onDailyFile(f){
 // 주문별 대조 결과
 function compute(){
   const pre=ymd(D.date||'');
-  const ecBy={};
+  // 선수금 주문은 같은 주문번호로 전표가 두 번 이상 생긴다(주문일: 선수금 품목 전액, 출고·정산 때: 선수금 차감 + 상품 = 0원 또는 반품 마이너스).
+  // 금액은 그 주문번호 전표를 '모두' 합쳐 맞춘다. 8월 실데이터: 전표 2장 이상인 주문 24건은 분할 출고(8/1+8/4)·0원 뒤 재입력이었고
+  // 합쳐야 카페24 실결제와 맞았다. 선수금 정산 전표는 0원이라 합쳐도 같다. 첫 전표 뒤 날짜 전표는 '이후 전표'로 표시만 한다.
+  // (주말 주문은 월요일 전표로 들어가 주문일 ≠ 전표일이 흔하다 — 8월 227줄. 전표일로 거르지 않는다.)
+  const md=pre.slice(4), key=v=>v?(v<md?'1'+v:'0'+v):'';   // 12월 주문 → 1월 전표는 해를 넘김
+  const ecBy={}, later={};
   for(const r of (D.ec||[])) if(r.order.startsWith(pre)) (ecBy[r.order] ||= []).push(r);
+  for(const [k,rs] of Object.entries(ecBy)){
+    const days=[...new Set(rs.map(r=>r.vday).filter(Boolean))].sort((x,y)=>key(x).localeCompare(key(y)));
+    if(days.length>1) later[k]=new Set(days.slice(1));
+  }
   const out=[];
   for(const o of D.orders){
     const ls=(D.lines[o.order_id]||[]);
     const live=ls.filter(l=>l.canceled!=='Y'&&l.paywin!=='Y');
     const e=ecBy[o.order_id]||null, paid=paidOf(o), want=payType(o);
-    const r={o,ls,live,e,paid,want,tags:e?ecTags(e):'',ecTot:e?e.reduce((t,x)=>t+x.total,0):null,ecPay:e?([...new Set(e.map(x=>x.pay).filter(Boolean))].join(', ')):'',adv:e?e.some(x=>x.adv):false,issues:[],item:''};
+    const lt=later[o.order_id]?[...later[o.order_id]].sort((x,y)=>key(x).localeCompare(key(y))).map(d=>d.slice(0,2)+'/'+d.slice(2)):[];
+    const r={o,ls,live,e,paid,want,later:lt,tags:[e?ecTags(e):'',lt.length?`이후 전표 ${lt.join(', ')}`:''].filter(Boolean).join(' · '),ecTot:e?e.reduce((t,x)=>t+x.total,0):null,ecPay:e?([...new Set(e.map(x=>x.pay).filter(Boolean))].join(', ')):'',adv:e?e.some(x=>x.adv):false,issues:[],item:''};
     const unmapped=live.filter(l=>!codeOf(l));
     if(o.paid!=='Y') r.st='입금대기';
     else if(o.canceled==='Y'||!live.length&&ls.some(l=>l.canceled==='Y')) r.st=e?'취소 확인':'취소';
@@ -474,7 +494,7 @@ function compute(){
   }
   // 이카운트에만 있는 주문
   const seen=new Set(D.orders.map(o=>o.order_id));
-  for(const [k,e] of Object.entries(ecBy)) if(!seen.has(k)) out.push({o:{order_id:k},ls:[],live:[],e,paid:null,want:'',tags:ecTags(e),ecTot:e.reduce((t,x)=>t+x.total,0),ecPay:[...new Set(e.map(x=>x.pay))].join(', '),issues:[],st:'카페24에 없음',item:''});
+  for(const [k,e] of Object.entries(ecBy)) if(!seen.has(k)) out.push({o:{order_id:k},ls:[],live:[],e,paid:null,want:'',later:[],tags:ecTags(e),ecTot:e.reduce((t,x)=>t+x.total,0),ecPay:[...new Set(e.map(x=>x.pay))].join(', '),issues:[],st:'카페24에 없음',item:''});
   D.rows=out;
   // 처음 열 때 아직 판매입력 파일에 안 넣은 정상 결제 주문을 고른다
   if(!D.selInit&&D.orders.length){ for(const r of out) if(r.gst==='새 주문') D.sel[r.o.order_id]=true; D.selInit=true; }
