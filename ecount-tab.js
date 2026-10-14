@@ -243,18 +243,33 @@ async function loadRVDay(date){
   try{ const d=await getJSON(`${WORKER}/ecrecon?date=${date}`); RV.day=d.day; RV.notes={...RV.notes,...(d.notes||{})}; }catch(e){ RV.err=e; }
   render();
 }
-async function saveNote(date,order,memo,done){
-  const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:{date,order,memo,done}})});
+// 메모·처리완료·배송방식(이 페이지에서 고친 값) — 팀 공유. patch 를 지금 값에 합쳐 보낸다.
+async function saveNote(date,order,patch){
+  const cur=RV.notes[order]||{}, nt={memo:cur.memo||'',done:!!cur.done,...(cur.ship!==undefined?{ship:cur.ship}:{}),...patch};
+  const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:{date,order,...nt}})});
   if(d.note) RV.notes[order]=d.note; else delete RV.notes[order];
-  D.notes=RV.notes;
 }
 const noteTimers={};
-function noteMemo(date,order,memo){ const cur=RV.notes[order]||{}; RV.notes[order]={...cur,date,memo}; clearTimeout(noteTimers[order]); noteTimers[order]=setTimeout(()=>saveNote(date,order,memo,!!(RV.notes[order]||{}).done).catch(()=>{}),700); }
+function noteMemo(date,order,memo){ const cur=RV.notes[order]||{}; RV.notes[order]={...cur,date,memo}; clearTimeout(noteTimers[order]); noteTimers[order]=setTimeout(()=>saveNote(date,order,{memo}).catch(()=>{}),700); }
+// 배송방식: 처음엔 이카운트 고객명 앞말에서 읽고, 이 페이지에서 고치면 그 값을 쓴다. 선수금은 이카운트 전표 품목이라 여기서 바꾸지 않는다.
+const SHIPS=['퀵','택배','설치','차량','직접수령','용달'];
+const isShipTag=x=>x&&!isLater(x)&&!/^선수금/.test(x);
+function effTags(tags,order){
+  const nt=RV.notes[order]; if(!nt||nt.ship===undefined) return tags||'';
+  const parts=String(tags||'').split(' · ').filter(x=>x&&!isShipTag(x));
+  if(nt.ship&&nt.ship!=='없음') parts.push(nt.ship);
+  return parts.join(' · ');
+}
+function tagCell(tags,order,date){
+  const t=effTags(tags,order), cur=(String(t).split(' · ').find(isShipTag))||'', nt=RV.notes[order]||{};
+  return `${tagHtml(t)}<div style="margin-top:4px"><select class="ec-in" data-a="rvship" data-o="${esc(order)}" data-d="${esc(date)}" style="height:26px;font-size:11px;padding:0 4px" aria-label="배송방식">
+    <option value="" ${!cur?'selected':''}>배송방식 —</option>${SHIPS.map(v=>`<option ${cur===v?'selected':''}>${v}</option>`).join('')}</select>${nt.ship!==undefined?'<div class="ec-sub">여기서 고침</div>':''}</div>`;
+}
 const sumTxt=sm=>ST_ORDER.filter(k=>sm[k]).map(k=>`${k} ${n(sm[k])}`).join(' · ');
 function rvTable(rows,withDate){
   return `<div class="ec-scroll"><table class="ec-t" style="min-width:1100px"><thead><tr>${withDate?'<th>날짜</th>':''}<th>주문번호</th><th>선수금 · 배송방식</th><th>공급사</th><th>상품</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead><tbody>
     ${rows.map(r=>{ const nt=RV.notes[r.o]||{}, dt=r.date||RV.date;
-      return `<tr style="${rowBg(r.tags,nt.done)}">${withDate?`<td>${esc(dt.slice(5))}</td>`:''}<td><b>${esc(r.o)}</b><div class="ec-sub">${esc(r.t||'')}</div></td><td>${tagHtml(r.tags)}</td><td>${esc(r.sup||'')}</td>
+      return `<tr style="${rowBg(effTags(r.tags,r.o),nt.done)}">${withDate?`<td>${esc(dt.slice(5))}</td>`:''}<td><b>${esc(r.o)}</b><div class="ec-sub">${esc(r.t||'')}</div></td><td>${tagCell(r.tags,r.o,dt)}</td><td>${esc(r.sup||'')}</td>
       <td class="l" style="min-width:240px">${esc(r.items||'')}${r.item&&r.item!=='일치'?`<div class="ec-sub">${esc(r.item)}</div>`:''}</td>
       <td>${r.paid==null?'—':n(r.paid)}</td><td>${r.ec==null?'—':n(r.ec)}</td><td style="${r.diff?'color:var(--down);font-weight:700':''}">${r.diff==null?'—':n(r.diff)}</td>
       <td style="${(r.more||[]).includes('결제유형 확인')||r.st==='결제유형 확인'?'color:var(--down)':''}">${esc(r.want||'—')}${r.ecPay?`<div class="ec-sub">이카운트 ${esc(r.ecPay)}</div>`:''}</td>
@@ -297,7 +312,7 @@ function rvHtml(){
   if(RV.date){
     const d=RV.day, q=RV.q.trim().toLowerCase();
     if(!d) return `${pick}<div class="state"><div class="spinner"></div>${esc(RV.date)} 불러오는 중…</div>`;
-    const g=r=>({tags:r.tags,st:r.st,id:r.o});
+    const g=r=>({tags:effTags(r.tags,r.o),st:r.st,id:r.o});
     const base=d.rows.filter(r=>!q||[r.o,r.sup,r.items,r.st,r.tags].join(' ').toLowerCase().includes(q));
     const rows=tfApply(base,g);
     return `${pick}<div class="ec-row" style="margin-top:var(--s4)"><button class="ec-dl" data-a="rvback">← 월간요약</button>
@@ -310,7 +325,10 @@ function rvHtml(){
   const days=Object.entries(RV.idx).sort((a,b)=>b[0].localeCompare(a[0]));
   const tot={}; let missAmt=0; for(const [,v] of days){ for(const k of ST_ORDER) tot[k]=(tot[k]||0)+(v.summary[k]||0); missAmt+=v.summary.missAmt||0; }
   const all=days.reduce((t,[,v])=>t+(v.summary.total||0),0);
-  const share=days.flatMap(([dt,v])=>((v.summary||{}).issues||[]).map(x=>({...x,date:dt}))).filter(x=>!(RV.notes[x.o]||{}).done);
+  const share0=days.flatMap(([dt,v])=>((v.summary||{}).issues||[]).map(x=>({...x,date:dt}))), inShare=new Set(share0.map(x=>x.o));
+  // 이 페이지에서 배송방식을 새로 붙인 주문도 진행을 따라가도록 넣는다
+  for(const [o,nt] of Object.entries(RV.notes)) if(!inShare.has(o)&&nt.ship&&nt.ship!=='없음'&&nt.date&&nt.date.startsWith(RV.month)) share0.push({o,date:nt.date,tags:'',st:'정상',items:'',sup:'',paid:null,ec:null,diff:null});
+  const share=share0.filter(x=>!(RV.notes[x.o]||{}).done);
   const c=(v,bad)=>v?`<span style="${bad?'color:var(--down);font-weight:700':''}">${n(v)}</span>`:'<span style="color:var(--ghost)">0</span>';
   return `${pick}
     <div class="ec-stat" style="font-weight:600;color:var(--ink)">이번 달 누계: 전체 ${n(all)}건 · ${esc(sumTxt(tot))}${missAmt?` · 미입력 금액 ${n(missAmt)}원`:''}</div>
@@ -322,7 +340,7 @@ function rvHtml(){
     <h3 style="font-size:15px;margin:var(--s5) 0 0">전표입력공유 <span class="ec-sub" style="display:inline">처리 안 된 것 ${n(share.length)}건 (문제 ${n(share.filter(x=>BAD_ST.includes(String(x.st).split(' · ')[0])).length)} · 선수금·배송방식 ${n(share.filter(x=>tracked(x.tags)).length)})</span></h3>
     <p class="ec-note" style="margin-top:4px">대조에서 나온 문제 주문(미입력·금액불일치·결제유형·수량 등)과 진행을 따라가야 하는 선수금·배송방식(퀵·설치·차량 등) 주문이 모입니다.
       메모에 진행 상황을 적고, 끝나면 처리완료를 체크하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> 주문은 행이 옅은 빨간색, <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span>은 뱃지로 표시합니다. 위 유형·정렬로 골라 보세요.</p>
-    ${tfBar(share,r=>({tags:r.tags,st:r.st,id:r.o}))}${rvTable(tfApply(share,r=>({tags:r.tags,st:r.st,id:r.o})),true)}`;
+    ${tfBar(share,r=>({tags:effTags(r.tags,r.o),st:r.st,id:r.o}))}${rvTable(tfApply(share,r=>({tags:effTags(r.tags,r.o),st:r.st,id:r.o})),true)}`;
 }
 function renderLog(){
   if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }
@@ -458,7 +476,23 @@ async function onDailyFile(f){
   try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name;
     try{ const k=await learnSign(D.ec); if(k) D.signLearned=k; }catch(e){} }
   catch(e){ D.err=e; }
-  D.loading=''; compute(); render(); saveRecon();
+  D.loading=''; compute(); render(); saveRecon(); attachLater();
+}
+// 파일 속 '이전 날짜 주문'의 반품·선수금 정산 전표를 그 주문일에 저장된 대조 결과에 붙인다(저장된 날짜만, 같은 표시는 한 번만).
+async function attachLater(){
+  if(!D.ec) return;
+  const by={}; for(const r of D.ec) (by[r.order] ||= []).push(r);
+  const attach=[];
+  for(const [o,rs] of Object.entries(by)){
+    const od=`${o.slice(0,4)}-${o.slice(4,6)}-${o.slice(6,8)}`, md=o.slice(4,8); if(od===D.date) continue;
+    const days=[...new Set(rs.map(r=>r.vday).filter(v=>v&&v!==md&&(v>md||md>'1100')))];   // 주문일 뒤 날짜(12월→1월 포함)
+    for(const d of days){ const g=rs.filter(r=>r.vday===d), t=g.reduce((a,r)=>a+r.total,0);
+      const kind=t<0?'반품':g.some(r=>r.adv)&&t===0?'선수금 정산':''; if(kind) attach.push({date:od,order:o,tag:`${kind} 전표 ${d.slice(0,2)}/${d.slice(2)}`}); }
+  }
+  if(!attach.length) return;
+  try{ const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attach})}); D.attached=d.attached||[]; }
+  catch(e){ D.attached=[]; }
+  render();
 }
 
 // 주문별 대조 결과
@@ -685,7 +719,7 @@ function renderRecon(){
   if(D.view==='bad') list=R.filter(r=>BAD_ST.includes(r.st));
   else if(D.view==='etc') list=R.filter(r=>['취소','입금대기','개인결제창'].includes(r.st));
   else if(D.view!=='all') list=R.filter(r=>r.st===D.view);
-  const rg=r=>({tags:r.tags,st:r.st,id:r.o.order_id}), stList=list;
+  const rg=r=>({tags:effTags(r.tags,r.o.order_id),st:r.st,id:r.o.order_id}), stList=list;
   list=tfApply(list,rg);
   const rowsHtml=list.map(r=>{
     const o=r.o, E=ed(o.order_id), id=esc(o.order_id);
@@ -693,9 +727,9 @@ function renderRecon(){
     const ecItems=r.e&&r.ls.length?`<div class="ec-sub">이카운트: ${r.e.map(x=>`${esc(x.code)}×${n(x.qty)}`).join(', ')}</div>`:'';
     const diff=r.paid!=null&&r.ecTot!=null?r.paid-r.ecTot:null;
     const payBad=r.issues.includes('결제유형 확인'), mf=D.made[o.order_id];
-    return `<tr style="${rowBg(r.tags,(RV.notes[o.order_id]||{}).done)}">
+    return `<tr style="${rowBg(effTags(r.tags,o.order_id),(RV.notes[o.order_id]||{}).done)}">
       <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div></td>
-      <td>${tagHtml(r.tags)}</td>
+      <td>${tagCell(r.tags,o.order_id,D.date)}</td>
       <td class="l" style="min-width:260px">${items}${ecItems}${r.item&&r.item!=='일치'?`<div class="ec-sub">${esc(r.item)}</div>`:''}</td>
       <td>${r.paid!=null?n(r.paid):'—'}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
       <td>${r.ecTot!=null?n(r.ecTot):'—'}</td>
@@ -713,6 +747,7 @@ function renderRecon(){
     ${D.reconSaved==='nodate'?`<div class="ec-stat err">올린 이카운트 파일에 ${esc(D.date)} 주문이 없습니다 — 그 날짜가 든 판매현황을 올려 주세요(대조 현황에 남기지 않았습니다).</div>`
       :D.reconSaved&&D.reconSaved.startsWith('fail:')?`<div class="ec-stat err">대조 결과를 남기지 못했습니다: ${esc(D.reconSaved.slice(5))}</div>`
       :D.reconSaved?`<div class="ec-stat">대조 결과를 대조 현황에 남겼습니다 (${esc(D.reconSaved)}).</div>`:''}
+    ${D.attached&&D.attached.length?`<div class="ec-stat">이 파일에서 이전 날짜 주문의 반품·선수금 정산 전표 ${n(D.attached.length)}건을 그 날짜 대조 결과에 붙였습니다: ${D.attached.slice(0,6).map(a=>`${esc(a.date.slice(5))} ${esc(a.order)} (${esc(a.tag)})`).join(', ')}${D.attached.length>6?' …':''}</div>`:''}
     ${D.ec?`<div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
       ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('정상',n(cnt['정상']||0)+'건','ok')}${kpi('미입력',n(miss)+'건',miss?'warn':'')}
       ${kpi('금액불일치',n(cnt['금액불일치']||0)+'건',cnt['금액불일치']?'warn':'')}${kpi('결제유형 확인',n(cnt['결제유형 확인']||0)+'건',cnt['결제유형 확인']?'warn':'')}${kpi('품목·수량 불일치',n(cnt['품목·수량 불일치']||0)+'건',cnt['품목·수량 불일치']?'warn':'')}
@@ -911,7 +946,8 @@ function wire(root){
     if((S.page==='daily'||S.page==='recon')&&onDailyChange(t)) return;
     if(t.id==='ecTfSort'){ TF.sort=t.value; render(); return; }
     if(t.id==='ecRvMonth'){ RV.month=t.value||RV.month; RV.date=''; RV.idx=null; render(); loadRV().then(render); return; }
-    if(t.dataset.a==='rvdone'){ const o=t.dataset.o; saveNote(t.dataset.d,o,(RV.notes[o]||{}).memo||'',t.checked).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
+    if(t.dataset.a==='rvdone'){ saveNote(t.dataset.d,t.dataset.o,{done:t.checked}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
+    if(t.dataset.a==='rvship'){ saveNote(t.dataset.d,t.dataset.o,{ship:t.value||'없음'}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
     if(t.id==='ecLogMonth'){ S.logMonth=t.value||S.logMonth; (async()=>{ await loadLog(); render(); })(); return; }
   });
   root.addEventListener('input',e=>{ if((S.page==='daily'||S.page==='recon')&&onDailyInput(e.target)) return; if(e.target.dataset.a==='rvmemo'){ noteMemo(e.target.dataset.d,e.target.dataset.o,e.target.value); return; }

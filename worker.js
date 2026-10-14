@@ -146,10 +146,43 @@ var worker_default = {
           const nt = b.note, ord = String(nt.order || "");
           if (!okDate(nt.date) || !/^\d{8}-\d{7}$/.test(ord)) return json({ error: "잘못된 메모" }, 400);
           const k = "ecrecon:note:" + nt.date.slice(0, 7), notes = await getJ(k, {});
-          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now };
-          if (!notes[ord].memo && !notes[ord].done) delete notes[ord];
+          // ship = 이 페이지에서 고친 배송방식(퀵·택배·설치·차량·직접수령·용달, '없음'). undefined 면 이카운트 고객명 값을 쓴다.
+          const ship = nt.ship === undefined || nt.ship === null ? undefined : String(nt.ship).slice(0, 10);
+          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now, ...(ship !== undefined ? { ship } : {}) };
+          if (!notes[ord].memo && !notes[ord].done && notes[ord].ship === undefined) delete notes[ord];
           await kv0.put(k, JSON.stringify(notes));
           return json({ ok: true, note: notes[ord] || null });
+        }
+        // [2026-10-14] attach — 나중 파일에서 찾은 이전 주문의 반품·선수금 정산 전표를 그 주문일 결과에 표시로 붙인다.
+        if (Array.isArray(b.attach)) {
+          const byDate = {};
+          for (const a of b.attach.slice(0, 1000)) {
+            if (!okDate(a.date) || !/^\d{8}-\d{7}$/.test(String(a.order || "")) || !a.tag) continue;
+            (byDate[a.date] ||= []).push({ order: String(a.order), tag: String(a.tag).slice(0, 40) });
+          }
+          const done = [];
+          for (const [date, list] of Object.entries(byDate)) {
+            const dk = "ecrecon:day:" + date, day = await getJ(dk, null);
+            if (!day) continue;
+            const ik = "ecrecon:idx:" + date.slice(0, 7), idx = await getJ(ik, {});
+            let ch = false;
+            for (const a of list) {
+              const r = (day.rows || []).find((x) => x.o === a.order);
+              if (!r) continue;
+              const tags = String(r.tags || "").split(" · ").filter(Boolean);
+              if (tags.includes(a.tag)) continue;
+              r.tags = [...tags, a.tag].join(" · "); ch = true; done.push({ date, order: a.order, tag: a.tag });
+              const sm = (idx[date] || {}).summary;
+              if (sm) {
+                sm.issues ||= [];
+                const it = sm.issues.find((x) => x.o === a.order);
+                if (it) it.tags = r.tags;
+                else sm.issues.push({ o: r.o, tags: r.tags, st: r.st, paid: r.paid, ec: r.ec, diff: r.diff, want: r.want, ecPay: r.ecPay, sup: r.sup, items: String(r.items || "").slice(0, 120) });
+              }
+            }
+            if (ch) { await kv0.put(dk, JSON.stringify(day), { expirationTtl: 400 * 86400 }); await kv0.put(ik, JSON.stringify(idx)); }
+          }
+          return json({ ok: true, attached: done });
         }
         if (!okDate(b.date) || !Array.isArray(b.rows)) return json({ error: "date 와 rows 가 필요합니다" }, 400);
         const body = JSON.stringify({ date: b.date, at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {}, rows: b.rows.slice(0, 3000) });
