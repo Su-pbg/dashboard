@@ -438,13 +438,15 @@ const paidOf=o=>(o.payment_amount||0)+(o.naver_point||0);
 // 부분취소 주문의 남은 금액 — 카페24 결제액은 환불이 끝나면 줄어든 값, 환불 전(취소·반품 신청 중)이면 원래 값 그대로다.
 //   실데이터(2026-10-14): 20260929-0000039 환불 완료 → 결제액 278,800 = 남은 상품 net. 20261011-0000132 반품 신청 → 결제액 354,460 그대로.
 //   결제액이 전체 상품 net 합 이상이면 '환불 전'으로 보고 취소된 상품 net 을 뺀다(배송비는 남긴다). 아니면 결제액이 이미 환불 반영된 값.
+const isExch=l=>/^E/i.test(String(l.status||''));
 function remainOf(r){
-  const paid=paidOf(r.o), canc=(r.ls||[]).filter(l=>l.canceled==='Y'&&l.paywin!=='Y');
+  const paid=paidOf(r.o), canc=(r.ls||[]).filter(l=>l.canceled==='Y'&&l.paywin!=='Y'&&!isExch(l));
   if(!canc.length) return {amt:paid,mode:'none'};
   const cancNet=canc.reduce((t,l)=>t+l.net,0), liveNet=(r.live||[]).reduce((t,l)=>t+l.net,0);
   if(paid>=liveNet+cancNet-1) return {amt:paid-cancNet,mode:'pending',orig:paid,canc:cancNet,n:canc.length};
   return {amt:paid,mode:'refunded',canc:cancNet,n:canc.length};
 }
+const exchTxt=r=>(r.ls||[]).some(isExch)?'교환 진행 중 — 교환 상품 확인':'';
 const remainTxt=m=>m.mode==='pending'?`부분취소: 원래 ${n(m.orig)} → 취소 ${n(m.canc)} → 남은 ${n(m.amt)}원 (환불 전 계산)`
   :m.mode==='refunded'?`부분취소 ${m.n}줄: 카페24 결제액이 이미 환불 반영된 금액(${n(m.amt)}원)`:'';
 // 고객명 — 이카운트 실데이터(2026-08, 517건): 주문자=수령인이면 이름 하나, 다르면 대부분 '수령인(주문자)'(51건 중 39건). 연락처는 수령인 것.
@@ -479,7 +481,7 @@ async function loadMade(){
 function reconRows(){
   return (D.rows||[]).map(r=>{ const o=r.o, ls=r.ls.length?r.ls:[];
     return {o:o.order_id,t:o.time||'',sup:[...new Set(ls.map(l=>l.supplier_name).filter(Boolean))].join(', '),
-      items:ls.length?ls.map(l=>`${l.product_name}${l.option_value?' ('+optText(l.option_value)+')':''} ×${l.qty}${l.canceled==='Y'?' [취소]':''}`).join(' / '):(r.e||[]).map(x=>`${x.name} ×${x.qty}`).join(' / '),
+      items:ls.length?ls.map(l=>`${l.product_name}${l.option_value?' ('+optText(l.option_value)+')':''} ×${l.qty}${isExch(l)?' [교환]':l.canceled==='Y'?' [취소]':''}`).join(' / '):(r.e||[]).map(x=>`${x.name} ×${x.qty}`).join(' / '),
       tags:r.tags||'',dres:r.dres||'',dday:r.dday||'',paid:r.paid,ec:r.ecTot,diff:r.paid!=null&&r.ecTot!=null?r.paid-r.ecTot:null,want:r.want||'',ecPay:r.ecPay||'',st:r.st,more:r.issues.slice(1),item:r.item||'',
       codes:ls.map(l=>codeOf(l)).join(', '),eccodes:(r.e||[]).map(x=>`${x.code}×${x.qty}`).join(', ')}; });
 }
@@ -582,7 +584,8 @@ function compute(){
   const out=[];
   for(const o of D.orders){
     const ls=(D.lines[o.order_id]||[]);
-    const live=ls.filter(l=>l.canceled!=='Y'&&l.paywin!=='Y');
+    // 워커는 교환(E…)도 canceled=Y 로 준다. 교환은 결제가 그대로인 판매라 판매 줄로 남긴다(9/29-0000282 E00 확인).
+    const live=ls.filter(l=>l.paywin!=='Y'&&(l.canceled!=='Y'||isExch(l)));
     const e=ecBy[o.order_id]||null, paid=paidOf(o), want=payType(o);
     const lt=later[o.order_id]||[];
     const uq=k=>e?[...new Set(e.map(x=>x[k]).filter(Boolean))].join(' / '):'';
@@ -612,7 +615,8 @@ function compute(){
           r.item=same?'일치':'불일치'; if(!same) r.issues.push('품목·수량 불일치');
         }
         // 부분취소·반품: 카페24 실결제금액은 그대로이고 이카운트는 반품 전표가 따로 들어간다 → 금액이 다른 이유를 같이 보여준다
-        const pc=ls.filter(l=>l.canceled==='Y');
+        const pc=ls.filter(l=>l.canceled==='Y'&&!isExch(l));
+        if(ls.some(isExch)) r.item=(r.item&&r.item!=='일치'&&r.item!=='수량 일치'?r.item+' · ':'')+'교환 진행 중';
         if(pc.length){ const ds=[...new Set(pc.map(l=>(l.cancel_done||l.cancel_req||'').slice(5).replace('-','/')).filter(Boolean))];
           const note=`부분취소·반품 ${pc.length}줄${ds.length?' '+ds.join(', '):''}`; if(r.issues.length) r.issues.push(note); else r.item=(r.item&&r.item!=='일치'&&r.item!=='수량 일치'?r.item+' · ':'')+note; }
         r.st=r.issues.length?r.issues[0]:'정상';
@@ -740,7 +744,7 @@ function dateRow(withFile){
     ${D.flash?`<div class="ec-stat" style="position:sticky;top:8px;z-index:5;background:${D.flash.bad?'var(--down-soft)':'var(--up-soft)'};color:${D.flash.bad?'var(--down)':'var(--up)'};border-radius:8px;padding:8px 12px;font-weight:600">${esc(D.flash.msg)}</div>`:''}`;
 }
 const kpi=(l,v,cls)=>`<div class="ec-kpi"><div class="l">${l}</div><div class="n ${cls||''}">${v}</div></div>`;
-const itemsHtml=r=>r.ls.map(l=>{ const c=codeOf(l), off=l.canceled==='Y'||l.paywin==='Y';
+const itemsHtml=r=>r.ls.map(l=>{ const c=codeOf(l), off=(l.canceled==='Y'&&!isExch(l))||l.paywin==='Y';
   return `<div style="${off?'text-decoration:line-through;color:var(--ghost)':''}">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}
     <span class="ec-sub" style="display:inline">${c?esc(c):'<span style="color:var(--down)">코드 없음</span>'}</span></div>`; }).join('');
 function initDate(){ if(!D.date){ D.date=kstDay(-1); D.seller=lsGet('pbg_ecdaily_seller',''); } }
@@ -758,7 +762,7 @@ function renderDaily(){
     return `<tr><td><input type="checkbox" data-a="sel" data-o="${id}" ${D.sel[o.order_id]?'checked':''} ${r.live.length?'':'disabled'} aria-label="판매입력에 넣기"></td>
       <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div>${diffRc(o)?'<span class="ec-badge ec-warn">주문자≠수령인</span>':''}</td>
       <td class="l" style="min-width:280px">${itemsHtml(r)}</td>
-      <td>${(()=>{ const m=remainOf(r); return m.mode==='pending'?`<s style="color:var(--muted)">${n(m.orig)}</s><br><b>${n(m.amt)}</b><div><span class="ec-badge ec-warn">부분취소</span></div>`:`${n(r.paid)}${m.mode==='refunded'?'<div><span class="ec-badge ec-warn">부분취소·환불됨</span></div>':''}`; })()}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
+      <td>${(()=>{ const m=remainOf(r); return m.mode==='pending'?`<s style="color:var(--muted)">${n(m.orig)}</s><br><b>${n(m.amt)}</b><div><span class="ec-badge ec-warn">부분취소</span></div>`:`${n(r.paid)}${m.mode==='refunded'?'<div><span class="ec-badge ec-warn">부분취소·환불됨</span></div>':''}`; })()}${exchTxt(r)?'<div><span class="ec-badge ec-warn">교환</span></div>':''}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
       <td style="${r.want?'':'color:var(--down)'}">${esc(r.want||'(정할 수 없음)')}</td>
       <td><span class="ec-badge ${r.gst==='새 주문'?'ec-ok':r.gst==='파일 있음'?'ec-info':'ec-warn'}">${esc(r.gst)}</span>${mf?`<div class="ec-sub">${mf.map(f=>`${esc(f.by||'')} ${esc(f.at.slice(5))}`).join('<br>')}</div>`:''}</td></tr>`;
   }).join('');
@@ -875,7 +879,7 @@ function formCard(){
         <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드" style="width:140px;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}">
         <label style="font-size:12px;white-space:nowrap;display:flex;gap:4px;align-items:center;${signOn(l)?'color:var(--accent);font-weight:700':'color:var(--muted)'}"><input type="checkbox" data-a="sign" data-k="${esc(key)}" ${signOn(l)?'checked':''}>사인지${signOn(l)&&c?` <span class="ec-sub" style="display:inline;margin:0">${esc((S.sign||{})[c]||c+'SI')}</span>`:''}</label></div>`; }).join('');
     const rm=remainOf(r);
-    return `<tr><td><b>${id}</b><div class="ec-sub">${n(rm.amt)}원 · ${esc(r.want||'결제유형 확인')}</div>${rm.mode!=='none'?`<div class="ec-sub" style="color:var(--down);font-weight:600;white-space:normal;max-width:180px">${esc(remainTxt(rm))}</div>`:''}</td>
+    return `<tr><td><b>${id}</b><div class="ec-sub">${n(rm.amt)}원 · ${esc(r.want||'결제유형 확인')}</div>${rm.mode!=='none'?`<div class="ec-sub" style="color:var(--down);font-weight:600;white-space:normal;max-width:180px">${esc(remainTxt(rm))}</div>`:''}${exchTxt(r)?`<div class="ec-sub" style="color:var(--down);font-weight:600">${esc(exchTxt(r))}</div>`:''}</td>
       <td><input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:96px"></td>
       <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:150px">${diffRc(o)?'<div><span class="ec-badge ec-warn">주문자≠수령인</span></div>':''}</td>
       <td><select class="ec-in" data-a="wh" data-o="${id}">${WH.map(w=>`<option ${(E.wh||D.wh)===w?'selected':''}>${esc(w)}</option>`).join('')}</select></td>
