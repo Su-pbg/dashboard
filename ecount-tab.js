@@ -50,7 +50,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={logView:'rv', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
+const S={logView:'rv', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:''};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -115,12 +115,17 @@ function parseEcount(wb,fname,keepAdv){
     .filter(r=>ORD.test(r.order)&&(keepAdv||!r.adv));   // 선수금 품목은 실제 상품이 아니다(데일리 금액 대조에는 합계로 넣는다)
 }
 
-// ---------- 카페24 주문 (월 단위) ----------
-async function loadC24Month(ym){
-  const [y,m]=ym.split('-').map(Number), from=`${ym}-01`, to=`${ym}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
-  const d=await getJSON(`${WORKER}/?bs=${from}&be=${to}&as=${from}&ae=${to}&tab=orderitems&from=${from}&to=${to}&full=1&nocache=1`);
-  if(d.truncated) S.truncated=(S.truncated||[]).concat(ym);
-  for(const l of (d.lines||[])){ if(l.paywin==='Y'||l.paid!=='Y') continue; (S.c24[l.order_id] ||= []).push(l); }
+// ---------- 카페24 주문 (파일에 있는 주문번호만) ----------
+// 예전엔 파일이 걸친 달 전체(최대 6개월 × 4,000건)를 받아 느리고 잘렸다(리포트 M7). 지금은 주문번호 목록으로 300개씩 받는다.
+async function loadC24Orders(ids,onStep){
+  const todo=ids.filter(o=>!S.c24[o]&&!S.c24miss.has(o)), f=kstDay(0);
+  for(let i=0;i<todo.length;i+=300){
+    const part=todo.slice(i,i+300); if(onStep) onStep(i,todo.length);
+    const d=await getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=orderitems&from=${f}&to=${f}&full=1&nocache=1&ids=${part.join(',')}`);
+    const got=new Set();
+    for(const l of (d.lines||[])){ got.add(l.order_id); if(l.paywin==='Y'||l.paid!=='Y') continue; (S.c24[l.order_id] ||= []).push(l); }
+    for(const o of part) if(!got.has(o)) S.c24miss.add(o);   // 카페24에 없는 주문번호(다른 몰·오타)는 다시 묻지 않는다
+  }
 }
 
 // ---------- 학습 ----------
@@ -1092,10 +1097,10 @@ async function onFiles(files){
       S.ecRows.push(...rows); S.files.push({name:f.name,rows:rows.length});
     }
     try{ await learnSign(S.ecRows); }catch(e){}
-    // 이카운트 주문번호가 걸친 달만 카페24 에서 받는다(주문 5건 미만인 달은 건너뜀 — 이월·반품 전표)
-    const mc={}; for(const r of S.ecRows){ const ym=r.order.slice(0,4)+'-'+r.order.slice(4,6); mc[ym]=(mc[ym]||0)+1; }
-    const need=Object.keys(mc).filter(m=>mc[m]>=5&&!S.months.includes(m)).sort().slice(-6);
-    for(const ym of need){ S.loading=`카페24 ${ym} 주문 받는 중… (한 달 10~20초)`; render(); await loadC24Month(ym); S.months.push(ym); }
+    // 파일에 있는 주문번호만 카페24 에서 받는다
+    const ids=[...new Set(S.ecRows.map(r=>r.order))];
+    await loadC24Orders(ids,(i,t)=>{ S.loading=`카페24 주문 받는 중… ${i}/${t}`; render(); });
+    S.months=[...new Set(ids.map(o=>o.slice(0,4)+'-'+o.slice(4,6)))].sort();
     S.loading='짝 찾는 중…'; render();
     learn(); S.view='new';
   }catch(e){ S.err=e; }
