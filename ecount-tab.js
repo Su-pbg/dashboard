@@ -642,7 +642,10 @@ function compute(){
     r.gst=r.st||(D.made[o.order_id]?'파일 있음':remainOf({o,ls,live}).mode==='pending'?'환불 대기':'새 주문');
     if(!r.st){
       if(!D.ec) r.st='대조 전';
-      else if(!e) r.st=covered(D.date)?'미입력':'파일 기간 밖';
+      // 파일 기간 밖 날짜는 그 주문의 원래 전표가 파일에 없을 수 있다(나중 반품·정산 전표만 있음) → 금액·품목을 판단하지 않는다.
+      //   반품·정산 표시는 tags 로 남고, 저장된 결과에는 attachLater 가 붙인다.
+      else if(!covered(D.date)) r.st='파일 기간 밖';
+      else if(!e) r.st='미입력';
       else{
         if(Math.abs(paid-r.ecTot)>1) r.issues.push('금액불일치');
         if(want&&r.ecPay&&payNo(want)!==payNo(r.ecPay)) r.issues.push('결제유형 확인');
