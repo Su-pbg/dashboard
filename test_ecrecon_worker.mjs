@@ -58,5 +58,17 @@ await call('/ecsales', { dates: [D], by: '나', orders: 1, rows: 1, filename: 'b
 const log = (await call('/ecsales?month=2026-10')).log;
 eq('이력 3건(예전 1 + 새 2), 모든 주문번호', [log.length, log.flatMap((e) => e.ids).sort()], [3, [A, B, C].sort()]);
 
+// ⑤ 월간요약: 예전 묶음 + 날짜별 키, 동시 저장해도 안 지워짐, 지우면 둘 다
+await KV.put('ecrecon:idx:2026-10', JSON.stringify({ '2026-10-01': { at: 'x', summary: { total: 1 } } }));
+await Promise.all([
+  call('/ecrecon', { date: '2026-10-02', summary: { total: 2 }, rows: [] }),
+  call('/ecrecon', { date: '2026-10-03', summary: { total: 3 }, rows: [] }),
+]);
+let idx = (await call('/ecrecon?month=2026-10')).idx;
+eq('월간요약 날짜 3개(예전 1 + 동시 저장 2)', Object.keys(idx).sort().map((d) => idx[d].summary.total), [1, 2, 3]);
+await call('/ecrecon', { remove: { date: '2026-10-02' } });
+idx = (await call('/ecrecon?month=2026-10')).idx;
+eq('지우기', Object.keys(idx).sort(), ['2026-10-01', '2026-10-03']);
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);

@@ -166,11 +166,22 @@ var worker_default = {
           for (const [o, v] of Object.entries(out)) if (!v || (!v.memo && !v.done && !v.dst && !v.ast)) delete out[o];
           return out;
         };
+        // [2026-10-14] 월간요약(idx)도 날짜마다 ecrecon:i:{월}:{날짜} 에 따로 둔다 — 일괄 대조와 전표 붙이기가 동시에 돌아도 서로 안 지움.
+        //   예전 ecrecon:idx:{월} 한 값은 그대로 두고 같이 읽는다(날짜별 키가 있으면 그게 이긴다).
+        const readIdx = async (ym) => {
+          const out = await getJ("ecrecon:idx:" + ym, {});
+          const keys = []; let cursor;
+          do { const l = await kv0.list({ prefix: `ecrecon:i:${ym}:`, cursor }); keys.push(...l.keys.map((k) => k.name)); cursor = l.list_complete ? null : l.cursor; } while (cursor);
+          const vals = await Promise.all(keys.map((k) => kv0.get(k)));
+          keys.forEach((k, i) => { if (vals[i]) out[k.slice(`ecrecon:i:${ym}:`.length)] = JSON.parse(vals[i]); });
+          return out;
+        };
+        const putIdx = (date, v) => kv0.put(`ecrecon:i:${date.slice(0, 7)}:${date}`, JSON.stringify(v));
         if (request.method === "GET") {
           const date = q.get("date"), month = q.get("month");
           if (okDate(date)) return json({ day: await getJ("ecrecon:day:" + date, null), notes: await readNotes(date.slice(0, 7)) });
           if (!/^\d{4}-\d{2}$/.test(month || "")) return json({ error: "month=YYYY-MM 또는 date=YYYY-MM-DD 가 필요합니다" }, 400);
-          return json({ idx: await getJ("ecrecon:idx:" + month, {}), notes: await readNotes(month) });
+          return json({ idx: await readIdx(month), notes: await readNotes(month) });
         }
         if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
         let b = {};
@@ -196,7 +207,7 @@ var worker_default = {
         // remove — 잘못 저장된 날짜 결과 지우기(메모·처리완료 등 note 는 그대로 둔다)
         if (b.remove && okDate(b.remove.date)) {
           const date = b.remove.date, ik = "ecrecon:idx:" + date.slice(0, 7), idx = await getJ(ik, {});
-          await kv0.delete("ecrecon:day:" + date);
+          await kv0.delete("ecrecon:day:" + date); await kv0.delete(`ecrecon:i:${date.slice(0, 7)}:${date}`);
           if (idx[date]) { delete idx[date]; await kv0.put(ik, JSON.stringify(idx)); }
           return json({ ok: true, removed: date });
         }
@@ -211,7 +222,7 @@ var worker_default = {
           for (const [date, list] of Object.entries(byDate)) {
             const dk = "ecrecon:day:" + date, day = await getJ(dk, null);
             if (!day) continue;
-            const ik = "ecrecon:idx:" + date.slice(0, 7), idx = await getJ(ik, {});
+            const idx = await readIdx(date.slice(0, 7));
             let ch = false;
             for (const a of list) {
               const r = (day.rows || []).find((x) => x.o === a.order);
@@ -227,7 +238,7 @@ var worker_default = {
                 else sm.issues.push({ o: r.o, tags: r.tags, st: r.st, paid: r.paid, ec: r.ec, diff: r.diff, want: r.want, ecPay: r.ecPay, sup: r.sup, items: String(r.items || "").slice(0, 120) });
               }
             }
-            if (ch) { await kv0.put(dk, JSON.stringify(day), { expirationTtl: 400 * 86400 }); await kv0.put(ik, JSON.stringify(idx)); }
+            if (ch) { await kv0.put(dk, JSON.stringify(day), { expirationTtl: 400 * 86400 }); if (idx[date]) await putIdx(date, idx[date]); }
           }
           return json({ ok: true, attached: done });
         }
@@ -235,9 +246,7 @@ var worker_default = {
         const body = JSON.stringify({ date: b.date, at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {}, rows: b.rows.slice(0, 3000) });
         if (body.length > 5e6) return json({ error: "너무 큽니다" }, 400);
         await kv0.put("ecrecon:day:" + b.date, body, { expirationTtl: 400 * 86400 });
-        const ik = "ecrecon:idx:" + b.date.slice(0, 7), idx = await getJ(ik, {});
-        idx[b.date] = { at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {} };
-        await kv0.put(ik, JSON.stringify(idx));
+        await putIdx(b.date, { at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {} });
         return json({ ok: true, at: now });
       }
       if (url.pathname === "/ecsales") {
@@ -889,6 +898,14 @@ var worker_default = {
         //   수령인 정보가 있으니 이 응답은 캐시하지 않는다(orderitems 는 json() 이라 원래 캐시 없음).
         const daily = q.get("daily") === "1";
         let orders = [], truncated = false;
+        // [2026-10-14] ids= 주문번호 목록(쉼표)으로 받기 — 품목코드 맵핑 학습이 달 전체를 받던 것을 파일에 있는 주문만 받게(리포트 M7). 100개씩.
+        const ids = String(q.get("ids") || "").split(",").map((x) => x.trim()).filter((x) => /^\d{8}-\d{7}$/.test(x)).slice(0, 2000);
+        if (ids.length) {
+          for (let i = 0; i < ids.length; i += 100) {
+            const j = await cafe24Get(mallId, tok, `orders?order_id=${ids.slice(i, i + 100).join(",")}&limit=100&embed=items`, false, env);
+            orders = orders.concat(j.orders || []);
+          }
+        } else
         for (let p = 0; p < ORDER_MAX_PAGES; p++) {
           const j = await cafe24Get(mallId, tok,
             `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=${daily ? "items,receivers,buyer" : "items"}`,
