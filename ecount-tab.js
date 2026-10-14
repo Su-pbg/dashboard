@@ -69,8 +69,20 @@ function vdayOf(v){
   const t=String(v).trim(); let m=t.match(/^(\d{4})[\/.-]?(\d{2})[\/.-]?(\d{2})/); if(m) return m[2]+m[3];
   m=t.match(/^(\d{1,2})\/(\d{1,2})/); return m?m[1].padStart(2,'0')+m[2].padStart(2,'0'):'';
 }
+// 판매조회(전표 단위) 형식: 판매번호 · 결제일(=주문번호) · 품 목(요약 'OO 외 n건') · 금 액 · 고객명 · 결제유형 · 수량 …  품목코드가 없다.
+function parseVoucher(rows,h,fname){
+  const head=rows[h].map(c=>String(c??'').replace(/\s/g,'')), col=k=>head.indexOf(k);
+  const cNo=col('판매번호'), cOrd=col('결제일'), cItem=col('품목'), cAmt=col('금액'), cPay=col('결제유형'), cQty=col('수량'), cCust=head.findIndex(x=>/고객명/.test(x));
+  if(cOrd<0||cAmt<0) throw new Error(`${fname}: 판매조회 형식인데 결제일(주문번호)·금액 열을 찾지 못했습니다.`);
+  return rows.slice(h+1).map(r=>({order:String(r[cOrd]??'').trim(),code:'',name:String(r[cItem]??'').trim(),qty:Number(r[cQty])||0,price:0,
+      total:Math.round(Number(r[cAmt])||0),vday:vdayOf(r[cNo]),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim(),voucher:true}))
+    .map(r=>({...r,adv:/^선수금/.test(r.name)})).filter(r=>ORD.test(r.order));
+}
 function parseEcount(wb,fname,keepAdv){
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null,blankrows:false});
+  for(let i=0;i<Math.min(rows.length,15);i++){ const r=(rows[i]||[]).map(c=>String(c??'').replace(/\s/g,'')); if(r.includes('판매번호')&&r.includes('품목')&&r.includes('금액')){
+    if(!keepAdv) throw new Error(`${fname}: 판매조회(전표 단위) 파일이라 품목코드가 없습니다. 품목코드 맵핑에는 판매현황(품목별) 엑셀을 올려 주세요.`);
+    return parseVoucher(rows,i,fname); } }
   let h=-1;
   for(let i=0;i<Math.min(rows.length,15);i++){ const r=(rows[i]||[]).map(c=>String(c??'').trim()); if(r.includes('품목코드')&&r.includes('수량')&&(r.includes('품명 및 규격')||r.includes('품목명'))){ h=i; break; } }
   if(h<0) throw new Error(`${fname}: 머리글(품목코드·품명 및 규격·수량)을 찾지 못했습니다. 이카운트 판매현황(품목별) 엑셀이 맞는지 확인해 주세요.`);
@@ -379,14 +391,14 @@ function payType(o){
 }
 // 선수금: 주문 첫 전표에 품목 '선수금(완납)'으로 전액 → 출고·정산 때 같은 주문번호로 선수금 차감 + 상품(합계 0원) 전표가 또 생긴다.
 // 예전 데일리 대사 시트 B열(선수금/설치): 이카운트 고객명 앞에 적은 선수금(발주필요)·퀵)·택배)·설치)·차량) 표기 + 선수금 품목
-const SHIP_RE=/(퀵|택배|설치|차량|용달|방문|픽업|직배송|직접수령)/;
+const SHIP_RE=/(퀵|택배|설치|차량|배송|용달|방문|픽업|직배송|직접수령)/;
 function ecTags(e){
   const t=[];
   // 선수금은 주문일 전표의 품목으로 본다(Su, 2026-10-14). 고객명의 '(발주필요)'는 덧붙이는 표시로만 쓴다.
   if(e.some(x=>x.adv)) t.push(e.some(x=>/발주필요/.test(x.cust))?'선수금(발주필요)':'선수금');
   const c=(e.find(x=>x.cust)||{}).cust||'';
   const head=c.replace(/선수금\s*\([^)]*\)/,'').trim().slice(0,8), m=head.match(SHIP_RE);
-  if(m&&/^[\s\[]*(퀵|택배|설치|차량|용달|방문|픽업|직배송|직접수령)/.test(head)) t.push(m[1]);
+  if(m&&/^[\s\[]*(퀵|택배|설치|차량|배송|용달|방문|픽업|직배송|직접수령)/.test(head)) t.push(m[1]);
   return t.join(' · ');
 }
 const payNo=s=>{ const m=String(s||'').match(/^\s*(\d+)\s*\./); return m?m[1]:String(s||'').replace(/\s/g,''); };
@@ -481,6 +493,11 @@ function compute(){
         if(want&&r.ecPay&&payNo(want)!==payNo(r.ecPay)) r.issues.push('결제유형 확인');
         else if(!want) r.issues.push('결제유형 확인');
         if(r.adv) r.item='선수금';
+        else if(e.some(x=>x.voucher)){   // 판매조회(전표 단위) — 품목코드가 없어 수량 합계만 본다(사인지 줄이 있으면 이카운트가 더 많다)
+          const cq=live.reduce((t,l)=>t+l.qty,0), eq=e.reduce((t,x)=>t+x.qty,0);
+          r.item=cq===eq?'수량 일치':eq>cq?`이카운트 수량 ${eq} (카페24 ${cq}) — 사인지 등 확인`:`수량 부족: 이카운트 ${eq} / 카페24 ${cq}`;
+          if(eq<cq) r.issues.push('품목·수량 불일치');
+        }
         else if(unmapped.length) r.item=`맵핑 없음 ${unmapped.length}`;
         else{
           const C={},E={}; for(const l of live){ const c=codeOf(l); C[c]=(C[c]||0)+l.qty; } for(const x of e) if(!isSignRow(x)) E[x.code]=(E[x.code]||0)+x.qty;
@@ -651,7 +668,7 @@ function renderRecon(){
   }).join('');
   const miss=R.filter(r=>r.st==='미입력').length;
   S.root.innerHTML=`<div class="ec-card"><h2>판매 입력 대조</h2>
-    <p class="ec-lead">이카운트에서 받은 판매현황(품목별) 엑셀을 올리면, 고른 날짜의 카페24 주문과 주문번호로 맞춰 금액 · 결제유형 · 품목·수량이 맞는지 봅니다.
+    <p class="ec-lead">이카운트에서 받은 판매현황(품목별) 또는 판매조회(전표 단위) 엑셀을 올리면, 고른 날짜의 카페24 주문과 주문번호로 맞춰 금액 · 결제유형 · 품목·수량이 맞는지 봅니다.
       여러 날짜가 든 파일이면 날짜만 바꿔 가며 보면 됩니다. 이카운트 파일은 브라우저에서만 읽습니다.</p>
     ${dateRow(true)}
     ${D.reconSaved==='nodate'?`<div class="ec-stat err">올린 이카운트 파일에 ${esc(D.date)} 주문이 없습니다 — 그 날짜가 든 판매현황을 올려 주세요(대조 현황에 남기지 않았습니다).</div>`
@@ -665,7 +682,7 @@ function renderRecon(){
       <span style="flex:1"></span>${miss?`<button class="go" data-a="togen" style="height:36px">미입력 ${n(miss)}건 판매입력 파일 만들기 →</button>`:''}</div>
     <div class="ec-scroll"><table class="ec-t" style="min-width:1050px"><thead><tr><th>주문번호</th><th>선수금 · 배송방식</th><th>상품 · 품목코드</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead>
       <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`
-    :`<div class="ec-stat">이카운트 → 판매현황(품목별)에서 해당 날짜가 든 엑셀을 받아 올려 주세요.</div>`}
+    :`<div class="ec-stat">이카운트 → 판매현황(품목별) 또는 판매조회에서 해당 날짜가 든 엑셀을 받아 올려 주세요. 판매조회는 품목코드가 없어 품목 대조 대신 수량 합계를 봅니다.</div>`}
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
       품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 이카운트 고객명의 선수금(발주필요)·퀵)·택배)·설치)·차량) 표기와 선수금 품목 · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
 }
