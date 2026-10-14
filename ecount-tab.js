@@ -371,6 +371,9 @@ function payType(o){
 }
 const payNo=s=>{ const m=String(s||'').match(/^\s*(\d+)\s*\./); return m?m[1]:String(s||'').replace(/\s/g,''); };
 const paidOf=o=>(o.payment_amount||0)+(o.naver_point||0);
+// 고객명 — 이카운트 실데이터(2026-08, 517건): 주문자=수령인이면 이름 하나, 다르면 대부분 '수령인(주문자)'(51건 중 39건). 연락처는 수령인 것.
+const diffRc=o=>!!(o.buyer&&o.rc_name&&o.buyer.replace(/\s/g,'')!==o.rc_name.replace(/\s/g,''));
+const custDefault=o=>diffRc(o)?`${o.rc_name}(${o.buyer})`:(o.rc_name||o.buyer||'');
 const ymd=d=>d.replace(/-/g,'');
 
 async function loadDailyC24(){
@@ -479,7 +482,7 @@ function buildRows(){
     const o=r.o; if(!D.sel[o.order_id]||!r.live.length) continue;
     seq++; orders.push(o.order_id);
     const E=ed(o.order_id), wh=E.wh||D.wh, preTxt=(E.pre||'').trim();
-    const nm=D.names[o.order_id]??(o.rc_name||o.buyer||'');
+    const nm=D.names[o.order_id]??custDefault(o);
     const cust=preTxt?`${preTxt}${/[\s]$/.test(preTxt)?'':' '}${nm}`:nm;
     const tot=paidOf(o), base=r.live.reduce((t,l)=>t+l.net,0);
     let left=tot;
@@ -564,7 +567,7 @@ function renderDaily(){
   const rowsHtml=list.map(r=>{
     const o=r.o, id=esc(o.order_id), mf=D.made[o.order_id];
     return `<tr><td><input type="checkbox" data-a="sel" data-o="${id}" ${D.sel[o.order_id]?'checked':''} ${r.live.length?'':'disabled'} aria-label="판매입력에 넣기"></td>
-      <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div></td>
+      <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div>${diffRc(o)?'<span class="ec-badge ec-warn">주문자≠수령인</span>':''}</td>
       <td class="l" style="min-width:280px">${itemsHtml(r)}</td>
       <td>${n(r.paid)}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
       <td style="${r.want?'':'color:var(--down)'}">${esc(r.want||'(정할 수 없음)')}</td>
@@ -636,14 +639,14 @@ function formCard(){
   const sel=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length);
   const sellers=[...new Set([D.seller,...lsGet('pbg_ecdaily_sellers',[])].filter(Boolean))];
   const body=sel.map(r=>{
-    const o=r.o, E=ed(o.order_id), id=esc(o.order_id), nm=D.names[o.order_id]??(o.rc_name||o.buyer||'');
+    const o=r.o, E=ed(o.order_id), id=esc(o.order_id), nm=D.names[o.order_id]??custDefault(o);
     const lines=r.live.map(l=>{ const key=l.variant_code||String(l.product_no), c=codeOf(l);
       return `<div style="display:flex;gap:8px;align-items:center;margin:2px 0"><span style="flex:1">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}</span>
         <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드" style="width:140px;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}">
         <label style="font-size:12px;white-space:nowrap;display:flex;gap:4px;align-items:center;${signOn(l)?'color:var(--accent);font-weight:700':'color:var(--muted)'}"><input type="checkbox" data-a="sign" data-k="${esc(key)}" ${signOn(l)?'checked':''}>사인지${signOn(l)&&c?` <span class="ec-sub" style="display:inline;margin:0">${esc((S.sign||{})[c]||c+'SI')}</span>`:''}</label></div>`; }).join('');
     return `<tr><td><b>${id}</b><div class="ec-sub">${n(paidOf(o))}원 · ${esc(r.want||'결제유형 확인')}</div></td>
       <td><input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:96px"></td>
-      <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:110px"></td>
+      <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:150px">${diffRc(o)?'<div><span class="ec-badge ec-warn">주문자≠수령인</span></div>':''}</td>
       <td><select class="ec-in" data-a="wh" data-o="${id}">${WH.map(w=>`<option ${(E.wh||D.wh)===w?'selected':''}>${esc(w)}</option>`).join('')}</select></td>
       <td class="l" style="min-width:380px">${lines}</td></tr>`;
   }).join('');
@@ -660,7 +663,8 @@ function formCard(){
     <datalist id="ecdSellers">${sellers.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
     ${sel.length?`<div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>주문</th><th>고객명 앞말</th><th>고객명</th><th>출고처</th><th>상품 · 품목코드</th></tr></thead><tbody>${body}</tbody></table></div>`
       :'<div class="ec-stat">위 표의 \'판매입력\' 칸을 체크하면 여기에 나옵니다. 아직 파일에 안 넣은 주문은 처음부터 체크돼 있습니다.</div>'}
-    <p class="ec-note">고객명 앞말은 퀵·택배·설치 등 배송 방법이 다를 때만 넣습니다(예: 퀵) 홍길동). 출고처는 위에서 한 번에 고르고, 주문마다 바꿀 수 있습니다.
+    <p class="ec-note">고객명은 수령인 이름이고, 주문자와 수령인이 다르면 '수령인(주문자)'로 채웁니다(이카운트 8월 입력 방식) — <b>주문자≠수령인</b> 표시가 붙은 주문은 한 번 더 확인하세요. 연락처·주소는 수령인 것입니다.
+      고객명 앞말은 퀵·택배·설치 등 배송 방법이 다를 때만 넣습니다(예: 퀵) 홍길동). 출고처는 위에서 한 번에 고르고, 주문마다 바꿀 수 있습니다.
       직접 넣은 품목코드는 파일을 만들 때 품목코드 맵핑에도 저장됩니다.
       <b>사인지</b>: 에디션에 사인지가 같이 나가면 체크하세요 — 바로 아래 줄에 사인지 품목(에디션코드+SI · 같은 수량 · 0원)이 들어가고, 그 품목은 다음부터 자동으로 체크됩니다.
       이카운트 판매현황에 사인지가 같이 입력된 주문이 있으면 그것도 배워 둡니다(카페24 주문에는 사인지 표시가 없음). 만든 파일은 판매입력 파일 이력에서 다시 받을 수 있습니다.</p></div>`;
