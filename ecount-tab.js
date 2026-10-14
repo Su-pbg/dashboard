@@ -6,7 +6,7 @@
 //       ① 한 주문에 카페24 옵션 1개 · 이카운트 품목 1개 → 바로 연결
 //       ② 이미 아는 짝을 빼고 남은 게 1:1 이면 연결 (반복)
 //       ③ 그래도 남으면 이름이 충분히 비슷하고 서로 가장 비슷한 것끼리만 연결
-//   · 한 옵션에 서로 다른 코드가 나오면 자동으로 정하지 않고 '확인 필요'로 남긴다(담당자가 고른다).
+//   · 한 옵션에 서로 다른 코드가 나오면 자동으로 정하지 않고 '확인 필요'로 남긴다(담당자가 고른다). 입력자 이름은 받지 않는다(Su, 2026-10-14).
 //   · 키 = 카페24 variant_code(옵션별, 예: P0000ZGS000F). 카페24 한 상품의 옵션이 이카운트에선 품목코드 여러 개다.
 //   · 저장은 워커 /ecmap (KV, 팀 공유). 담당자가 넣은 값(manual)은 자동 학습이 덮어쓰지 않는다.
 //   · 이카운트 파일은 고객 정보가 있어 워커로 보내지 않는다. 브라우저에서만 읽는다.
@@ -48,7 +48,6 @@ const n=v=>nf.format(Math.round(v||0));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
-const LS_BY='pbg_ecount_by';
 
 const S={root:null, map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
 
@@ -59,7 +58,6 @@ async function getJSON(url,opt){
   return d;
 }
 function loadXLSX(){ return window.XLSX?Promise.resolve():new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=ok;sc.onerror=()=>ng(new Error('엑셀 라이브러리를 불러오지 못했습니다'));document.head.appendChild(sc);}); }
-const byName=()=>{ try{ return localStorage.getItem(LS_BY)||''; }catch(e){ return ''; } };
 
 // ---------- 이카운트 판매현황(품목별) ----------
 // 머리글(일자·품목코드·품명 및 규격·수량)을 찾고, 주문번호 열은 값 모양(20260801-0000047)으로 찾는다(머리글이 결제일·주문일 등으로 다르다).
@@ -159,25 +157,19 @@ function learn(){
 
 // ---------- 저장 ----------
 function flash(msg,bad){ S.flash={msg,bad,at:Date.now()}; render(); setTimeout(()=>{ if(S.flash&&Date.now()-S.flash.at>=5900){ S.flash=null; render(); } },6000); }
-function ensureBy(){
-  let b=byName();
-  if(!b){ b=(prompt('입력자 이름을 넣어 주세요 (한 번만 묻고 기억합니다)')||'').trim(); if(b){ try{ localStorage.setItem(LS_BY,b); }catch(e){} } }
-  return b;
-}
 async function saveAuto(){
   const R=S.result; if(!R) return;
-  const entries=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름').map(r=>({key:r.key,code:r.code,name:r.ecname,label:`${r.name}${r.opt?' / '+r.opt:''}`,src:'auto',by:byName(),n:r.n}));
+  const entries=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름').map(r=>({key:r.key,code:r.code,name:r.ecname,label:`${r.name}${r.opt?' / '+r.opt:''}`,src:'auto',n:r.n}));
   if(!entries.length) return flash('저장할 새 연결이 없습니다.');
   const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries})});
   await reloadMap(); learn();
   flash(d.skipped?`${n(d.saved)}건 저장 · ${n(d.skipped)}건은 저장되지 않았습니다(담당자 값이 이미 있음 등). 전체 ${n(d.count)}건`:`대응표에 ${n(d.saved)}건 저장했습니다. 전체 ${n(d.count)}건`,!!d.skipped);
 }
 async function saveManual(key,code,label,name){
-  const by=ensureBy(); if(!by){ flash('입력자 이름이 있어야 저장됩니다.',true); return false; }
-  const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:[{key,code,name,label,src:'manual',by}]})});
+  const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:[{key,code,name,label,src:'manual'}]})});
   if(!d.saved){ flash(`저장되지 않았습니다: ${code} — 코드 형식을 확인해 주세요.`,true); return false; }
   await reloadMap(); learn();
-  flash(`저장됨: ${label} → ${code} (입력자 ${by})`); return true;
+  flash(`저장됨: ${label} → ${code}`); return true;
 }
 async function reloadMap(){ S.map=(await getJSON(`${WORKER}/ecmap`)).map||{}; }
 
@@ -189,7 +181,6 @@ function render(){
     <p class="ec-lead">카페24 상품·옵션을 이카운트 품목코드에 잇는 표입니다. 이미 입력된 이카운트 판매현황(품목별)을 올리면 같은 주문번호의 카페24 주문과 맞춰 자동으로 채우고,
       못 찾은 것만 담당자가 넣습니다. 담당자가 넣은 값은 자동 학습이 덮어쓰지 않습니다.</p>
     <div class="ec-row">
-      <label>입력자 <input class="ec-in" id="ecBy" value="${esc(byName())}" placeholder="이름" style="width:120px"></label>
       <span class="go ec-file" style="height:36px">이카운트 판매현황 올리기 (여러 개 가능)<input type="file" id="ecFiles" accept=".xlsx,.xls" multiple aria-label="이카운트 판매현황 파일"></span>
       <span class="ec-sub" style="margin:0">저장된 대응 <b style="color:var(--ink)">${n(saved.length)}</b>건 (자동 ${n(saved.length-man)} · 담당자 ${n(man)})</span>
     </div>
@@ -224,7 +215,7 @@ function resultCard(){
   if(S.view==='saved'){
     body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>이카운트 품목코드</th><th>이카운트 품명</th><th>출처</th><th>근거</th><th>저장일</th></tr></thead><tbody>
       ${list.slice(0,500).map(x=>`<tr><td class="l">${esc(x.label)}</td><td>${esc(x.key)}</td><td><b>${esc(x.code)}</b></td><td class="l">${esc(x.name)}</td>
-        <td><span class="ec-badge ${x.src==='manual'?'ec-ok':'ec-info'}">${x.src==='manual'?'담당자':'자동'}</span>${x.by?`<div class="ec-sub">${esc(x.by)}</div>`:''}</td><td>${x.n?n(x.n)+'건':''}</td><td>${esc(x.at||'')}</td></tr>`).join('')}</tbody>`;
+        <td><span class="ec-badge ${x.src==='manual'?'ec-ok':'ec-info'}">${x.src==='manual'?'담당자':'자동'}</span></td><td>${x.n?n(x.n)+'건':''}</td><td>${esc(x.at||'')}</td></tr>`).join('')}</tbody>`;
   }else if(S.view==='un'){
     body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>카페24 판매가</th><th>나온 주문</th><th>이카운트 품목코드 넣기 (후보를 누르면 채워짐)</th></tr></thead><tbody>
       ${list.map(x=>`<tr><td class="l">${esc(x.name)}${x.opt?`<div class="ec-sub">${esc(x.opt)}</div>`:''}</td><td>${esc(x.key)}</td><td><b>${x.price?n(x.price)+'원':'—'}</b></td><td>${n(x.orders)}</td><td class="l" style="min-width:420px">${picker(x,x.cands)}</td></tr>`).join('')}</tbody>`;
@@ -278,7 +269,6 @@ function wire(root){
   root.addEventListener('change',e=>{
     const t=e.target;
     if(t.id==='ecFiles'){ const fs=[...t.files]; t.value=''; if(fs.length) onFiles(fs); return; }
-    if(t.id==='ecBy'){ try{ localStorage.setItem(LS_BY,t.value.trim()); }catch(err){} return; }
   });
   root.addEventListener('input',e=>{ if(e.target.id==='ecQ'){ S.q=e.target.value; const pos=e.target.selectionStart; render(); const q=$('ecQ'); if(q){ q.focus(); q.setSelectionRange(pos,pos); } } });
   root.addEventListener('click',async e=>{
