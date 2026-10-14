@@ -136,10 +136,11 @@ function learn(){
   for(const [k,cs] of Object.entries(ev)){
     const top=Object.entries(cs).sort((a,b)=>b[1]-a[1]), saved=S.map[k];
     let st;
-    if(top.length>1) st='확인 필요';
+    if(saved&&saved.src==='manual') st=saved.code===top[0][0]&&top.length===1?'저장됨과 같음':'담당자 확정';
+    else if(top.length>1) st='확인 필요';
     else if(!saved) st='새로 연결';
     else if(saved.code===top[0][0]) st='저장됨과 같음';
-    else st=saved.src==='manual'?'담당자 값과 다름':'저장됨과 다름';
+    else st='저장됨과 다름';
     rows.push({key:k,...label[k],code:top[0][0],ecname:ecName[top[0][0]]||'',ecprice:ecPrice[top[0][0]]||0,n:top[0][1],cands:top.map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0})),how:[...how[k]].join('·'),st,saved});
   }
   // 연결 못한 옵션: 주문에 이카운트 품목이 남아 있는데 짝을 못 찾은 것만(재고2 파일이면 위탁 아닌 품목은 애초에 이카운트에 없다)
@@ -157,18 +158,26 @@ function learn(){
 }
 
 // ---------- 저장 ----------
+function flash(msg,bad){ S.flash={msg,bad,at:Date.now()}; render(); setTimeout(()=>{ if(S.flash&&Date.now()-S.flash.at>=5900){ S.flash=null; render(); } },6000); }
+function ensureBy(){
+  let b=byName();
+  if(!b){ b=(prompt('입력자 이름을 넣어 주세요 (한 번만 묻고 기억합니다)')||'').trim(); if(b){ try{ localStorage.setItem(LS_BY,b); }catch(e){} } }
+  return b;
+}
 async function saveAuto(){
   const R=S.result; if(!R) return;
   const entries=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름').map(r=>({key:r.key,code:r.code,name:r.ecname,label:`${r.name}${r.opt?' / '+r.opt:''}`,src:'auto',by:byName(),n:r.n}));
-  if(!entries.length) return alert('저장할 새 연결이 없습니다.');
+  if(!entries.length) return flash('저장할 새 연결이 없습니다.');
   const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries})});
-  await reloadMap(); learn(); render();
-  alert(`대응표에 ${n(d.saved)}건 저장했습니다. (전체 ${n(d.count)}건)`);
+  await reloadMap(); learn();
+  flash(d.skipped?`${n(d.saved)}건 저장 · ${n(d.skipped)}건은 저장되지 않았습니다(담당자 값이 이미 있음 등). 전체 ${n(d.count)}건`:`대응표에 ${n(d.saved)}건 저장했습니다. 전체 ${n(d.count)}건`,!!d.skipped);
 }
 async function saveManual(key,code,label,name){
-  if(!byName()){ alert('위쪽 "입력자"에 이름을 먼저 넣어 주세요.'); return false; }
-  await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:[{key,code,name,label,src:'manual',by:byName()}]})});
-  await reloadMap(); learn(); render(); return true;
+  const by=ensureBy(); if(!by){ flash('입력자 이름이 있어야 저장됩니다.',true); return false; }
+  const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries:[{key,code,name,label,src:'manual',by}]})});
+  if(!d.saved){ flash(`저장되지 않았습니다: ${code} — 코드 형식을 확인해 주세요.`,true); return false; }
+  await reloadMap(); learn();
+  flash(`저장됨: ${label} → ${code} (입력자 ${by})`); return true;
 }
 async function reloadMap(){ S.map=(await getJSON(`${WORKER}/ecmap`)).map||{}; }
 
@@ -186,6 +195,7 @@ function render(){
     </div>
     ${S.files.length?`<div class="ec-stat">올린 파일: ${S.files.map(f=>`<b>${esc(f.name)}</b> (${n(f.rows)}행)`).join(', ')} · 카페24 ${S.months.join(', ')} 주문</div>`:''}
     ${S.loading?`<div class="ec-stat">${esc(S.loading)}</div>`:''}
+    ${S.flash?`<div class="ec-stat" style="position:sticky;top:8px;z-index:5;background:${S.flash.bad?'var(--down-soft)':'var(--up-soft)'};color:${S.flash.bad?'var(--down)':'var(--up)'};border-radius:8px;padding:8px 12px;font-weight:600">${esc(S.flash.msg)}</div>`:''}
     ${S.err?`<div class="ec-stat err">${esc(S.err.message||S.err)}</div>`:''}
     ${S.truncated&&S.truncated.length?`<div class="ec-stat err">${S.truncated.join(', ')} 카페24 주문이 너무 많아 일부만 받았습니다.</div>`:''}
   </div>`;
@@ -195,12 +205,12 @@ function render(){
 function resultCard(){
   const R=S.result, cnt={}; for(const r of R.rows) cnt[r.st]=(cnt[r.st]||0)+1;
   const un=R.unmatched.filter(u=>u.st==='미연결');
-  const views=[['new','새로 연결',(cnt['새로 연결']||0)+(cnt['저장됨과 다름']||0)],['check','확인 필요',(cnt['확인 필요']||0)+(cnt['담당자 값과 다름']||0)],['un','미연결',un.length],['same','저장됨과 같음',cnt['저장됨과 같음']||0],['saved','저장된 전체',Object.keys(S.map).length]];
+  const views=[['new','새로 연결',(cnt['새로 연결']||0)+(cnt['저장됨과 다름']||0)],['check','확인 필요',(cnt['확인 필요']||0)+(cnt['담당자 값과 다름']||0)],['un','미연결',un.length],['same','저장됨·확정',(cnt['저장됨과 같음']||0)+(cnt['담당자 확정']||0)],['saved','저장된 전체',Object.keys(S.map).length]];
   const q=S.q.trim().toLowerCase(), hit=x=>!q||[x.name,x.opt,x.key,x.code,x.ecname,x.label].join(' ').toLowerCase().includes(q);
   let list, body='';
   if(S.view==='new') list=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름');
   else if(S.view==='check') list=R.rows.filter(r=>r.st==='확인 필요'||r.st==='담당자 값과 다름');
-  else if(S.view==='same') list=R.rows.filter(r=>r.st==='저장됨과 같음');
+  else if(S.view==='same') list=R.rows.filter(r=>r.st==='저장됨과 같음'||r.st==='담당자 확정');
   else if(S.view==='un') list=un;
   else list=Object.entries(S.map).map(([key,v])=>({key,...v,saved:v}));
   list=list.filter(hit);
@@ -275,13 +285,21 @@ function wire(root){
     const t=e.target.closest('[data-a]'); if(!t) return;
     const a=t.dataset.a;
     if(a==='view'){ S.view=t.dataset.v; render(); return; }
-    if(a==='pick'){ e.preventDefault(); const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`); if(inp) inp.value=t.dataset.c; return; }
-    if(a==='saveauto'){ t.disabled=true; try{ await saveAuto(); }catch(err){ alert('저장하지 못했습니다: '+err.message); } t.disabled=false; return; }
+    if(a==='pick'){
+      e.preventDefault();
+      const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`);
+      if(!inp) return;
+      inp.value=t.dataset.c;
+      if(!confirm(`${inp.dataset.label}\n→ ${t.dataset.c} 로 저장할까요?`)) return;
+      try{ await saveManual(t.dataset.k,t.dataset.c,inp.dataset.label,(S.result&&S.result.ecName[t.dataset.c])||''); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); }
+      return;
+    }
+    if(a==='saveauto'){ t.disabled=true; try{ await saveAuto(); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } t.disabled=false; return; }
     if(a==='savecode'){
       const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim();
-      if(!code) return alert('품목코드를 넣어 주세요.');
+      if(!code) return flash('품목코드를 넣거나 후보를 눌러 주세요.',true);
       t.disabled=true;
-      try{ await saveManual(t.dataset.k,code,inp.dataset.label,(S.result&&S.result.ecName[code])||''); }catch(err){ alert('저장하지 못했습니다: '+err.message); }
+      try{ await saveManual(t.dataset.k,code,inp.dataset.label,(S.result&&S.result.ecName[code])||''); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); }
       t.disabled=false; return;
     }
   });

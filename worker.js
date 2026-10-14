@@ -134,7 +134,8 @@ var worker_default = {
         for (const k of (Array.isArray(b.remove) ? b.remove : [])) { if (map[k]) { delete map[k]; removed++; } }
         for (const e of (Array.isArray(b.entries) ? b.entries : []).slice(0, 5000)) {
           const key = String(e.key || "").trim(), code = String(e.code || "").trim();
-          if (!/^[\w\-|.]{1,40}$/.test(key) || !/^[\w\-]{1,40}$/.test(code)) { skipped++; continue; }
+          // 이카운트 품목코드엔 & 같은 기호가 들어간다(예: OATCL&S0015) — 공백·제어문자만 막는다
+          if (!/^[^\s\u0000-\u001f]{1,40}$/.test(key) || !/^[^\s\u0000-\u001f]{1,40}$/.test(code)) { skipped++; continue; }
           const src = e.src === "manual" ? "manual" : "auto";
           if (src === "auto" && map[key] && map[key].src === "manual") { skipped++; continue; }
           map[key] = { code, name: String(e.name || "").slice(0, 120), label: String(e.label || "").slice(0, 160), src,
