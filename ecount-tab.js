@@ -1,6 +1,7 @@
-// 전표 입력 대조 — 왼쪽 메뉴 '위탁 정산' 아래. index.html 의 enterEcount() 가 처음 열 때 불러와 loadEcountTab(el) 을 부른다.
+// 이카운트 전표 입력 — 왼쪽 메뉴 큰 카테고리. 하위: '데일리 전표 생성'(view=daily) · '품목코드 맵핑'(view=map).
+// index.html 의 enterEcount() 가 불러와 loadEcountTab(el, view) 를 부른다.
 //
-// 지금 단계: 품목코드 대응표 (카페24 상품·옵션 → 이카운트 품목코드)
+// 품목코드 맵핑: 카페24 상품·옵션 → 이카운트 품목코드 대응표
 //   · 카페24 자체상품코드는 이카운트 품목코드가 아니다(ARG…·4205… 등, 1/3 만 채워짐) → 이미 입력된 이카운트 전표에서 배운다.
 //   · 이카운트 판매현황(품목별) 엑셀을 올리면 주문번호(결제일 열)로 카페24 주문과 맞춰 짝을 찾는다.
 //       ① 한 주문에 카페24 옵션 1개 · 이카운트 품목 1개 → 바로 연결
@@ -49,7 +50,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={root:null, map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
+const S={root:null, page:'map', map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -174,10 +175,23 @@ async function saveManual(key,code,label,name){
 async function reloadMap(){ S.map=(await getJSON(`${WORKER}/ecmap`)).map||{}; }
 
 // ---------- 화면 ----------
+// 데일리 전표 생성 — 다음 단계(준비 중)
+function renderDaily(){
+  const cnt=Object.keys(S.map).length;
+  S.root.innerHTML=`<div class="ec-card"><h2>데일리 전표 생성 <span class="ec-badge ec-info" style="vertical-align:3px">준비 중</span></h2>
+    <p class="ec-lead">들어갈 내용</p>
+    <ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.9;color:var(--ink-2)">
+      <li><b>대조</b> — 날짜를 고르면 카페24 주문을 바로 받고, 이카운트 판매현황만 올리면 주문마다 금액(실결제금액 = PG 결제 + 네이버페이 포인트) ·
+        결제유형(결제업체 기준) · 품목·수량(품목코드 맵핑 기준)을 맞춰 봅니다.</li>
+      <li><b>판매입력 양식</b> — 대조에서 '미입력'인 주문을 이카운트 판매입력 템플릿(28열) 그대로 엑셀로 만들어 이카운트에 바로 올립니다. 판매자(담당자)는 직접 고릅니다.</li>
+    </ol>
+    <p class="ec-note">품목코드 맵핑에 지금 ${n(cnt)}건이 저장돼 있습니다. 맵핑이 많을수록 판매입력 양식에서 손으로 넣을 품목이 줄어듭니다.</p></div>`;
+}
 function render(){
   if(!S.root) return;
+  if(S.page==='daily') return renderDaily();
   const saved=Object.values(S.map), man=saved.filter(v=>v.src==='manual').length;
-  let h=`<div class="ec-card"><h2>품목코드 대응표</h2>
+  let h=`<div class="ec-card"><h2>품목코드 맵핑</h2>
     <p class="ec-lead">카페24 상품·옵션을 이카운트 품목코드에 잇는 표입니다. 이미 입력된 이카운트 판매현황(품목별)을 올리면 같은 주문번호의 카페24 주문과 맞춰 자동으로 채우고,
       못 찾은 것만 담당자가 넣습니다. 담당자가 넣은 값은 자동 학습이 덮어쓰지 않습니다.</p>
     <div class="ec-row">
@@ -298,12 +312,14 @@ function wire(root){
 }
 
 let WIRED=false;
-window.loadEcountTab=async function(el){
+window.loadEcountTab=async function(el,page){
   if(!$('ecCss')){ const s=document.createElement('style'); s.id='ecCss'; s.textContent=STYLE; document.head.appendChild(s); }
-  S.root=el;
+  S.root=el; S.page=page||'map';
   if(!WIRED){ wire(el); WIRED=true; }
-  el.innerHTML='<div class="state"><div class="spinner"></div>대응표 불러오는 중…</div>';
-  try{ await reloadMap(); }catch(e){ S.err=e; }
+  if(!S.loadedMap){
+    el.innerHTML='<div class="state"><div class="spinner"></div>품목코드 맵핑 불러오는 중…</div>';
+    try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }
+  }
   render();
 };
 window.__ecount={S,learn,parseEcount};
