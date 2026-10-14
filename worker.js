@@ -745,10 +745,13 @@ var worker_default = {
         if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
         const mallId = env.CAFE24_MALL_ID;
         const from = q.get("from") || ranges.after.start, to = q.get("to") || ranges.after.end;
+        // [2026-10-14] daily=1 — 데일리 전표 생성용. 결제수단·수령인까지 준다(이카운트 판매입력 양식에 들어간다).
+        //   수령인 정보가 있으니 이 응답은 캐시하지 않는다(orderitems 는 json() 이라 원래 캐시 없음).
+        const daily = q.get("daily") === "1";
         let orders = [], truncated = false;
         for (let p = 0; p < ORDER_MAX_PAGES; p++) {
           const j = await cafe24Get(mallId, tok,
-            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=items`,
+            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=${daily ? "items,receivers" : "items"}`,
             false, env);
           const arr = j.orders || [];
           orders = orders.concat(arr);
@@ -756,6 +759,23 @@ var worker_default = {
           if (p === ORDER_MAX_PAGES - 1) truncated = true;
         }
         const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+        const arrOf = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+        const dailyOrderFields = (o) => {
+          const rc = (o.receivers || [])[0] || {};
+          return {
+            time: String(o.order_date || "").slice(11, 16),
+            naver_point: n(o.naver_point),
+            easypay: o.easypay_name || "",
+            pg: arrOf(o.payment_gateway_names).join(","),
+            pay_methods: arrOf(o.payment_method),
+            market: o.market_id || "",
+            buyer: o.billing_name || "",
+            rc_name: rc.name || "",
+            rc_phone: rc.cellphone || rc.phone || "",
+            rc_addr: rc.address_full || [rc.address1, rc.address2].filter(Boolean).join(" "),
+            rc_msg: rc.shipping_message || ""
+          };
+        };
         const lines = [];
         const tot = { sale: 0, disc: 0, net: 0, supply: 0, vat: 0, qty: 0, cost: 0 };
         for (const o of orders) {
@@ -834,7 +854,8 @@ var worker_default = {
             due: n(a.total_amount_due),
             paid: o.paid === "T" ? "Y" : "N",
             canceled: o.canceled === "T" ? "Y" : "N",
-            method: o.payment_method_name || ""
+            method: o.payment_method_name || "",
+            ...(daily ? dailyOrderFields(o) : {})
           };
         }).sort((x, y) => x.date.localeCompare(y.date) || String(x.order_id).localeCompare(String(y.order_id)));
         if (q.get("format") === "csv") {
