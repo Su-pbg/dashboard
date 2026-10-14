@@ -533,11 +533,13 @@ async function loadDailyC24(){
   const f=D.date, seq=(D.seq=(D.seq||0)+1);
   D.loading=`카페24 ${f} 주문 받는 중…`; D.err=null; render();
   let d=null, err=null;
-  const [res,md]=await Promise.all([
+  const [res,md,sv]=await Promise.all([
     getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=orderitems&from=${f}&to=${f}&full=1&nocache=1&daily=1`).catch(e=>{ err=e; return null; }),
     monthData(f.slice(0,7)),
+    S.page==='recon'?getJSON(`${WORKER}/ecrecon?date=${f}`).then(d=>d.day||null).catch(()=>null):Promise.resolve(null),
   ]);
   if(seq!==D.seq) return;   // 그사이 다른 날짜를 골랐다
+  D.savedDay=sv;   // 이 날짜에 저장된 대조 결과(없으면 null) — 파일 없이 열어도 표에 채운다
   d=res;
   D.err=err; D.orders=(d&&d.orders)||[]; D.lines={};
   for(const l of ((d&&d.lines)||[])) (D.lines[l.order_id] ||= []).push(l);
@@ -672,7 +674,12 @@ function compute(){
     else if(ls.length&&ls.every(l=>l.paywin==='Y')) r.st='개인결제창';
     r.gst=r.st||(D.made[o.order_id]?'파일 있음':remainOf({o,ls,live}).mode==='pending'?'환불 대기':'새 주문');
     if(!r.st){
-      if(!D.ec) r.st='대조 전';
+      if(!D.ec){
+        // 파일은 없지만 이 날짜에 저장된 대조 결과가 있으면 그 값을 보여준다(대조 현황과 같은 내용). 다시 대조하려면 파일을 올린다.
+        const sv=D.savedDay&&(D.savedDay.rows||[]).find(x=>x.o===o.order_id);
+        if(sv){ r.st=sv.st; r.ecTot=sv.ec; r.ecPay=sv.ecPay||''; r.tags=sv.tags||''; r.issues=[sv.st,...(sv.more||[])].filter(x=>BAD_ST.includes(x)||x!==sv.st); r.item=sv.item||''; r.expect=sv.expect??null; r.dres=sv.dres||''; r.dday=sv.dday||''; r.fromSaved=true; }
+        else r.st=D.savedDay?'미입력':'대조 전';
+      }
       // 파일 기간 밖 날짜는 그 주문의 원래 전표가 파일에 없을 수 있다(나중 반품·정산 전표만 있음) → 금액·품목을 판단하지 않는다.
       //   반품·정산 표시는 tags 로 남고, 저장된 결과에는 attachLater 가 붙인다.
       else if(!covered(D.date)) r.st='파일 기간 밖';
@@ -888,9 +895,10 @@ function renderRecon(){
   // 파일을 올리기 전에도 카페24 주문을 먼저 보여준다(상태 '대조 전'). 파일을 올리면 같은 표에 이카운트 합계·차액·상태가 채워진다(Su, 2026-10-14).
   const R=D.rows||[], cnt={}; for(const r of R) cnt[r.st]=(cnt[r.st]||0)+1;
   const bad=R.filter(r=>BAD_ST.includes(r.st)&&!(RV.notes[r.o.order_id]||{}).done).length;
-  const views=D.ec?[['bad','확인할 것',bad],['all','전체',R.length],['미입력','미입력',cnt['미입력']||0],['정상','정상',cnt['정상']||0],['etc','취소·입금대기·기간 밖',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)+(cnt['파일 기간 밖']||0)]]
+  const has=D.ec||D.savedDay;
+  const views=has?[['bad','확인할 것',bad],['all','전체',R.length],['미입력','미입력',cnt['미입력']||0],['정상','정상',cnt['정상']||0],['etc','취소·입금대기·기간 밖',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)+(cnt['파일 기간 밖']||0)]]
     :[['all','전체',R.length],['etc','취소·입금대기 등',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)]];
-  if(!D.ec&&D.view!=='etc') D.view='all';
+  if(!has&&D.view!=='etc') D.view='all';
   let list=R;
   if(D.view==='bad') list=R.filter(r=>BAD_ST.includes(r.st));
   else if(D.view==='etc') list=R.filter(r=>['취소','입금대기','개인결제창','파일 기간 밖'].includes(r.st));
@@ -933,13 +941,14 @@ function renderRecon(){
       :D.reconSaved==='skip-old'?`<div class="ec-stat">${esc(D.date)}은(는) 파일 전표 기간 밖이고 저장된 대조 결과가 없어 남기지 않았습니다. 파일에 없는 주문은 '파일 기간 밖'으로 보입니다.</div>`
       :D.reconSaved?`<div class="ec-stat">대조 결과를 대조 현황에 남겼습니다 (${esc(D.reconSaved)}).</div>`:''}
     ${D.attached&&D.attached.length?`<div class="ec-stat">이 파일에서 이전 날짜 주문의 반품·선수금 정산 전표 ${n(D.attached.length)}건을 그 날짜 대조 결과에 붙였습니다: ${D.attached.slice(0,6).map(a=>`${esc(a.date.slice(5))} ${esc(a.order)} (${esc(a.tag)})`).join(', ')}${D.attached.length>6?' …':''}</div>`:''}
-    ${D.ec?`<div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
+    ${!D.ec&&D.savedDay?`<div class="ec-stat">이 날짜는 <b>${esc(D.savedDay.at)}</b>에 <b>${esc(D.savedDay.file||'')}</b>(으)로 대조한 결과입니다(대조 현황과 같음). 다시 대조하려면 이카운트 파일을 올리세요.</div>`:''}
+    ${has?`<div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
       ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('정상',n(cnt['정상']||0)+'건','ok')}${kpi('미입력',n(miss)+'건',miss?'warn':'')}
       ${kpi('금액불일치',n(cnt['금액불일치']||0)+'건',cnt['금액불일치']?'warn':'')}${kpi('결제유형 확인',n(cnt['결제유형 확인']||0)+'건',cnt['결제유형 확인']?'warn':'')}${kpi('품목·수량 불일치',n(cnt['품목·수량 불일치']||0)+'건',cnt['품목·수량 불일치']?'warn':'')}
     </div>`:`<div class="ec-kpis" style="grid-template-columns:repeat(4,1fr)">
       ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('선수금',n(R.filter(r=>hasAdv(r.tags)).length)+'건')}${kpi('배송방식(퀵·설치 등)',n(R.filter(r=>kinds(r.tags).has('ship')).length)+'건')}${kpi('취소·입금대기',n((cnt['취소']||0)+(cnt['입금대기']||0))+'건')}
     </div>
-    <div class="ec-stat">아직 이카운트 파일을 올리지 않았습니다 — 위 '이카운트 판매현황 올리기'로 판매현황(품목별) 또는 판매조회 엑셀을 올리면 이 표에 이카운트 합계·차액·상태가 채워집니다.</div>`}
+    <div class="ec-stat">이 날짜는 아직 대조하지 않았습니다 — 위 '이카운트 판매현황 올리기'로 판매현황(품목별) 또는 판매조회 엑셀을 올리면 이 표에 이카운트 합계·차액·상태가 채워집니다.</div>`}
     ${`
     <div class="ec-row"><div class="ec-seg">${views.map(([v,l,c])=>`<button data-a="dview" data-v="${esc(v)}" class="${D.view===v?'on':''}">${l} ${n(c)}</button>`).join('')}</div>
       <span style="flex:1"></span>${miss?`<button class="go" data-a="togen" style="height:36px">미입력 ${n(miss)}건 판매입력 파일 만들기 →</button>`:''}</div>

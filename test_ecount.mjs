@@ -95,7 +95,8 @@ for (const p of ['map', 'log', 'daily', 'recon']) {
 }
 truthy('목록 설정이 화면 목록에 반영', ctx.__ecount.LISTS.wh.includes('테스트창고') && ctx.__ecount.LISTS.dst.length === 1);
 // 판매 입력 대조: 파일 없이도 카페24 주문 표가 나온다
-try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.compute(); ctx.__ecount.render(); truthy('대조 화면 파일 전 주문 표', root.innerHTML.includes(O1) && root.innerHTML.includes('대조 전') && root.innerHTML.includes('data-a="qdate"')); } catch (e) { bad++; console.log('FAIL 대조 화면 파일 전 ' + e.message); }
+try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.D.savedDay = null; ctx.__ecount.compute(); ctx.__ecount.render(); truthy('대조 화면 파일 전 주문 표', root.innerHTML.includes(O1) && root.innerHTML.includes('대조 전') && root.innerHTML.includes('data-a="qdate"'));
+  ctx.__ecount.D.savedDay = DAY; ctx.__ecount.compute(); ctx.__ecount.render(); const sv = ctx.__ecount.D.rows.find((r) => r.o.order_id === O1); truthy('저장된 대조 결과를 파일 없이 표에 채움', sv.st === '정상' && sv.ecTot === 23000 && root.innerHTML.includes('대조한 결과입니다')); ctx.__ecount.D.savedDay = null; } catch (e) { bad++; console.log('FAIL 대조 화면 파일 전 ' + e.message); }
 truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__ecount.D.pending && ctx.__ecount.D.pending.run.length >= 1 && ctx.__ecount.D.pending.run[0] === ctx.__ecount.kstDay(-1));
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
