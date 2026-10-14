@@ -289,17 +289,19 @@ function wire(root){
       e.preventDefault();
       const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`);
       if(!inp) return;
+      // 후보는 고르기만 한다(입력칸 채우고 선택 표시). 저장은 '저장' 버튼에서 확인 후.
       inp.value=t.dataset.c;
-      if(!confirm(`${inp.dataset.label}\n→ ${t.dataset.c} 로 저장할까요?`)) return;
-      try{ await saveManual(t.dataset.k,t.dataset.c,inp.dataset.label,(S.result&&S.result.ecName[t.dataset.c])||''); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); }
+      t.parentElement.querySelectorAll('a[data-a="pick"]').forEach(x=>{ x.style.outline=x===t?'2px solid var(--accent)':''; });
       return;
     }
     if(a==='saveauto'){ t.disabled=true; try{ await saveAuto(); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } t.disabled=false; return; }
     if(a==='savecode'){
       const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim();
       if(!code) return flash('품목코드를 넣거나 후보를 눌러 주세요.',true);
+      const nm=(S.result&&S.result.ecName[code])||'';
+      if(!confirm(`${inp.dataset.label}\n→ ${code}${nm?' ('+nm+')':''}\n\n이 코드로 저장할까요?`)) return;
       t.disabled=true;
-      try{ await saveManual(t.dataset.k,code,inp.dataset.label,(S.result&&S.result.ecName[code])||''); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); }
+      try{ await saveManual(t.dataset.k,code,inp.dataset.label,nm); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); }
       t.disabled=false; return;
     }
   });
