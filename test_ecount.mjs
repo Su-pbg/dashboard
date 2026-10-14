@@ -43,6 +43,7 @@ const json = (o) => ({ ok: true, status: 200, json: async () => o });
 const fetchStub = async (url, opt = {}) => {
   const u = String(url);
   if (opt.method === 'POST') return json({ ok: true, at: '2026-10-14 10:00', saved: 0, attached: [], note: null, sign: {} });
+  if (u.includes('/ecconf')) return json({ lists: { wh: ['온라인창고', '온라인 브랜드창고', '테스트창고'], pre: ['퀵)'], dst: ['출고완료'], ast: ['발주 필요'] } });
   if (u.includes('/ecmap')) return json({ map: { P0000AAA001: { code: 'EC001', name: '가 / 상품1', src: 'auto' }, P0000AAA002: { code: 'EC002', name: '가 / 상품2', src: 'auto' } }, sign: { EC001: 'EC001SI' } });
   if (u.includes('/ecsales')) return json({ log: [] });
   if (u.includes('/ecrecon?month')) return json({ idx: { [DATE]: { at: DAY.at, file: DAY.file, summary: DAY.summary } }, notes: {} });
@@ -89,6 +90,7 @@ for (const p of ['map', 'log', 'daily', 'recon']) {
   try { await ctx.loadEcountTab(root, p); pages[p] = root.innerHTML.length > 200 && !/불러오지 못했습니다/.test(root.innerHTML) ? 'ok' : 'empty'; }
   catch (e) { pages[p] = 'ERR ' + e.message; }
 }
+truthy('목록 설정이 화면 목록에 반영', ctx.__ecount.LISTS.wh.includes('테스트창고') && ctx.__ecount.LISTS.dst.length === 1);
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }

@@ -269,6 +269,7 @@ const noteTimers={};
 function noteMemo(date,order,memo){ const cur=RV.notes[order]||{}; RV.notes[order]={...cur,date,memo}; const c=monthCache[date.slice(0,7)]; if(c) c.notes[order]=RV.notes[order]; clearTimeout(noteTimers[order]); noteTimers[order]=setTimeout(()=>saveNote(date,order,{memo}).catch(()=>{}),700); }
 // 배송 상태 — 배송방식(퀵·설치·차량 등)이 있는 주문은 배송이 어디까지 진행됐는지 여기서 바꿔 가며 따라간다(Su, 2026-10-14).
 //   배송방식 자체는 이카운트 고객명 값 그대로. 이카운트의 배송일자·배송결과(판매조회 열)는 참고로 같이 보여준다.
+// 목록(배송 상태·선수금 진행·출고처·앞말)은 워커 /ecconf 에서 받아 덮어쓴다 — 화면 아래 '목록 설정'에서 고친다. 아래는 기본값.
 const DSTS=['일정 조율중','출고 예정','출고완료','배송완료','설치완료','보류'];
 // 선수금 진행 — 발주 필요 → 발주 완료 → 입고 완료 → 출고 완료. 배송이 나가면 이카운트에서 전표를 바꾸고(선수금 정산 전표) 처리완료로 승인한다.
 const ASTS=['발주 필요','발주 완료','입고 완료','출고 완료','보류'];
@@ -416,6 +417,25 @@ function renderLog(){
 //    · 고객 정보는 브라우저에서만 쓴다. 만든 파일만 워커 /ecsales 에 보관(로그인 뒤, 400일).
 const WH=['온라인창고','온라인 브랜드창고'];
 const PRE=['퀵)','택배)','설치)','차량)'];
+const LISTS={wh:WH,pre:PRE,dst:DSTS,ast:ASTS}, LIST_LABEL={wh:'출고처',pre:'고객명 앞말',dst:'배송 상태',ast:'선수금 진행'};
+const applyLists=L=>{ for(const k of Object.keys(LISTS)) if(Array.isArray(L[k])&&L[k].length) LISTS[k].splice(0,LISTS[k].length,...L[k]); if(!WH.includes(D.wh)) D.wh=WH[0]; };
+async function loadConf(){ try{ const d=await getJSON(`${WORKER}/ecconf`); if(d.lists) applyLists(d.lists); }catch(e){} S.confLoaded=true; }
+// 목록 설정 칸 — 네 목록을 줄 단위로 고쳐 저장
+function confCard(){
+  if(!S.confOpen) return `<div class="ec-card" style="padding:var(--s3) var(--s5)"><button class="ec-dl" data-a="confopen">목록 설정 (출고처 · 고객명 앞말 · 배송 상태 · 선수금 진행)</button></div>`;
+  return `<div class="ec-card"><h2>목록 설정</h2>
+    <p class="ec-lead">한 줄에 하나씩. 저장하면 팀 모두에게 바로 적용됩니다(이미 고른 값은 그대로 남습니다).</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--s3)">
+      ${Object.keys(LISTS).map(k=>`<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600">${LIST_LABEL[k]}
+        <textarea class="ec-in" data-a="conf" data-k="${k}" rows="6" style="height:auto;padding:8px;font-size:13px;line-height:1.5">${esc(LISTS[k].join('\n'))}</textarea></label>`).join('')}
+    </div>
+    <div class="ec-row" style="margin-top:var(--s3)"><button class="go" data-a="confsave" style="height:34px">저장</button><button class="ec-dl" data-a="confclose">닫기</button>${S.confMsg?`<span class="ec-sub" style="margin:0">${esc(S.confMsg)}</span>`:''}</div></div>`;
+}
+async function saveConf(root){
+  const lists={}; for(const k of Object.keys(LISTS)){ const ta=root.querySelector(`textarea[data-a="conf"][data-k="${k}"]`); lists[k]=String(ta?ta.value:'').split('\n').map(x=>x.trim()).filter(Boolean); }
+  const d=await getJSON(`${WORKER}/ecconf`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lists})});
+  applyLists(d.lists); S.confMsg='저장했습니다 '+new Date().toTimeString().slice(0,5);
+}
 const TPL=['판매일-No.','순번','판매처','판매처명','판매자','출고처','거래유형','결제유형','결제사항','결제일','배송일자','고객연락처','[택배/차량배송/설치여부] - 고객명','배송결과','배송주소','품목코드','품목명','규격','수량','에디션 No.','정가','단가','외화공급가액','공급가액','부가세','상품옵션','생산전표생성','적요'];
 const D={signOn:{},made:{},date:'',orders:[],lines:{},ec:null,ecFile:'',loading:'',err:null,view:'bad',sel:{},ed:{},names:{},codes:{},seller:'',wh:WH[0],flash:null};
 const kstDay=off=>new Date(Date.now()+9*3600e3+off*86400e3).toISOString().slice(0,10);
@@ -831,7 +851,7 @@ function renderDaily(){
     <div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>판매입력</th><th>주문번호</th><th>상품 · 품목코드</th><th>실결제</th><th>결제유형</th><th>상태</th></tr></thead>
       <tbody>${rowsHtml||`<tr><td colspan="6" style="color:var(--muted)">${D.loading?'':'해당하는 주문이 없습니다.'}</td></tr>`}</tbody></table></div>
     <p class="ec-note">실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 · 결제유형은 결제업체(토스페이먼츠·토스페이·카카오페이·페이코·네이버페이)와 결제수단으로 정합니다 · 품목코드는 품목코드 맵핑 기준.</p></div>`
-    +formCard();
+    +formCard()+confCard();
 }
 
 // 판매 입력 대조 — 이카운트에서 받은 판매현황으로 카페24 주문을 맞춰 본다
@@ -894,7 +914,8 @@ function renderRecon(){
     :`<div class="ec-stat">이카운트 → 판매현황(품목별) 또는 판매조회에서 해당 날짜가 든 엑셀을 받아 올려 주세요. 판매조회는 품목코드가 없어 품목 대조 대신 수량 합계를 봅니다.</div>`}
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
       품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 선수금 품목과 이카운트 고객명의 퀵)·택배)·설치)·차량) 표기(선수금은 옅은 빨간 행 · 선수금 진행·배송 상태를 바꿔 가며 따라가세요) ·
-      반품·선수금 정산·추가 전표 MM/DD = 같은 주문번호로 나중 날짜에 들어간 이카운트 전표(금액은 모두 합쳐 비교) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
+      반품·선수금 정산·추가 전표 MM/DD = 같은 주문번호로 나중 날짜에 들어간 이카운트 전표(금액은 모두 합쳐 비교) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`
+    +confCard();
 }
 // 판매입력 양식 각 주문 아래: 카페24 주문 정보 — 위 칸(고객명·앞말·출고처)을 보고 채우거나 버튼으로 바로 채운다
 function c24Info(o,r){
@@ -1108,6 +1129,9 @@ function wire(root){
     if(a==='runbatch'){ await runBatch(); return; }
     if(a==='fall'||a==='frange'||a==='fnone'){ D.fsel={}; for(const x of (D.fdates||[])) if(a==='fall'||(a==='frange'&&x.inR)) D.fsel[x.d]=true; render(); return; }
     if(a==='gorv'){ S.logView='rv'; RV.idx=null; setMenu('eclog'); return; }
+    if(a==='confopen'){ S.confOpen=true; S.confMsg=''; render(); return; }
+    if(a==='confclose'){ S.confOpen=false; render(); return; }
+    if(a==='confsave'){ t.disabled=true; try{ await saveConf(root); }catch(err){ S.confMsg='저장 실패: '+err.message; } t.disabled=false; render(); return; }
     if(a==='tftype'){ TF.type=t.dataset.v; render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
     if(a==='gorecon'){ e.preventDefault(); setMenu('ecrecon'); return; }
@@ -1151,9 +1175,10 @@ window.loadEcountTab=async function(el,page){
     el.innerHTML='<div class="state"><div class="spinner"></div>품목코드 맵핑 불러오는 중…</div>';
     try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }
   }
+  if(!S.confLoaded) await loadConf();
   if((S.page==='daily'||S.page==='recon')&&!D.loadedDate){ render(); D.loadedDate=true; await loadDailyC24(); return; }
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,LISTS,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();

@@ -127,6 +127,25 @@ var worker_default = {
       //   POST {note:{date, order, memo, done}}  메모·처리완료(팀 공유, ecrecon:note:{YYYY-MM})
       //   GET ?month=YYYY-MM → {idx, notes}   GET ?date=YYYY-MM-DD → {day, notes}
       //   rows 에는 고객 이름·연락처를 넣지 않는다(주문번호·공급사·상품·금액·결제유형·상태만).
+      // [2026-10-14] 이카운트 판매 입력 화면 설정 — 출고처·고객명 앞말·배송 상태·선수금 진행 목록을 배포 없이 화면에서 고친다(리포트 L4).
+      //   GET → {lists}  POST {lists:{wh:[],pre:[],dst:[],ast:[]}} → 통째로 저장(한 사람이 설정 화면에서 고친다). 없으면 화면의 기본값.
+      if (url.pathname === "/ecconf") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        const KEY = "ecconf:v1";
+        if (request.method === "GET") { const r = await kv0.get(KEY); return json({ lists: r ? JSON.parse(r) : null }); }
+        if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
+        let b = {};
+        try { b = await request.json(); } catch (e) { }
+        const L = b.lists || {}, out = {};
+        for (const k of ["wh", "pre", "dst", "ast"]) {
+          const arr = (Array.isArray(L[k]) ? L[k] : []).map((x) => String(x).trim()).filter((x) => x && x.length <= 30).slice(0, 30);
+          if (!arr.length) return json({ error: `${k} 목록이 비어 있습니다` }, 400);
+          out[k] = [...new Set(arr)];
+        }
+        await kv0.put(KEY, JSON.stringify(out));
+        return json({ ok: true, lists: out });
+      }
       if (url.pathname === "/ecrecon") {
         const kv0 = env.CAFE24_TOKEN_KV;
         if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
