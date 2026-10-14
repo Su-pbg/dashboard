@@ -470,17 +470,20 @@ function compute(){
   const md=pre.slice(4), key=v=>v?(v<md?'1'+v:'0'+v):'';   // 12월 주문 → 1월 전표는 해를 넘김
   const ecBy={}, later={};
   for(const r of (D.ec||[])) if(r.order.startsWith(pre)) (ecBy[r.order] ||= []).push(r);
+  // 같은 주문번호로 나중 날짜에 들어간 전표 — 종류를 붙여 보여준다: 반품(합계 마이너스) · 선수금 정산(선수금 품목) · 추가(분할 출고 등)
   for(const [k,rs] of Object.entries(ecBy)){
     const days=[...new Set(rs.map(r=>r.vday).filter(Boolean))].sort((x,y)=>key(x).localeCompare(key(y)));
-    if(days.length>1) later[k]=new Set(days.slice(1));
+    if(days.length<2) continue;
+    later[k]=days.slice(1).map(d=>{ const g=rs.filter(r=>r.vday===d), t=g.reduce((a,r)=>a+r.total,0);
+      return `${t<0?'반품':g.some(r=>r.adv)?'선수금 정산':'추가'} 전표 ${d.slice(0,2)}/${d.slice(2)}`; });
   }
   const out=[];
   for(const o of D.orders){
     const ls=(D.lines[o.order_id]||[]);
     const live=ls.filter(l=>l.canceled!=='Y'&&l.paywin!=='Y');
     const e=ecBy[o.order_id]||null, paid=paidOf(o), want=payType(o);
-    const lt=later[o.order_id]?[...later[o.order_id]].sort((x,y)=>key(x).localeCompare(key(y))).map(d=>d.slice(0,2)+'/'+d.slice(2)):[];
-    const r={o,ls,live,e,paid,want,later:lt,tags:[e?ecTags(e):'',lt.length?`이후 전표 ${lt.join(', ')}`:''].filter(Boolean).join(' · '),ecTot:e?e.reduce((t,x)=>t+x.total,0):null,ecPay:e?([...new Set(e.map(x=>x.pay).filter(Boolean))].join(', ')):'',adv:e?e.some(x=>x.adv):false,issues:[],item:''};
+    const lt=later[o.order_id]||[];
+    const r={o,ls,live,e,paid,want,later:lt,tags:[e?ecTags(e):'',...lt].filter(Boolean).join(' · '),ecTot:e?e.reduce((t,x)=>t+x.total,0):null,ecPay:e?([...new Set(e.map(x=>x.pay).filter(Boolean))].join(', ')):'',adv:e?e.some(x=>x.adv):false,issues:[],item:''};
     const unmapped=live.filter(l=>!codeOf(l));
     if(o.paid!=='Y') r.st='입금대기';
     else if(o.canceled==='Y'||!live.length&&ls.some(l=>l.canceled==='Y')) r.st=e?'취소 확인':'취소';
@@ -525,9 +528,10 @@ function signOn(l){ const k=l.variant_code||String(l.product_no); return k in D.
 function codeOf(l){ const k=l.variant_code||String(l.product_no); return D.codes[k]||(S.map[k]&&S.map[k].code)||''; }
 const BAD_ST=['미입력','금액불일치','결제유형 확인','품목·수량 불일치','취소 확인','카페24에 없음'];
 // 선수금(보라) · 배송방식(청록) · 이후 전표(회색) — 선수금·배송방식 주문은 진행 상황을 메모로 따라간다(Su, 2026-10-14)
-const tagStyle=x=>/^선수금/.test(x)?'background:#F1E8FF;color:#6B3FB8':/^이후 전표/.test(x)?'background:var(--fill);color:var(--muted)':'background:#E0F7F4;color:#00796B';
+const isLater=x=>/ 전표 \d\d\/\d\d$/.test(x);
+const tagStyle=x=>isLater(x)?(/^반품/.test(x)?'background:#FFF3E0;color:#C25E00':'background:var(--fill);color:var(--muted)'):/^선수금/.test(x)?'background:#F1E8FF;color:#6B3FB8':'background:#E0F7F4;color:#00796B';
 const tagHtml=t=>t?String(t).split(' · ').map(x=>`<span class="ec-badge" style="${tagStyle(x)};margin:1px">${esc(x)}</span>`).join('<br>'):'<span style="color:var(--ghost)">—</span>';
-const tracked=t=>String(t||'').split(' · ').some(x=>x&&!/^이후 전표/.test(x));   // 선수금·배송방식이 있는 주문
+const tracked=t=>String(t||'').split(' · ').some(x=>x&&!isLater(x));   // 선수금·배송방식이 있는 주문
 const rowBg=(t,done)=>done?'opacity:.55':tracked(t)?'background:#F2FBF9':'';
 const stCls=st=>{ st=String(st||'').split(' · ')[0]; return st==='정상'?'ec-ok':BAD_ST.includes(st)?'ec-bad':st==='대조 전'?'ec-info':'ec-warn'; };
 
@@ -693,7 +697,8 @@ function renderRecon(){
       <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`
     :`<div class="ec-stat">이카운트 → 판매현황(품목별) 또는 판매조회에서 해당 날짜가 든 엑셀을 받아 올려 주세요. 판매조회는 품목코드가 없어 품목 대조 대신 수량 합계를 봅니다.</div>`}
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
-      품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 선수금 품목과 이카운트 고객명의 퀵)·택배)·설치)·차량) 표기(민트 행 — 진행 상황을 메모로 남기세요) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
+      품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 선수금 품목과 이카운트 고객명의 퀵)·택배)·설치)·차량) 표기(민트 행 — 진행 상황을 메모로 남기세요) ·
+      반품·선수금 정산·추가 전표 MM/DD = 같은 주문번호로 나중 날짜에 들어간 이카운트 전표(금액은 모두 합쳐 비교) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
 }
 // 판매입력 양식 각 주문 아래: 카페24 주문 정보 — 위 칸(고객명·앞말·출고처)을 보고 채우거나 버튼으로 바로 채운다
 function c24Info(o,r){
