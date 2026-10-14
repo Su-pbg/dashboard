@@ -269,6 +269,7 @@ function tagCell(tags,order,date,r){
     <option value="" ${!nt.dst?'selected':''}>배송 상태 —</option>${DSTS.map(v=>`<option ${nt.dst===v?'selected':''}>${v}</option>`).join('')}</select></div>`:''}
     ${ec?`<div class="ec-sub" title="이카운트 배송일자 · 배송결과">이카운트: ${esc(ec)}</div>`:''}`;
 }
+const sumTxt=sm=>ST_ORDER.filter(k=>sm[k]).map(k=>`${k} ${n(sm[k])}`).join(' · ');
 function rvTable(rows,withDate){
   return `<div class="ec-scroll"><table class="ec-t" style="min-width:1100px"><thead><tr>${withDate?'<th>날짜</th>':''}<th>주문번호</th><th>선수금 · 배송방식</th><th>공급사</th><th>상품</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead><tbody>
     ${rows.map(r=>{ const nt=RV.notes[r.o]||{}, dt=r.date||RV.date;
