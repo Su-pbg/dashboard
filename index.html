@@ -3741,7 +3741,7 @@ function setMenu(m){
   $('dashView').hidden=ex||st||ec; $('expenseView').hidden=!ex; $('settleView').hidden=!st; $('ecountView').hidden=!ec;
   if(ec){
     try{ history.replaceState(null,'',location.pathname+'?m='+m); }catch(e){}
-    const EC={eclog:['이카운트 판매 입력','날짜별로 판매입력 파일을 만든 이력과 만든 사람을 보고, 만든 파일을 다시 받을 수 있어요'],
+    const EC={eclog:['이카운트 판매 입력','데일리 대사 시트를 여기서 바로 보고, 판매입력 파일을 만든 이력도 확인해요'],
               ecdaily:['데일리 전표 생성','그날 카페24 주문을 이카운트 판매입력 양식(엑셀)으로 만들어요'],
               ecrecon:['판매 입력 대조','이카운트에서 받은 판매현황으로 카페24 주문이 제대로 입력됐는지 맞춰 봐요'],
               ecmap:['품목코드 맵핑','카페24 상품·옵션을 이카운트 품목코드에 잇는 표예요']}[m];

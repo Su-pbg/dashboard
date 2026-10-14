@@ -50,7 +50,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
+const S={logView:'sheet', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -208,6 +208,48 @@ async function downloadFile(id){
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})); a.download=d.filename;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
 }
+// ---------- 데일리 대사 시트 보기 (이카운트 판매 입력 첫 화면) ----------
+// 예전 Daily_전표입력 웹앱이 채우던 구글시트를 구글시트로 가지 않고 여기서 본다(Su, 2026-10-14). 워커 /ecsheet 가 서비스계정으로 읽는다.
+const SH={meta:null,err:null,id:'',tab:'',vals:null,loading:false,q:''};
+async function loadSheetMeta(id){
+  SH.loading=true; SH.err=null;
+  try{ SH.meta=await getJSON(`${WORKER}/ecsheet${id?`?id=${encodeURIComponent(id)}`:''}`); SH.id=SH.meta.id;
+    const dates=SH.meta.tabs.filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t)).sort();
+    SH.tab=dates.length?dates[dates.length-1]:SH.meta.tabs[0]; await loadSheetTab(); }
+  catch(e){ SH.err=e; }
+  SH.loading=false;
+}
+async function loadSheetTab(){
+  SH.vals=null; SH.err=null;
+  try{ SH.vals=(await getJSON(`${WORKER}/ecsheet?id=${encodeURIComponent(SH.id)}&tab=${encodeURIComponent(SH.tab)}`)).values||[]; }
+  catch(e){ SH.err=e; }
+}
+const sheetCls=v=>{ v=String(v||''); if(/^정상$|^일치/.test(v)) return 'ec-ok'; if(/미입력|불일치|누락/.test(v)) return 'ec-bad'; if(/확인|대기/.test(v)) return 'ec-warn'; return ''; };
+function sheetHtml(){
+  if(SH.err) return `<div class="ec-stat err">${esc(SH.err.message)}</div>`;
+  if(!SH.meta) return `<div class="state"><div class="spinner"></div>시트 불러오는 중…</div>`;
+  const tabs=SH.meta.tabs, months=[{month:'이번 달',id:SH.meta.base},...(SH.meta.archive||[]).filter(a=>a.id&&a.id!==SH.meta.base)];
+  const dateTabs=tabs.filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t)).sort().reverse(), other=tabs.filter(t=>!dateTabs.includes(t)&&t!=='월별 아카이브');
+  let body='';
+  if(!SH.vals) body=`<div class="state"><div class="spinner"></div>${esc(SH.tab)} 불러오는 중…</div>`;
+  else{
+    const V=SH.vals, w=Math.max(0,...V.map(r=>r.length));
+    const hi=V.findIndex(r=>r.filter(c=>String(c).trim()).length>=Math.min(5,w));   // 머리글 = 처음으로 칸이 꽉 찬 줄
+    const notes=V.slice(0,Math.max(hi,0)).map(r=>r.filter(Boolean).join(' ')).filter(Boolean);
+    const head=hi>=0?V[hi]:[], q=SH.q.trim().toLowerCase();
+    const rows=(hi>=0?V.slice(hi+1):V).filter(r=>r.some(c=>String(c).trim())).filter(r=>!q||r.join(' ').toLowerCase().includes(q));
+    body=`${notes.map((t,i)=>`<div class="ec-stat" style="${i===0?'font-weight:700;color:var(--ink)':''}">${esc(t)}</div>`).join('')}
+      <div class="ec-row" style="margin-top:var(--s3)"><input class="ec-in" id="ecShQ" value="${esc(SH.q)}" placeholder="주문번호·상품명 검색" style="width:220px"><span class="ec-sub" style="margin:0">${n(rows.length)}줄</span></div>
+      <div class="ec-scroll"><table class="ec-t" style="min-width:${Math.max(720,w*110)}px"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.slice(0,1500).map(r=>`<tr>${Array.from({length:Math.max(w,head.length)},(_,i)=>{ const v=r[i]??'', c=sheetCls(v);
+        return `<td class="${String(v).length>18?'l':''}">${c&&String(v).length<20?`<span class="ec-badge ${c}">${esc(v)}</span>`:esc(v)}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+  return `<div class="ec-row">
+      <label>달 <select class="ec-in" id="ecShMonth">${months.map(m=>`<option value="${esc(m.id)}" ${m.id===SH.id?'selected':''}>${esc(m.month)}${m.range?` (${esc(m.range)})`:''}</option>`).join('')}</select></label>
+      <label>탭 <select class="ec-in" id="ecShTab">${[...other,...dateTabs].map(t=>`<option ${t===SH.tab?'selected':''}>${esc(t)}</option>`).join('')}</select></label>
+      <div class="ec-seg">${other.map(t=>`<button data-a="shtab" data-t="${esc(t)}" class="${SH.tab===t?'on':''}">${esc(t)}</button>`).join('')}${dateTabs[0]?`<button data-a="shtab" data-t="${esc(dateTabs[0])}" class="${SH.tab===dateTabs[0]?'on':''}">최근 ${esc(dateTabs[0].slice(5))}</button>`:''}</div>
+      <span style="flex:1"></span><button class="ec-dl" data-a="shreload">새로고침</button></div>${body}`;
+}
 function renderLog(){
   if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }
   const [y,m]=S.logMonth.split('-').map(Number), last=new Date(y,m,0).getDate();
@@ -224,7 +266,10 @@ function renderLog(){
       <td>${esc(f.by||'—')}</td><td>${esc(f.at)}</td><td>${n(f.orders)}건 · ${n(f.rows)}행</td>
       <td>${expired(f)?'<span class="ec-sub" style="margin:0">보관 기간 지남</span>':`<button class="ec-dl" data-a="logdl" data-id="${esc(f.id)}">받기</button>`}</td></tr>`).join('');
   }).join('');
-  S.root.innerHTML=`<div class="ec-card"><h2>판매입력 파일 이력</h2>
+  const seg=`<div class="ec-seg" style="margin-bottom:var(--s4)"><button data-a="logview" data-v="sheet" class="${S.logView==='sheet'?'on':''}">데일리 대사 시트</button><button data-a="logview" data-v="files" class="${S.logView==='sheet'?'':'on'}">판매입력 파일 이력</button></div>`;
+  if(S.logView==='sheet'){ S.root.innerHTML=`${seg}<div class="ec-card"><h2>데일리 대사 시트</h2>
+    <p class="ec-lead">카페24 ↔ 이카운트 데일리 대사 구글시트를 여기서 바로 봅니다(읽기 전용). 수정·메모는 시트에서 합니다.</p>${sheetHtml()}</div>`; return; }
+  S.root.innerHTML=`${seg}<div class="ec-card"><h2>판매입력 파일 이력</h2>
     <p class="ec-lead">데일리 전표 생성에서 만든 이카운트 판매입력 파일이 날짜별로 남습니다. 만든 사람은 파일을 만들 때 고른 담당자(판매자)입니다. 이력은 계속 남고, 파일은 만든 날부터 400일 보관합니다.</p>
     <div class="ec-row"><label>월 <input type="month" class="ec-in" id="ecLogMonth" value="${esc(S.logMonth)}"></label>
       <span class="ec-sub" style="margin:0">${n(days.length)}일 중 <b style="color:var(--ink)">${n(made)}일</b> 파일 있음</span>
@@ -667,9 +712,11 @@ function wire(root){
     const t=e.target;
     if(t.id==='ecFiles'){ const fs=[...t.files]; t.value=''; if(fs.length) onFiles(fs); return; }
     if((S.page==='daily'||S.page==='recon')&&onDailyChange(t)) return;
+    if(t.id==='ecShMonth'){ SH.meta=null; render(); loadSheetMeta(t.value).then(render); return; }
+    if(t.id==='ecShTab'){ SH.tab=t.value; SH.q=''; render(); loadSheetTab().then(render); return; }
     if(t.id==='ecLogMonth'){ S.logMonth=t.value||S.logMonth; (async()=>{ await loadLog(); render(); })(); return; }
   });
-  root.addEventListener('input',e=>{ if((S.page==='daily'||S.page==='recon')&&onDailyInput(e.target)) return; if(e.target.id==='ecQ'){ S.q=e.target.value; const pos=e.target.selectionStart; render(); const q=$('ecQ'); if(q){ q.focus(); q.setSelectionRange(pos,pos); } } });
+  root.addEventListener('input',e=>{ if((S.page==='daily'||S.page==='recon')&&onDailyInput(e.target)) return; if(e.target.id==='ecShQ'){ SH.q=e.target.value; const pos=e.target.selectionStart; render(); const q=$('ecShQ'); if(q){ q.focus(); q.setSelectionRange(pos,pos); } return; } if(e.target.id==='ecQ'){ S.q=e.target.value; const pos=e.target.selectionStart; render(); const q=$('ecQ'); if(q){ q.focus(); q.setSelectionRange(pos,pos); } } });
   root.addEventListener('click',async e=>{
     const t=e.target.closest('[data-a]'); if(!t) return;
     const a=t.dataset.a;
@@ -677,6 +724,9 @@ function wire(root){
     if(a==='logreload'){ await loadLog(); render(); return; }
     if(a==='godaily'){ setMenu('ecdaily'); return; }
     if(a==='dview'){ D.view=t.dataset.v; render(); return; }
+    if(a==='logview'){ S.logView=t.dataset.v; render(); return; }
+    if(a==='shtab'){ SH.tab=t.dataset.t; SH.q=''; render(); await loadSheetTab(); render(); return; }
+    if(a==='shreload'){ const id=SH.id; SH.meta=null; render(); await loadSheetMeta(id); render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
     if(a==='gorecon'){ e.preventDefault(); setMenu('ecrecon'); return; }
     if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }
@@ -714,6 +764,7 @@ window.loadEcountTab=async function(el,page){
   if(S.page==='log'){
     el.innerHTML='<div class="state"><div class="spinner"></div>판매입력 파일 이력 불러오는 중…</div>';
     await loadLog();   // 열 때마다 새로 받는다(다른 사람이 만든 파일도 보이게)
+    if(!SH.meta&&!SH.loading){ loadSheetMeta().then(render); }
   }else if(!S.loadedMap){
     el.innerHTML='<div class="state"><div class="spinner"></div>품목코드 맵핑 불러오는 중…</div>';
     try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }
