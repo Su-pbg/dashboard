@@ -815,9 +815,12 @@ async function generate(){
 }
 function dflash(msg,bad){ D.flash={msg,bad,at:Date.now()}; render(); setTimeout(()=>{ if(D.flash&&Date.now()-D.flash.at>=7900){ D.flash=null; render(); } },8000); }
 
+const wdOf=ds=>'일월화수목금토'[new Date(ds+'T00:00:00').getDay()];
 function dateRow(withFile){
+  const quick=[1,2,3].map(i=>kstDay(-i));   // 어제·그제·3일 전 — 월요일이면 토·일이 들어온다
   return `<div class="ec-row">
       <label>날짜 <input type="date" class="ec-in" id="ecdDate" value="${esc(D.date)}" max="${kstDay(0)}"></label>
+      <div class="ec-seg">${quick.map((d,i)=>`<button data-a="qdate" data-d="${d}" class="${D.date===d?'on':''}">${i===0?'어제 ':''}${d.slice(5).replace('-','/')} (${wdOf(d)})</button>`).join('')}</div>
       ${withFile?`<span class="go ec-file" style="height:36px">이카운트 판매현황 올리기<input type="file" id="ecdFile" accept=".xlsx,.xls" aria-label="이카운트 판매현황 파일"></span>
       ${D.ecFile?`<span class="ec-sub" style="margin:0">올린 파일 <b style="color:var(--ink)">${esc(D.ecFile)}</b> · ${ymd(D.date)} 주문 ${n(new Set((D.ec||[]).filter(r=>r.order.startsWith(ymd(D.date))).map(r=>r.order)).size)}건</span>`:''}`:''}
       <span style="flex:1"></span><button class="ec-dl" data-a="dreload">카페24 다시 받기</button></div>
@@ -868,9 +871,12 @@ function renderDaily(){
 // 판매 입력 대조 — 이카운트에서 받은 판매현황으로 카페24 주문을 맞춰 본다
 function renderRecon(){
   initDate();
-  const R=D.ec?(D.rows||[]):[], cnt={}; for(const r of R) cnt[r.st]=(cnt[r.st]||0)+1;
+  // 파일을 올리기 전에도 카페24 주문을 먼저 보여준다(상태 '대조 전'). 파일을 올리면 같은 표에 이카운트 합계·차액·상태가 채워진다(Su, 2026-10-14).
+  const R=D.rows||[], cnt={}; for(const r of R) cnt[r.st]=(cnt[r.st]||0)+1;
   const bad=R.filter(r=>BAD_ST.includes(r.st)&&!(RV.notes[r.o.order_id]||{}).done).length;
-  const views=[['bad','확인할 것',bad],['all','전체',R.length],['미입력','미입력',cnt['미입력']||0],['정상','정상',cnt['정상']||0],['etc','취소·입금대기·기간 밖',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)+(cnt['파일 기간 밖']||0)]];
+  const views=D.ec?[['bad','확인할 것',bad],['all','전체',R.length],['미입력','미입력',cnt['미입력']||0],['정상','정상',cnt['정상']||0],['etc','취소·입금대기·기간 밖',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)+(cnt['파일 기간 밖']||0)]]
+    :[['all','전체',R.length],['etc','취소·입금대기 등',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)]];
+  if(!D.ec&&D.view!=='etc') D.view='all';
   let list=R;
   if(D.view==='bad') list=R.filter(r=>BAD_ST.includes(r.st));
   else if(D.view==='etc') list=R.filter(r=>['취소','입금대기','개인결제창','파일 기간 밖'].includes(r.st));
@@ -897,7 +903,7 @@ function renderRecon(){
   }).join('');
   const miss=R.filter(r=>r.st==='미입력').length;
   S.root.innerHTML=`<div class="ec-card"><h2>판매 입력 대조</h2>
-    <p class="ec-lead">이카운트에서 받은 판매현황(품목별) 또는 판매조회(전표 단위) 엑셀을 올리면, 고른 날짜의 카페24 주문과 주문번호로 맞춰 금액 · 결제유형 · 품목·수량이 맞는지 봅니다.
+    <p class="ec-lead">고른 날짜의 카페24 주문이 먼저 나옵니다. 이카운트에서 받은 판매현황(품목별) 또는 판매조회(전표 단위) 엑셀을 올리면 주문번호로 맞춰 금액 · 결제유형 · 품목·수량이 맞는지 채워집니다.
       여러 날짜가 든 파일이면 아래 '파일 속 주문 날짜'에서 골라 한 번에 대조합니다. 이카운트 파일은 브라우저에서만 읽습니다.</p>
     ${dateRow(true)}
     ${D.fdates&&D.fdates.length>1?`<div style="background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);margin-top:var(--s3)">
@@ -916,13 +922,16 @@ function renderRecon(){
     ${D.ec?`<div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
       ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('정상',n(cnt['정상']||0)+'건','ok')}${kpi('미입력',n(miss)+'건',miss?'warn':'')}
       ${kpi('금액불일치',n(cnt['금액불일치']||0)+'건',cnt['금액불일치']?'warn':'')}${kpi('결제유형 확인',n(cnt['결제유형 확인']||0)+'건',cnt['결제유형 확인']?'warn':'')}${kpi('품목·수량 불일치',n(cnt['품목·수량 불일치']||0)+'건',cnt['품목·수량 불일치']?'warn':'')}
+    </div>`:`<div class="ec-kpis" style="grid-template-columns:repeat(4,1fr)">
+      ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('선수금',n(R.filter(r=>hasAdv(r.tags)).length)+'건')}${kpi('배송방식(퀵·설치 등)',n(R.filter(r=>kinds(r.tags).has('ship')).length)+'건')}${kpi('취소·입금대기',n((cnt['취소']||0)+(cnt['입금대기']||0))+'건')}
     </div>
+    <div class="ec-stat">아직 이카운트 파일을 올리지 않았습니다 — 위 '이카운트 판매현황 올리기'로 판매현황(품목별) 또는 판매조회 엑셀을 올리면 이 표에 이카운트 합계·차액·상태가 채워집니다.</div>`}
+    ${`
     <div class="ec-row"><div class="ec-seg">${views.map(([v,l,c])=>`<button data-a="dview" data-v="${esc(v)}" class="${D.view===v?'on':''}">${l} ${n(c)}</button>`).join('')}</div>
       <span style="flex:1"></span>${miss?`<button class="go" data-a="togen" style="height:36px">미입력 ${n(miss)}건 판매입력 파일 만들기 →</button>`:''}</div>
     ${tfBar(stList,rg)}
     <div class="ec-scroll"><table class="ec-t" style="min-width:1050px"><thead><tr><th>주문번호</th><th style="min-width:150px">선수금 · 배송방식</th><th>상품 · 품목코드</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead>
-      <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`
-    :`<div class="ec-stat">이카운트 → 판매현황(품목별) 또는 판매조회에서 해당 날짜가 든 엑셀을 받아 올려 주세요. 판매조회는 품목코드가 없어 품목 대조 대신 수량 합계를 봅니다.</div>`}
+      <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">${D.loading?'':'해당하는 주문이 없습니다.'}</td></tr>`}</tbody></table></div>`}
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
       환불이 끝나지 않은 부분취소 주문은 '환불 전 예상' 금액과 비교해 '환불 대기 확인'으로 둡니다(환불이 끝나면 다시 대조) ·
       품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 선수금 품목과 이카운트 고객명의 퀵)·택배)·설치)·차량) 표기(선수금은 옅은 빨간 행 · 선수금 진행·배송 상태를 바꿔 가며 따라가세요) ·
@@ -1150,6 +1159,7 @@ function wire(root){
     if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='wait'&&r.gst==='환불 대기')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }
     if(a==='togen'){ D.sel={}; for(const r of (D.rows||[])) if(r.st==='미입력'&&r.live.length) D.sel[r.o.order_id]=true; D.selInit=true; D.gview='all'; setMenu('ecdaily'); return; }
     if(a==='dreload'){ await loadDailyC24(); return; }
+    if(a==='qdate'){ if(D.date!==t.dataset.d){ D.date=t.dataset.d; await loadDailyC24(); } return; }
     if(a==='dgen'){ t.disabled=true; try{ await generate(); }catch(err){ dflash('만들지 못했습니다: '+err.message,true); } t.disabled=false; return; }
     if(a==='logdl'){ t.disabled=true; const txt=t.textContent; t.textContent='받는 중…'; try{ await downloadFile(t.dataset.id); }catch(err){ alert('받지 못했습니다: '+err.message); } t.disabled=false; t.textContent=txt; return; }
     if(a==='pick'){
