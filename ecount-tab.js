@@ -587,6 +587,7 @@ async function saveRecon(){
   const sm=buildSummary(rows);
   let res; try{ res=(await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,summary:sm,rows,file})})).at; }
   catch(e){ res='fail:'+e.message; }
+  if(res&&!String(res).startsWith('fail')&&D.pending){ D.pending.done.add(date); D.pending.run=D.pending.run.filter(d=>d!==date); }
   if(D.date===date){ D.reconSaved=res; render(); }   // 그사이 다른 날짜로 넘어갔으면 화면 표시는 건드리지 않는다
   return res;
 }
@@ -816,11 +817,24 @@ async function generate(){
 function dflash(msg,bad){ D.flash={msg,bad,at:Date.now()}; render(); setTimeout(()=>{ if(D.flash&&Date.now()-D.flash.at>=7900){ D.flash=null; render(); } },8000); }
 
 const wdOf=ds=>'일월화수목금토'[new Date(ds+'T00:00:00').getDay()];
+// 대조 이력이 없는 지난 날짜(어제부터 거슬러 최대 14일)를 버튼으로 — 주말·공휴일 다음 영업일에 그 날짜들이 다 보인다(Su, 2026-10-14).
+// 대조 현황(월간요약)에 그 날짜가 있으면 '대조됨'. 판매 입력 대조 화면에서만 쓴다.
+async function loadPending(){
+  const days=[]; for(let i=1;i<=14;i++) days.push(kstDay(-i));
+  const months=[...new Set(days.map(d=>d.slice(0,7)))], done=new Set();
+  await Promise.all(months.map(async ym=>{ try{ const d=await getJSON(`${WORKER}/ecrecon?month=${ym}`); for(const k of Object.keys(d.idx||{})) done.add(k); }catch(e){} }));
+  const pend=days.filter(d=>!done.has(d));
+  // 미대조가 연속으로 이어진 구간만 보여준다(오래된 것 하나가 빠졌다고 2주 전까지 늘어놓지 않게). 없으면 어제.
+  const run=[]; for(const d of days){ if(done.has(d)) break; run.push(d); }
+  D.pending={run:run.length?run:[kstDay(-1)],done};
+}
 function dateRow(withFile){
-  const quick=[1,2,3].map(i=>kstDay(-i));   // 어제·그제·3일 전 — 월요일이면 토·일이 들어온다
+  const P=D.pending||{run:[kstDay(-1)],done:new Set()};
+  const quick=[...new Set([...P.run,...[1,2,3].map(i=>kstDay(-i))])].sort().reverse().slice(0,10);
   return `<div class="ec-row">
       <label>날짜 <input type="date" class="ec-in" id="ecdDate" value="${esc(D.date)}" max="${kstDay(0)}"></label>
-      <div class="ec-seg">${quick.map((d,i)=>`<button data-a="qdate" data-d="${d}" class="${D.date===d?'on':''}">${i===0?'어제 ':''}${d.slice(5).replace('-','/')} (${wdOf(d)})</button>`).join('')}</div>
+      <div class="ec-seg">${quick.map(d=>{ const dn=P.done.has(d); return `<button data-a="qdate" data-d="${d}" class="${D.date===d?'on':''}" style="${dn?'color:var(--muted)':'font-weight:700'}">${d===kstDay(-1)?'어제 ':''}${d.slice(5).replace('-','/')} (${wdOf(d)})${dn?' ✓':''}</button>`; }).join('')}</div>
+      ${withFile&&P.run.length>1?`<span class="ec-sub" style="margin:0">대조 안 한 날짜 ${n(P.run.length)}일</span>`:''}
       ${withFile?`<span class="go ec-file" style="height:36px">이카운트 판매현황 올리기<input type="file" id="ecdFile" accept=".xlsx,.xls" aria-label="이카운트 판매현황 파일"></span>
       ${D.ecFile?`<span class="ec-sub" style="margin:0">올린 파일 <b style="color:var(--ink)">${esc(D.ecFile)}</b> · ${ymd(D.date)} 주문 ${n(new Set((D.ec||[]).filter(r=>r.order.startsWith(ymd(D.date))).map(r=>r.order)).size)}건</span>`:''}`:''}
       <span style="flex:1"></span><button class="ec-dl" data-a="dreload">카페24 다시 받기</button></div>
@@ -1198,9 +1212,10 @@ window.loadEcountTab=async function(el,page){
     try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }
   }
   if(!S.confLoaded) await loadConf();
+  if(S.page==='recon'&&!D.pending){ initDate(); await loadPending(); if(!D.loadedDate) D.date=D.pending.run[D.pending.run.length-1]; }
   if((S.page==='daily'||S.page==='recon')&&!D.loadedDate){ render(); D.loadedDate=true; await loadDailyC24(); return; }
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,LISTS,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,LISTS,kstDay,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();
