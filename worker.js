@@ -122,49 +122,43 @@ var worker_default = {
       //   GET ?id=           → {filename, b64}
       //   POST {dates,by,orders,rows,filename,b64} → 저장
       // 파일엔 고객 이름·연락처·주소가 들어간다 → 로그인한 사람만 받는다(이 경로는 인증 뒤에 있다).
-      // [2026-10-14] 데일리 대사 구글시트(예전 Daily_전표입력 웹앱 결과)를 '이카운트 판매 입력' 첫 화면에 그대로 보여준다.
-      //   GET            → 탭 목록 + 월별 아카이브(다른 달 시트 링크)
-      //   GET ?tab=이름   → 그 탭 값(FORMATTED_VALUE).  &id= 는 아카이브에 있는 시트만 허용.
-      //   시트를 서비스계정(GA_SA_KEY)에 뷰어로 공유해야 한다. 고객 이름·연락처 열은 없는 시트다.
-      if (url.pathname === "/ecsheet") {
-        const sa = JSON.parse(env.GA_SA_KEY);
-        const tok = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets.readonly");
-        const H = { headers: { Authorization: "Bearer " + tok } };
-        const base = env.ECSHEET_ID || ECSHEET_ID;
-        const fail = async (r) => {
-          const j = await r.json().catch(() => ({}));
-          const msg = j?.error?.message || `HTTP ${r.status}`;
-          return json({ error: r.status === 403 ? `데일리 대사 시트를 읽을 권한이 없습니다. 시트를 ${sa.client_email} 에 '뷰어'로 공유해 주세요.` : `시트를 읽지 못했습니다: ${msg}`, saEmail: sa.client_email }, 200);
-        };
-        // 아카이브: 기본 시트의 '월별 아카이브' 탭 링크
-        const ar = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${base}?ranges=${encodeURIComponent("'월별 아카이브'")}&fields=properties.title,sheets(properties(title,sheetId,index,hidden)),sheets.data.rowData.values(formattedValue,hyperlink)`, H);
-        if (!ar.ok) return fail(ar);
-        const aj = await ar.json();
-        const archive = [];
-        for (const sh of aj.sheets || []) for (const d of sh.data || []) for (const row of (d.rowData || []).slice(1)) {
-          const v = (row.values || []).map((c) => c || {});
-          const link = v.map((c) => c.hyperlink || "").find((h) => /spreadsheets\/d\//.test(h)) || "";
-          const m = link.match(/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/);
-          if (v[0] && v[0].formattedValue) archive.push({ month: v[0].formattedValue, range: (v[2] && v[2].formattedValue) || "", note: (v[3] && v[3].formattedValue) || "", id: m ? m[1] : "" });
+      // [2026-10-14] 판매 입력 대조 결과 — 예전 데일리 대사 시트(월간요약·날짜별 탭·전표입력공유)를 대시보드에서 보려고 남긴다.
+      //   POST {date, summary, rows, file}  날짜별 결과 저장(ecrecon:day:{date}, 400일) + 달 목록(ecrecon:idx:{YYYY-MM})
+      //   POST {note:{date, order, memo, done}}  메모·처리완료(팀 공유, ecrecon:note:{YYYY-MM})
+      //   GET ?month=YYYY-MM → {idx, notes}   GET ?date=YYYY-MM-DD → {day, notes}
+      //   rows 에는 고객 이름·연락처를 넣지 않는다(주문번호·공급사·상품·금액·결제유형·상태만).
+      if (url.pathname === "/ecrecon") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        const okDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
+        const getJ = async (k, d) => { const r = await kv0.get(k); return r ? JSON.parse(r) : d; };
+        const now = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " ");
+        if (request.method === "GET") {
+          const date = q.get("date"), month = q.get("month");
+          if (okDate(date)) return json({ day: await getJ("ecrecon:day:" + date, null), notes: await getJ("ecrecon:note:" + date.slice(0, 7), {}) });
+          if (!/^\d{4}-\d{2}$/.test(month || "")) return json({ error: "month=YYYY-MM 또는 date=YYYY-MM-DD 가 필요합니다" }, 400);
+          return json({ idx: await getJ("ecrecon:idx:" + month, {}), notes: await getJ("ecrecon:note:" + month, {}) });
         }
-        const id = q.get("id") || base;
-        if (id !== base && !archive.some((a) => a.id === id)) return json({ error: "아카이브에 없는 시트입니다" }, 400);
-        const tab = q.get("tab");
-        if (!tab) {
-          let tabs = (aj.sheets || []).filter((x) => !x.properties.hidden).map((x) => x.properties.title), title = aj.properties.title;
-          if (id !== base) {
-            const r2 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=properties.title,sheets.properties(title,hidden)`, H);
-            if (!r2.ok) return fail(r2);
-            const j2 = await r2.json();
-            tabs = (j2.sheets || []).filter((x) => !x.properties.hidden).map((x) => x.properties.title); title = j2.properties.title;
-          }
-          return json({ id, base, title, tabs, archive });
+        if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
+        let b = {};
+        try { b = await request.json(); } catch (e) { }
+        if (b.note) {
+          const nt = b.note, ord = String(nt.order || "");
+          if (!okDate(nt.date) || !/^\d{8}-\d{7}$/.test(ord)) return json({ error: "잘못된 메모" }, 400);
+          const k = "ecrecon:note:" + nt.date.slice(0, 7), notes = await getJ(k, {});
+          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now };
+          if (!notes[ord].memo && !notes[ord].done) delete notes[ord];
+          await kv0.put(k, JSON.stringify(notes));
+          return json({ ok: true, note: notes[ord] || null });
         }
-        if (tab.length > 100) return json({ error: "잘못된 탭" }, 400);
-        const r3 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${tab.replace(/'/g, "''")}'`)}?valueRenderOption=FORMATTED_VALUE`, H);
-        if (!r3.ok) return fail(r3);
-        const j3 = await r3.json();
-        return json({ id, tab, values: (j3.values || []).slice(0, 3000) });
+        if (!okDate(b.date) || !Array.isArray(b.rows)) return json({ error: "date 와 rows 가 필요합니다" }, 400);
+        const body = JSON.stringify({ date: b.date, at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {}, rows: b.rows.slice(0, 3000) });
+        if (body.length > 5e6) return json({ error: "너무 큽니다" }, 400);
+        await kv0.put("ecrecon:day:" + b.date, body, { expirationTtl: 400 * 86400 });
+        const ik = "ecrecon:idx:" + b.date.slice(0, 7), idx = await getJ(ik, {});
+        idx[b.date] = { at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {} };
+        await kv0.put(ik, JSON.stringify(idx));
+        return json({ ok: true, at: now });
       }
       if (url.pathname === "/ecsales") {
         const kv0 = env.CAFE24_TOKEN_KV;
@@ -1338,7 +1332,6 @@ async function handleReceipt(request, env) {
 __name(handleReceipt, "handleReceipt");
 // [2026-10-12] 위탁 정산용 거래처 LIST 읽기. 시트 ID 는 비밀이 아니다(접근은 공유 설정이 막는다).
 // 거래처 LIST 탭에는 연락처가 있어 정산에 쓰는 열(입점여부·브랜드명·공급사코드)만 남긴다.
-var ECSHEET_ID = "1c8rXr1bvUH4GLpLI1cojOo0fIxLOZbMEvUsonV9DGOs";   // 데일리 대사 시트(이번 달). 지난달은 그 안 '월별 아카이브' 링크
 var SETTLE_SHEET_ID = "1_murW4zNdM5lYIUG5vM1F-LARA3Q7lfLLBtArvtYA0c";
 // 담당자는 대시보드 담당자 탭(supplier-managers.json)이 아니라 거래처 LIST 의 '담당자' 열을 따른다(아트·라이프 탭).
 var SETTLE_TABS = {

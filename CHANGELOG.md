@@ -10,6 +10,14 @@
 
 ---
 
+## 2026-10-14 — 대조 현황 (이카운트 판매 입력 첫 화면)
+배포: `index.html` · `ecount-tab.js` (Pages) · `worker.js` (Worker)
+
+- 예전 데일리 대사 구글시트의 내용(월간요약 · 날짜별 상세 · 전표입력공유)을 대시보드에서 직접 보여준다. 시트를 붙이지 않고,
+  판매 입력 대조를 돌릴 때 결과를 워커 `/ecrecon`(KV `ecrecon:day:*` 400일, `ecrecon:idx:YYYY-MM`)에 남겨 그린다. 고객 이름·연락처는 남기지 않음.
+- 메모·처리완료는 `ecrecon:note:YYYY-MM` 에 팀 공유(이전엔 브라우저 저장).
+- '엑셀로 받기': 월간요약 · 전표입력공유 · 날짜별 시트로 된 xlsx.
+
 ## 2026-10-14 — 판매 입력 대조 분리
 배포: `index.html` · `ecount-tab.js` (Pages) · `worker.js` (Worker)
 
