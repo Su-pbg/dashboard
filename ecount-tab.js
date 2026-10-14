@@ -443,7 +443,7 @@ async function loadDailyC24(){
   try{ RV.notes={...RV.notes,...((await getJSON(`${WORKER}/ecrecon?date=${D.date}`)).notes||{})}; }catch(e){}
   D.ed=lsGet(edKey(),{}); D.names={}; D.sel={}; D.selInit=false; D.loading=''; D.reconSaved='';
   compute(); render();
-  if(S.page==='recon') saveRecon();
+  if(S.page==='recon'&&!D.batch) saveRecon();
 }
 // 그 달 판매입력 파일 이력 → 주문번호별로 어떤 파일에 들어갔는지
 async function loadMade(){
@@ -478,7 +478,32 @@ async function onDailyFile(f){
   try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name;
     try{ const k=await learnSign(D.ec); if(k) D.signLearned=k; }catch(e){} }
   catch(e){ D.err=e; }
-  D.loading=''; compute(); render(); saveRecon(); attachLater();
+  D.loading=''; fileDates(); compute(); render(); saveRecon(); attachLater();
+}
+// 파일 하나에 여러 날짜 — 파일 속 주문 날짜를 모아 고르게 하고 한 번에 대조·저장한다.
+// 판매조회는 전표 날짜로 뽑기 때문에, 그 기간보다 옛 주문(반품·선수금 정산 전표만 든 것)은 기본으로 고르지 않는다(대조하면 전부 미입력으로 잘못 나온다).
+function fileDates(){
+  const cnt={}; for(const r of (D.ec||[])) cnt[r.order.slice(0,8)]=(cnt[r.order.slice(0,8)]||0)+1;
+  const orders={}; for(const r of (D.ec||[])) (orders[r.order.slice(0,8)] ||= new Set()).add(r.order);
+  const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(), lo=vd[0], hi=vd[vd.length-1];
+  // 주말 주문은 월요일 전표로 들어가니 전표 기간 시작 2일 전 주문까지 포함
+  const inR=d=>{ if(!lo) return true; const md=d.slice(4,8), lo2=String(Number(lo)-2).padStart(4,'0'); return md>=lo2&&md<=hi; };
+  D.fdates=Object.keys(cnt).sort().reverse().map(d=>({d:`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`,n:orders[d].size,inR:inR(d)}));
+  D.fsel={}; for(const x of D.fdates) if(x.inR&&x.d<=kstDay(0)) D.fsel[x.d]=true;
+  D.fres={};
+}
+async function runBatch(){
+  const ds=Object.keys(D.fsel||{}).filter(d=>D.fsel[d]).sort();
+  if(!ds.length) return;
+  D.batch=true; D.fres={};
+  try{
+    for(const [i,dt] of ds.entries()){
+      D.date=dt; D.batchMsg=`${i+1}/${ds.length} · ${dt} 대조 중…`; await loadDailyC24(); await saveRecon();
+      const R=D.rows||[], st={}; for(const r of R) st[r.st]=(st[r.st]||0)+1;
+      D.fres[dt]={saved:D.reconSaved,st};
+    }
+  }finally{ D.batch=false; D.batchMsg=''; }
+  render();
 }
 // 파일 속 '이전 날짜 주문'의 반품·선수금 정산 전표를 그 주문일에 저장된 대조 결과에 붙인다(저장된 날짜만, 같은 표시는 한 번만).
 async function attachLater(){
@@ -747,6 +772,13 @@ function renderRecon(){
     <p class="ec-lead">이카운트에서 받은 판매현황(품목별) 또는 판매조회(전표 단위) 엑셀을 올리면, 고른 날짜의 카페24 주문과 주문번호로 맞춰 금액 · 결제유형 · 품목·수량이 맞는지 봅니다.
       여러 날짜가 든 파일이면 날짜만 바꿔 가며 보면 됩니다. 이카운트 파일은 브라우저에서만 읽습니다.</p>
     ${dateRow(true)}
+    ${D.fdates&&D.fdates.length>1?`<div style="background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);margin-top:var(--s3)">
+      <div class="ec-row"><b style="font-size:13px">파일 속 주문 날짜 ${n(D.fdates.length)}개</b><span class="ec-sub" style="margin:0">체크한 날짜를 한 번에 대조해 대조 현황에 남깁니다. 전표 기간보다 옛 주문(반품·정산 전표만 있는 날짜)은 빼 두었습니다 — 그 전표는 이전 결과에 자동으로 붙습니다.</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px">${D.fdates.map(x=>{ const r=D.fres&&D.fres[x.d];
+        return `<label style="font-size:12px;display:flex;gap:4px;align-items:center;${x.inR?'':'color:var(--muted)'}"><input type="checkbox" data-a="fsel" data-d="${x.d}" ${D.fsel[x.d]?'checked':''} ${D.batch?'disabled':''}>${esc(x.d.slice(5).replace('-','/'))} <span class="ec-sub" style="display:inline;margin:0">${n(x.n)}건</span>
+          ${r?`<span class="ec-badge ${r.saved&&!String(r.saved).startsWith('fail')&&r.saved!=='nodate'?'ec-ok':'ec-bad'}">${r.saved==='nodate'?'파일에 없음':String(r.saved).startsWith('fail')?'저장 실패':ST_ORDER.filter(k=>r.st[k]&&k!=='정상').map(k=>k+' '+r.st[k]).join(' · ')||'모두 정상'}</span>`:''}</label>`; }).join('')}</div>
+      <div class="ec-row" style="margin-top:8px"><button class="go" data-a="runbatch" style="height:34px" ${D.batch?'disabled':''}>${D.batch?esc(D.batchMsg||'대조 중…'):`체크한 날짜 ${n(Object.values(D.fsel||{}).filter(Boolean).length)}개 모두 대조`}</button>
+        ${Object.keys(D.fres||{}).length&&!D.batch?'<button class="ec-dl" data-a="gorv">대조 현황에서 보기</button>':''}</div></div>`:''}
     ${D.reconSaved==='nodate'?`<div class="ec-stat err">올린 이카운트 파일에 ${esc(D.date)} 주문이 없습니다 — 그 날짜가 든 판매현황을 올려 주세요(대조 현황에 남기지 않았습니다).</div>`
       :D.reconSaved&&D.reconSaved.startsWith('fail:')?`<div class="ec-stat err">대조 결과를 남기지 못했습니다: ${esc(D.reconSaved.slice(5))}</div>`
       :D.reconSaved?`<div class="ec-stat">대조 결과를 대조 현황에 남겼습니다 (${esc(D.reconSaved)}).</div>`:''}
@@ -947,6 +979,7 @@ function wire(root){
     const t=e.target;
     if(t.id==='ecFiles'){ const fs=[...t.files]; t.value=''; if(fs.length) onFiles(fs); return; }
     if((S.page==='daily'||S.page==='recon')&&onDailyChange(t)) return;
+    if(t.dataset.a==='fsel'){ D.fsel[t.dataset.d]=t.checked; render(); return; }
     if(t.id==='ecTfSort'){ TF.sort=t.value; render(); return; }
     if(t.id==='ecRvMonth'){ RV.month=t.value||RV.month; RV.date=''; RV.idx=null; render(); loadRV().then(render); return; }
     if(t.dataset.a==='rvdone'){ saveNote(t.dataset.d,t.dataset.o,{done:t.checked}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
@@ -970,6 +1003,8 @@ function wire(root){
     if(a==='rvxlsx'){ try{ await exportRV(t); }catch(err){ alert('엑셀을 만들지 못했습니다: '+err.message); t.disabled=false; t.textContent='엑셀로 받기 (이 달)'; } return; }
     if(a==='fillname'){ D.names[t.dataset.o]=t.dataset.v; render(); return; }
     if(a==='fillpre'){ ed(t.dataset.o).pre=t.dataset.v; saveEd(); render(); return; }
+    if(a==='runbatch'){ await runBatch(); return; }
+    if(a==='gorv'){ S.logView='rv'; RV.idx=null; setMenu('eclog'); return; }
     if(a==='tftype'){ TF.type=t.dataset.v; render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
     if(a==='gorecon'){ e.preventDefault(); setMenu('ecrecon'); return; }
