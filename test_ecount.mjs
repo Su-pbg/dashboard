@@ -82,6 +82,9 @@ eq('결제유형 토스머니', pt({ pg: 'toss', easypay: 'toss', pay_methods: [
 eq('결제유형 카카오페이', pt({ pg: 'kakaokakaopay', easypay: 'kakaopay', pay_methods: ['card', 'coupon'] }), '17.카카오페이');
 eq('결제유형 페이코 포인트', pt({ pg: 'nhnentpayco', pay_methods: ['prepaid'] }), '26.페이코-페이코 포인트');
 eq('결제유형 무통장(현금, PG 없음)', pt({ pg: '', pay_methods: ['cash'] }), '6.현금영수증(계좌이체)');
+eq('결제유형 네이버페이', pt({ market: 'NCHECKOUT', pg: '', pay_methods: ['card'] }), '12.네이버페이');
+eq('결제유형 토스페이먼츠 계좌이체', pt({ pg: 'dacom', pay_methods: ['tcash'] }), '16. PG(무통장입금)');
+eq('결제유형 적립금·쿠폰만(0원)', pt({ pg: '', pay_methods: ['point', 'coupon'], payment_amount: 0 }), '14. PG(카드)');
 
 // ---------- ③ 화면 + 계산 (가짜 서버로 실제 흐름) ----------
 const root = el();

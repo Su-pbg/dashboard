@@ -446,6 +446,8 @@ const ed=o=>(D.ed[o] ||= {});
 function saveEd(){ lsSet(edKey(),D.ed); }   // 메모·처리완료·앞말·출고처만(이름·연락처는 저장하지 않는다)
 
 // 결제업체·결제수단 → 이카운트 결제유형 (자사몰 판매입력 가이드 3-5p + 이카운트 실데이터)
+//   2026-10-14 9~10월 실데이터로 확인: 네이버페이 카드·선불 → 12.네이버페이 · 토스페이먼츠 계좌이체(tcash) → 16. PG(무통장입금)
+//   · PG 없는 무통장입금 → 6.현금영수증(계좌이체) · 적립금·쿠폰만 쓴 0원 주문 → 14. PG(카드)로 입력돼 있었다(20260910-0000275).
 function payType(o){
   const m=(o.pay_methods||[]).filter(x=>!['point','coupon','credit','mileage','deposit'].includes(x));
   const main=m[0]||'', pg=String(o.pg||'').toLowerCase(), ez=String(o.easypay||'').toLowerCase();
@@ -455,7 +457,7 @@ function payType(o){
   if(/payco/.test(pg+ez)) return main==='prepaid'?'26.페이코-페이코 포인트':'23.페이코-카드결제(간편)';
   if(/dacom|tosspayments/.test(pg)){ if(main==='card') return '14. PG(카드)'; if(['cash','tcash','virtual','icash'].includes(main)) return '16. PG(무통장입금)'; }
   if(!pg&&main==='cash') return '6.현금영수증(계좌이체)';
-  if(!main&&o.payment_amount===0) return '';   // 적립금·쿠폰으로만 결제
+  if(!main&&(o.payment_amount||0)===0) return '14. PG(카드)';   // 적립금·쿠폰으로만 결제 — 실데이터에서 PG(카드)로 입력
   return '';
 }
 // 선수금: 주문 첫 전표에 품목 '선수금(완납)'으로 전액 → 출고·정산 때 같은 주문번호로 선수금 차감 + 상품(합계 0원) 전표가 또 생긴다.
