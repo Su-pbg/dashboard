@@ -154,6 +154,13 @@ var worker_default = {
           await kv0.put(k, JSON.stringify(notes));
           return json({ ok: true, note: notes[ord] || null });
         }
+        // remove — 잘못 저장된 날짜 결과 지우기(메모·처리완료 등 note 는 그대로 둔다)
+        if (b.remove && okDate(b.remove.date)) {
+          const date = b.remove.date, ik = "ecrecon:idx:" + date.slice(0, 7), idx = await getJ(ik, {});
+          await kv0.delete("ecrecon:day:" + date);
+          if (idx[date]) { delete idx[date]; await kv0.put(ik, JSON.stringify(idx)); }
+          return json({ ok: true, removed: date });
+        }
         // [2026-10-14] attach — 나중 파일에서 찾은 이전 주문의 반품·선수금 정산 전표를 그 주문일 결과에 표시로 붙인다.
         if (Array.isArray(b.attach)) {
           const byDate = {};

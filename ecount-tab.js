@@ -233,7 +233,7 @@ async function downloadFile(id){
 // 예전 데일리 대사 시트의 내용(월간요약 · 날짜별 탭 · 전표입력공유)을 여기서 본다. 시트를 붙이는 게 아니라
 // '판매 입력 대조'를 돌릴 때 워커 /ecrecon 에 남긴 결과로 그린다(Su, 2026-10-14). 메모·처리완료는 팀 공유.
 const RV={month:'',idx:null,notes:{},date:'',day:null,err:null,q:''};
-const ST_ORDER=['미입력','금액불일치','결제유형 확인','품목·수량 불일치','취소 확인','카페24에 없음','정상','취소','입금대기','개인결제창'];
+const ST_ORDER=['미입력','금액불일치','결제유형 확인','품목·수량 불일치','취소 확인','카페24에 없음','정상','취소','입금대기','개인결제창','파일 기간 밖'];
 async function loadRV(){
   if(!RV.month) RV.month=kstDay(0).slice(0,7);
   RV.err=null;
@@ -461,15 +461,31 @@ function reconRows(){
       tags:r.tags||'',dres:r.dres||'',dday:r.dday||'',paid:r.paid,ec:r.ecTot,diff:r.paid!=null&&r.ecTot!=null?r.paid-r.ecTot:null,want:r.want||'',ecPay:r.ecPay||'',st:r.st,more:r.issues.slice(1),item:r.item||'',
       codes:ls.map(l=>codeOf(l)).join(', '),eccodes:(r.e||[]).map(x=>`${x.code}×${x.qty}`).join(', ')}; });
 }
+// 파일이 덮는 기간 — 이카운트 판매조회·판매현황은 '전표 날짜'로 뽑는다. 그 기간에 들어갈 주문(주말 주문 월요일 입력 고려해 시작 2일 전부터)만
+// 파일에 없으면 미입력이다. 그보다 옛 주문은 이미 그 전에 입력됐을 수 있어 '파일 기간 밖'(문제 아님)으로 둔다. (2026-10-14: 옛 날짜가 전부 미입력으로 저장된 사고)
+function ecRange(){ const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(); return vd.length?{lo:String(Number(vd[0])-2).padStart(4,'0'),hi:vd[vd.length-1]}:null; }
+function covered(date){ const R=ecRange(); if(!R) return true; const md=ymd(date).slice(4); return md>=R.lo&&md<=R.hi; }
+function buildSummary(rows){
+  const sm={total:rows.length,missAmt:0,issues:[]};   // issues = 전표입력공유용, 짧게
+  for(const r of rows){ sm[r.st]=(sm[r.st]||0)+1; if(r.st==='미입력') sm.missAmt+=r.paid||0;
+    if(tracked(r.tags)) sm.tagged=(sm.tagged||0)+1;
+    if(BAD_ST.includes(r.st)||tracked(r.tags)) sm.issues.push({o:r.o,tags:r.tags,dres:r.dres,dday:r.dday,st:[r.st,...(r.more||[])].join(' · '),paid:r.paid,ec:r.ec,diff:r.diff,want:r.want,ecPay:r.ecPay,sup:r.sup,items:String(r.items||'').slice(0,120)}); }
+  return sm;
+}
 async function saveRecon(){
   if(!D.ec||!D.orders.length) return;
   const pre=ymd(D.date); if(!D.ec.some(r=>r.order.startsWith(pre))){ D.reconSaved='nodate'; return; }
-  const rows=reconRows(), sm={total:rows.length,missAmt:0};
-  sm.issues=[];   // 전표입력공유용 — 문제 주문만 짧게
-  for(const r of rows){ sm[r.st]=(sm[r.st]||0)+1; if(r.st==='미입력') sm.missAmt+=r.paid||0;
-    if(tracked(r.tags)) sm.tagged=(sm.tagged||0)+1;
-    if(BAD_ST.includes(r.st)||tracked(r.tags)) sm.issues.push({o:r.o,tags:r.tags,dres:r.dres,dday:r.dday,st:[r.st,...r.more].join(' · '),paid:r.paid,ec:r.ec,diff:r.diff,want:r.want,ecPay:r.ecPay,sup:r.sup,items:r.items.slice(0,120)}); }
-  try{ const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:D.date,summary:sm,rows,file:D.ecFile})}); D.reconSaved=d.at; }
+  let rows=reconRows(), file=D.ecFile;
+  if(!covered(D.date)){
+    // 기간 밖 날짜: 저장된 결과가 있을 때만, 이 파일에 있는 주문 줄만 바꿔 합친다. 없으면 저장하지 않는다.
+    let old=null; try{ old=(await getJSON(`${WORKER}/ecrecon?date=${D.date}`)).day; }catch(e){}
+    if(!old){ D.reconSaved='skip-old'; render(); return; }
+    const upd=new Map(rows.filter(r=>r.st!=='파일 기간 밖').map(r=>[r.o,r]));
+    rows=old.rows.map(r=>upd.get(r.o)||r); for(const [o,r] of upd) if(!old.rows.some(x=>x.o===o)) rows.push(r);
+    file=`${old.file||''} + ${D.ecFile}`.slice(0,120);
+  }
+  const sm=buildSummary(rows);
+  try{ const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:D.date,summary:sm,rows,file})}); D.reconSaved=d.at; }
   catch(e){ D.reconSaved='fail:'+e.message; }
   render();
 }
@@ -487,7 +503,7 @@ function fileDates(){
   const orders={}; for(const r of (D.ec||[])) (orders[r.order.slice(0,8)] ||= new Set()).add(r.order);
   const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(), lo=vd[0], hi=vd[vd.length-1];
   // 주말 주문은 월요일 전표로 들어가니 전표 기간 시작 2일 전 주문까지 포함
-  const inR=d=>{ if(!lo) return true; const md=d.slice(4,8), lo2=String(Number(lo)-2).padStart(4,'0'); return md>=lo2&&md<=hi; };
+  const inR=d=>covered(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`);
   D.fdates=Object.keys(cnt).sort().reverse().map(d=>({d:`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`,n:orders[d].size,inR:inR(d)}));
   D.fsel={}; for(const x of D.fdates) if(x.inR&&x.d<=kstDay(0)) D.fsel[x.d]=true;
   D.fres={};
@@ -498,7 +514,7 @@ async function runBatch(){
   D.batch=true; D.fres={};
   try{
     const old=ds.filter(d=>!(D.fdates||[]).find(x=>x.d===d&&x.inR));
-    if(old.length&&!confirm(`전표 기간보다 옛 주문 날짜 ${old.length}개가 포함돼 있습니다(${old.slice(0,5).map(d=>d.slice(5)).join(', ')}${old.length>5?' …':''}).\n이 날짜들은 파일에 반품·정산 전표만 있어 대부분 '미입력'으로 저장되고, 이미 있던 그 날짜 대조 결과를 덮어씁니다.\n\n그래도 대조할까요?`)) return;
+    if(old.length&&!confirm(`전표 기간보다 옛 주문 날짜 ${old.length}개가 포함돼 있습니다(${old.slice(0,5).map(d=>d.slice(5)).join(', ')}${old.length>5?' …':''}).\n이 날짜들은 파일에 있는 주문(반품·정산 전표 등)만 대조합니다. 그 날짜에 저장된 결과가 있으면 그 주문 줄만 바뀌고, 없으면 저장하지 않습니다.\n\n진행할까요?`)) return;
     for(const [i,dt] of ds.entries()){
       D.date=dt; D.batchMsg=`${i+1}/${ds.length} · ${dt} 대조 중…`; await loadDailyC24(); await saveRecon();
       const R=D.rows||[], st={}; for(const r of R) st[r.st]=(st[r.st]||0)+1;
@@ -556,7 +572,7 @@ function compute(){
     r.gst=r.st||(D.made[o.order_id]?'파일 있음':'새 주문');
     if(!r.st){
       if(!D.ec) r.st='대조 전';
-      else if(!e) r.st='미입력';
+      else if(!e) r.st=covered(D.date)?'미입력':'파일 기간 밖';
       else{
         if(Math.abs(paid-r.ecTot)>1) r.issues.push('금액불일치');
         if(want&&r.ecPay&&payNo(want)!==payNo(r.ecPay)) r.issues.push('결제유형 확인');
@@ -743,11 +759,11 @@ function renderRecon(){
   initDate();
   const R=D.ec?(D.rows||[]):[], cnt={}; for(const r of R) cnt[r.st]=(cnt[r.st]||0)+1;
   const bad=R.filter(r=>BAD_ST.includes(r.st)&&!(RV.notes[r.o.order_id]||{}).done).length;
-  const views=[['bad','확인할 것',bad],['all','전체',R.length],['미입력','미입력',cnt['미입력']||0],['정상','정상',cnt['정상']||0],['etc','취소·입금대기 등',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)]];
+  const views=[['bad','확인할 것',bad],['all','전체',R.length],['미입력','미입력',cnt['미입력']||0],['정상','정상',cnt['정상']||0],['etc','취소·입금대기·기간 밖',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)+(cnt['파일 기간 밖']||0)]];
   if(D.view==='tag') D.view='all';
   let list=R;
   if(D.view==='bad') list=R.filter(r=>BAD_ST.includes(r.st));
-  else if(D.view==='etc') list=R.filter(r=>['취소','입금대기','개인결제창'].includes(r.st));
+  else if(D.view==='etc') list=R.filter(r=>['취소','입금대기','개인결제창','파일 기간 밖'].includes(r.st));
   else if(D.view!=='all') list=R.filter(r=>r.st===D.view);
   const rg=r=>({tags:effTags(r.tags,r.o.order_id),st:r.st,id:r.o.order_id}), stList=list;
   list=tfApply(list,rg);
@@ -778,12 +794,13 @@ function renderRecon(){
       <div class="ec-row"><b style="font-size:13px">파일 속 주문 날짜 ${n(D.fdates.length)}개</b><span class="ec-sub" style="margin:0">체크한 날짜를 한 번에 대조해 대조 현황에 남깁니다. 전표 기간보다 옛 주문(반품·정산 전표만 있는 날짜)은 빼 두었습니다 — 그 전표는 이전 결과에 자동으로 붙습니다.</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px">${D.fdates.map(x=>{ const r=D.fres&&D.fres[x.d];
         return `<label style="font-size:12px;display:flex;gap:4px;align-items:center;${x.inR?'':'color:var(--muted)'}"><input type="checkbox" data-a="fsel" data-d="${x.d}" ${D.fsel[x.d]?'checked':''} ${D.batch?'disabled':''}>${esc(x.d.slice(5).replace('-','/'))} <span class="ec-sub" style="display:inline;margin:0">${n(x.n)}건</span>
-          ${r?`<span class="ec-badge ${r.saved&&!String(r.saved).startsWith('fail')&&r.saved!=='nodate'?'ec-ok':'ec-bad'}">${r.saved==='nodate'?'파일에 없음':String(r.saved).startsWith('fail')?'저장 실패':ST_ORDER.filter(k=>r.st[k]&&k!=='정상').map(k=>k+' '+r.st[k]).join(' · ')||'모두 정상'}</span>`:''}</label>`; }).join('')}</div>
+          ${r?`<span class="ec-badge ${r.saved==='skip-old'?'ec-info':r.saved&&!String(r.saved).startsWith('fail')&&r.saved!=='nodate'?'ec-ok':'ec-bad'}">${r.saved==='skip-old'?'기간 밖 · 저장 안 함':r.saved==='nodate'?'파일에 없음':String(r.saved).startsWith('fail')?'저장 실패':ST_ORDER.filter(k=>r.st[k]&&k!=='정상'&&k!=='파일 기간 밖').map(k=>k+' '+r.st[k]).join(' · ')||'모두 정상'}</span>`:''}</label>`; }).join('')}</div>
       <div class="ec-row" style="margin-top:8px"><button class="ec-dl" data-a="fall" ${D.batch?'disabled':''}>전체 날짜 체크</button><button class="ec-dl" data-a="frange" ${D.batch?'disabled':''}>전표 기간만</button><button class="ec-dl" data-a="fnone" ${D.batch?'disabled':''}>모두 해제</button>
         <button class="go" data-a="runbatch" style="height:34px" ${D.batch?'disabled':''}>${D.batch?esc(D.batchMsg||'대조 중…'):`체크한 날짜 ${n(Object.values(D.fsel||{}).filter(Boolean).length)}개 모두 대조`}</button>
         ${Object.keys(D.fres||{}).length&&!D.batch?'<button class="ec-dl" data-a="gorv">대조 현황에서 보기</button>':''}</div></div>`:''}
     ${D.reconSaved==='nodate'?`<div class="ec-stat err">올린 이카운트 파일에 ${esc(D.date)} 주문이 없습니다 — 그 날짜가 든 판매현황을 올려 주세요(대조 현황에 남기지 않았습니다).</div>`
       :D.reconSaved&&D.reconSaved.startsWith('fail:')?`<div class="ec-stat err">대조 결과를 남기지 못했습니다: ${esc(D.reconSaved.slice(5))}</div>`
+      :D.reconSaved==='skip-old'?`<div class="ec-stat">${esc(D.date)}은(는) 파일 전표 기간 밖이고 저장된 대조 결과가 없어 남기지 않았습니다. 파일에 없는 주문은 '파일 기간 밖'으로 보입니다.</div>`
       :D.reconSaved?`<div class="ec-stat">대조 결과를 대조 현황에 남겼습니다 (${esc(D.reconSaved)}).</div>`:''}
     ${D.attached&&D.attached.length?`<div class="ec-stat">이 파일에서 이전 날짜 주문의 반품·선수금 정산 전표 ${n(D.attached.length)}건을 그 날짜 대조 결과에 붙였습니다: ${D.attached.slice(0,6).map(a=>`${esc(a.date.slice(5))} ${esc(a.order)} (${esc(a.tag)})`).join(', ')}${D.attached.length>6?' …':''}</div>`:''}
     ${D.ec?`<div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
