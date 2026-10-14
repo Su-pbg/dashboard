@@ -584,7 +584,7 @@ async function saveRecon(){
     if(!old){ if(D.date===date){ D.reconSaved='skip-old'; render(); } return; }
     const upd=new Map(rows.filter(r=>r.st!=='파일 기간 밖').map(r=>[r.o,r]));
     rows=old.rows.map(r=>upd.get(r.o)||r); for(const [o,r] of upd) if(!old.rows.some(x=>x.o===o)) rows.push(r);
-    file=`${old.file||''} + ${D.ecFile}`.slice(0,120);
+    file=[...new Set(String(old.file||'').split(' + ').concat(D.ecFile).filter(Boolean))].join(' + ').slice(0,120);   // 같은 파일을 다시 올리면 이름을 겹쳐 적지 않는다
   }
   const sm=buildSummary(rows);
   let res; try{ res=(await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,summary:sm,rows,file})})).at; }
