@@ -635,6 +635,31 @@ function renderRecon(){
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
       품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
 }
+// 판매입력 양식 각 주문 아래: 카페24 주문 정보 — 위 칸(고객명·앞말·출고처)을 보고 채우거나 버튼으로 바로 채운다
+function c24Info(o,r){
+  const id=esc(o.order_id), it=(l,v)=>v?`<span style="white-space:nowrap"><span class="ec-sub" style="display:inline;margin:0">${l}</span> ${v}</span>`:'';
+  const sups=[...new Set(r.live.map(l=>l.supplier_name).filter(Boolean))].join(', ');
+  const disc=(o.coupon_discount||0)+(o.etc_discount||0);
+  const fill=(v,label)=>`<button class="ec-dl" style="height:24px;padding:0 8px;font-size:11px" data-a="fillname" data-o="${id}" data-v="${esc(v)}">${label}</button>`;
+  const pre=(v,label)=>`<button class="ec-dl" style="height:24px;padding:0 8px;font-size:11px" data-a="fillpre" data-o="${id}" data-v="${esc(v)}">${label}</button>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;line-height:1.6">
+      ${it('카페24',`<b>${id}</b> ${esc(o.time||'')}`)}
+      ${it('주문자',`<b>${esc(o.buyer||'—')}</b> ${esc(o.buyer_phone||'')}`)}
+      ${it('수령인',`<b>${esc(o.rc_name||'—')}</b> ${esc(o.rc_phone||'')}`)}
+      ${it('공급사',esc(sups))}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;line-height:1.6">
+      ${it('배송지',esc(o.rc_addr||'—'))}${it('배송메시지',esc(o.rc_msg))}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;line-height:1.6">
+      ${it('결제',esc([o.pay_name||o.method,o.easypay,o.pg].filter(Boolean).join(' · ')))}${it('→ 이카운트',esc(r.want||'정할 수 없음'))}
+      ${it('상품',n(o.order_price))}${it('배송비',o.shipping_fee?n(o.shipping_fee):'')}${it('할인',disc?'-'+n(disc):'')}${it('적립금',o.points_spent?'-'+n(o.points_spent):'')}${it('네이버포인트',o.naver_point?n(o.naver_point):'')}${it('실결제',`<b>${n(paidOf(o))}</b>`)}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px">
+      <span class="ec-sub" style="margin:0">고객명 채우기</span>${fill(o.rc_name||'','수령인')}${fill(o.buyer||'','주문자')}${diffRc(o)?fill(`${o.rc_name}(${o.buyer})`,'수령인(주문자)'):''}
+      <span class="ec-sub" style="margin:0 0 0 10px">앞말</span>${PRE.map(p=>pre(p,p)).join('')}${pre('','없음')}
+    </div>`;
+}
 function formCard(){
   const sel=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length);
   const sellers=[...new Set([D.seller,...lsGet('pbg_ecdaily_sellers',[])].filter(Boolean))];
@@ -648,7 +673,8 @@ function formCard(){
       <td><input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:96px"></td>
       <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:150px">${diffRc(o)?'<div><span class="ec-badge ec-warn">주문자≠수령인</span></div>':''}</td>
       <td><select class="ec-in" data-a="wh" data-o="${id}">${WH.map(w=>`<option ${(E.wh||D.wh)===w?'selected':''}>${esc(w)}</option>`).join('')}</select></td>
-      <td class="l" style="min-width:380px">${lines}</td></tr>`;
+      <td class="l" style="min-width:380px">${lines}</td></tr>
+      <tr><td colspan="5" class="l" style="background:var(--fill);border-bottom:2px solid var(--hair)">${c24Info(o,r)}</td></tr>`;
   }).join('');
   const miss=sel.reduce((t,r)=>t+r.live.filter(l=>!codeOf(l)).length,0);
   return `<div class="ec-card"><h2>판매입력 양식 만들기</h2>
@@ -663,7 +689,8 @@ function formCard(){
     <datalist id="ecdSellers">${sellers.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
     ${sel.length?`<div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>주문</th><th>고객명 앞말</th><th>고객명</th><th>출고처</th><th>상품 · 품목코드</th></tr></thead><tbody>${body}</tbody></table></div>`
       :'<div class="ec-stat">위 표의 \'판매입력\' 칸을 체크하면 여기에 나옵니다. 아직 파일에 안 넣은 주문은 처음부터 체크돼 있습니다.</div>'}
-    <p class="ec-note">고객명은 수령인 이름이고, 주문자와 수령인이 다르면 '수령인(주문자)'로 채웁니다(이카운트 8월 입력 방식) — <b>주문자≠수령인</b> 표시가 붙은 주문은 한 번 더 확인하세요. 연락처·주소는 수령인 것입니다.
+    <p class="ec-note">주문마다 아래 회색 칸에 카페24 주문 정보(주문자·수령인·연락처·배송지·배송메시지·결제·금액)가 나옵니다 — 보고 위 칸을 채우거나 버튼으로 바로 채우세요.
+      고객명은 수령인 이름이고, 주문자와 수령인이 다르면 '수령인(주문자)'로 채웁니다(이카운트 8월 입력 방식) — <b>주문자≠수령인</b> 표시가 붙은 주문은 한 번 더 확인하세요. 연락처·주소는 수령인 것입니다.
       고객명 앞말은 퀵·택배·설치 등 배송 방법이 다를 때만 넣습니다(예: 퀵) 홍길동). 출고처는 위에서 한 번에 고르고, 주문마다 바꿀 수 있습니다.
       직접 넣은 품목코드는 파일을 만들 때 품목코드 맵핑에도 저장됩니다.
       <b>사인지</b>: 에디션에 사인지가 같이 나가면 체크하세요 — 바로 아래 줄에 사인지 품목(에디션코드+SI · 같은 수량 · 0원)이 들어가고, 그 품목은 다음부터 자동으로 체크됩니다.
@@ -808,6 +835,8 @@ function wire(root){
     if(a==='rvback'){ RV.date=''; RV.day=null; render(); return; }
     if(a==='gorecon2'){ setMenu('ecrecon'); return; }
     if(a==='rvxlsx'){ try{ await exportRV(t); }catch(err){ alert('엑셀을 만들지 못했습니다: '+err.message); t.disabled=false; t.textContent='엑셀로 받기 (이 달)'; } return; }
+    if(a==='fillname'){ D.names[t.dataset.o]=t.dataset.v; render(); return; }
+    if(a==='fillpre'){ ed(t.dataset.o).pre=t.dataset.v; saveEd(); render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
     if(a==='gorecon'){ e.preventDefault(); setMenu('ecrecon'); return; }
     if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }

@@ -806,7 +806,7 @@ var worker_default = {
         let orders = [], truncated = false;
         for (let p = 0; p < ORDER_MAX_PAGES; p++) {
           const j = await cafe24Get(mallId, tok,
-            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=${daily ? "items,receivers" : "items"}`,
+            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=${daily ? "items,receivers,buyer" : "items"}`,
             false, env);
           const arr = j.orders || [];
           orders = orders.concat(arr);
@@ -816,15 +816,18 @@ var worker_default = {
         const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
         const arrOf = (v) => Array.isArray(v) ? v : (v ? [v] : []);
         const dailyOrderFields = (o) => {
-          const rc = (o.receivers || [])[0] || {};
+          const rc = (o.receivers || [])[0] || {}, by = o.buyer || {};
           return {
+            buyer_phone: by.cellphone || by.phone || "",
+            ship_fee: n((o.actual_order_amount || {}).shipping_fee),
+            pay_name: o.payment_method_name || "",
             time: String(o.order_date || "").slice(11, 16),
             naver_point: n(o.naver_point),
             easypay: o.easypay_name || "",
             pg: arrOf(o.payment_gateway_names).join(","),
             pay_methods: arrOf(o.payment_method),
             market: o.market_id || "",
-            buyer: o.billing_name || "",
+            buyer: o.billing_name || by.name || "",
             rc_name: rc.name || "",
             rc_phone: rc.cellphone || rc.phone || "",
             rc_addr: rc.address_full || [rc.address1, rc.address2].filter(Boolean).join(" "),
