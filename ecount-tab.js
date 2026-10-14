@@ -246,7 +246,7 @@ async function loadRVDay(date){
 }
 // 메모·처리완료·배송 상태 — 팀 공유. patch 를 지금 값에 합쳐 보낸다.
 async function saveNote(date,order,patch){
-  const cur=RV.notes[order]||{}, nt={memo:cur.memo||'',done:!!cur.done,dst:cur.dst||'',...patch};
+  const cur=RV.notes[order]||{}, nt={memo:cur.memo||'',done:!!cur.done,dst:cur.dst||'',ast:cur.ast||'',...patch};
   const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:{date,order,...nt}})});
   if(d.note) RV.notes[order]=d.note; else delete RV.notes[order];
 }
@@ -255,13 +255,17 @@ function noteMemo(date,order,memo){ const cur=RV.notes[order]||{}; RV.notes[orde
 // 배송 상태 — 배송방식(퀵·설치·차량 등)이 있는 주문은 배송이 어디까지 진행됐는지 여기서 바꿔 가며 따라간다(Su, 2026-10-14).
 //   배송방식 자체는 이카운트 고객명 값 그대로. 이카운트의 배송일자·배송결과(판매조회 열)는 참고로 같이 보여준다.
 const DSTS=['일정 조율중','출고 예정','출고완료','배송완료','설치완료','보류'];
+// 선수금 진행 — 발주 필요 → 발주 완료 → 입고 완료 → 출고 완료. 배송이 나가면 이카운트에서 전표를 바꾸고(선수금 정산 전표) 처리완료로 승인한다.
+const ASTS=['발주 필요','발주 완료','입고 완료','출고 완료','보류'];
 const isShipTag=x=>x&&!isLater(x)&&!/^선수금/.test(x);
 const effTags=t=>t||'';
-const dstStyle=v=>/완료/.test(v)?'background:var(--up-soft);color:var(--up)':v==='보류'?'background:var(--down-soft);color:var(--down)':'background:#FFF3E0;color:#C25E00';
+const dstStyle=v=>/^발주 필요/.test(v)?'background:var(--down-soft);color:var(--down)':/완료/.test(v)?'background:var(--up-soft);color:var(--up)':v==='보류'?'background:var(--down-soft);color:var(--down)':'background:#FFF3E0;color:#C25E00';
 function tagCell(tags,order,date,r){
-  const nt=RV.notes[order]||{}, ship=String(tags||'').split(' · ').some(isShipTag);
+  const nt=RV.notes[order]||{}, parts=String(tags||'').split(' · '), ship=parts.some(isShipTag), adv=parts.some(x=>/^선수금(?! 정산)/.test(x)), settled=parts.some(x=>/^선수금 정산 전표/.test(x));
   const ec=[r&&r.dday,r&&r.dres].filter(Boolean).join(' · ');
-  return `${tagHtml(tags)}${ship?`<div style="margin-top:4px"><select class="ec-in" data-a="rvdst" data-o="${esc(order)}" data-d="${esc(date)}" style="height:26px;font-size:11px;padding:0 4px;${nt.dst?dstStyle(nt.dst):''}" aria-label="배송 상태">
+  const sel=(a,list,v,label)=>`<div style="margin-top:4px"><select class="ec-in" data-a="${a}" data-o="${esc(order)}" data-d="${esc(date)}" style="height:26px;font-size:11px;padding:0 4px;${v?dstStyle(v):''}" aria-label="${label}">
+    <option value="" ${!v?'selected':''}>${label} —</option>${list.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
+  return `${tagHtml(tags)}${adv?sel('rvast',ASTS,nt.ast,'선수금 진행'):''}${adv&&settled&&!nt.done?'<div class="ec-sub" style="color:var(--up);font-weight:600">정산 전표 들어옴 — 승인 확인</div>':''}${ship?`<div style="margin-top:4px"><select class="ec-in" data-a="rvdst" data-o="${esc(order)}" data-d="${esc(date)}" style="height:26px;font-size:11px;padding:0 4px;${nt.dst?dstStyle(nt.dst):''}" aria-label="배송 상태">
     <option value="" ${!nt.dst?'selected':''}>배송 상태 —</option>${DSTS.map(v=>`<option ${nt.dst===v?'selected':''}>${v}</option>`).join('')}</select></div>`:''}
     ${ec?`<div class="ec-sub" title="이카운트 배송일자 · 배송결과">이카운트: ${esc(ec)}</div>`:''}`;
 }
@@ -290,10 +294,10 @@ async function exportRV(btn){
     ['날짜','전체','정상','미입력','미입력 금액','금액불일치','결제유형 확인','품목·수량 불일치','취소·입금대기','선수금·배송방식','대조 시각','이카운트 파일'],
     ...days.map(dt=>{ const v=RV.idx[dt], m=v.summary||{}; return [dt,m.total||0,m['정상']||0,m['미입력']||0,m.missAmt||0,m['금액불일치']||0,m['결제유형 확인']||0,m['품목·수량 불일치']||0,(m['취소']||0)+(m['입금대기']||0)+(m['취소 확인']||0),m.tagged||0,v.at,v.file||'']; })];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'월간요약');
-  const H=['주문번호','주문시각','선수금/배송방식','배송 상태','이카운트 배송일자','이카운트 배송결과','공급사명','상품 (옵션 ×수량)','카페24 품목코드','이카운트 품목','카페24 실결제금액','이카운트 합계금액','차액(카페24-이카운트)','결제유형(카페24 기준)','이카운트 결제유형','상태','추가 확인','품목대조','메모','처리완료'];
-  const line=(r,dt)=>{ const nt=RV.notes[r.o]||{}; return [r.o,r.t,r.tags||'',nt.dst||'',r.dday||'',r.dres||'',r.sup,r.items,r.codes||'',r.eccodes||'',r.paid,r.ec,r.diff,r.want,r.ecPay,r.st,(r.more||[]).join(', '),r.item,nt.memo||'',nt.done?'Y':'']; };
-  const share=[['발견일','주문번호','선수금/배송방식','배송 상태','이카운트 배송결과','상태','카페24 실결제금액','이카운트 합계금액','차액','결제유형(카페24 기준)','이카운트 결제유형','메모','처리완료']];
-  for(const dt of days) for(const r of ((dayData[dt]||{}).rows||[])) if(BAD_ST.includes(r.st)||tracked(r.tags)){ const nt=RV.notes[r.o]||{}; share.push([dt,r.o,r.tags||'',nt.dst||'',r.dres||'',[r.st,...(r.more||[])].join(', '),r.paid,r.ec,r.diff,r.want,r.ecPay,nt.memo||'',nt.done?'Y':'']); }
+  const H=['주문번호','주문시각','선수금/배송방식','선수금 진행','배송 상태','이카운트 배송일자','이카운트 배송결과','공급사명','상품 (옵션 ×수량)','카페24 품목코드','이카운트 품목','카페24 실결제금액','이카운트 합계금액','차액(카페24-이카운트)','결제유형(카페24 기준)','이카운트 결제유형','상태','추가 확인','품목대조','메모','처리완료'];
+  const line=(r,dt)=>{ const nt=RV.notes[r.o]||{}; return [r.o,r.t,r.tags||'',nt.ast||'',nt.dst||'',r.dday||'',r.dres||'',r.sup,r.items,r.codes||'',r.eccodes||'',r.paid,r.ec,r.diff,r.want,r.ecPay,r.st,(r.more||[]).join(', '),r.item,nt.memo||'',nt.done?'Y':'']; };
+  const share=[['발견일','주문번호','선수금/배송방식','선수금 진행','배송 상태','이카운트 배송결과','상태','카페24 실결제금액','이카운트 합계금액','차액','결제유형(카페24 기준)','이카운트 결제유형','메모','처리완료']];
+  for(const dt of days) for(const r of ((dayData[dt]||{}).rows||[])) if(BAD_ST.includes(r.st)||tracked(r.tags)){ const nt=RV.notes[r.o]||{}; share.push([dt,r.o,r.tags||'',nt.ast||'',nt.dst||'',r.dres||'',[r.st,...(r.more||[])].join(', '),r.paid,r.ec,r.diff,r.want,r.ecPay,nt.memo||'',nt.done?'Y':'']); }
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(share),'전표입력공유');
   for(const dt of days){ const d=dayData[dt]; if(!d) continue;
     const rows=d.rows.slice().sort((a,b)=>ST_ORDER.indexOf(a.st)-ST_ORDER.indexOf(b.st)||String(a.o).localeCompare(String(b.o)));
@@ -336,7 +340,7 @@ function rvHtml(){
       ||'<tr><td colspan="12" style="color:var(--muted)">이 달에는 아직 대조한 날짜가 없습니다. 판매 입력 대조에서 이카운트 파일을 올리면 여기에 쌓입니다.</td></tr>'}</tbody></table></div>
     <h3 style="font-size:15px;margin:var(--s5) 0 0">전표입력공유 <span class="ec-sub" style="display:inline">처리 안 된 것 ${n(share.length)}건 (문제 ${n(share.filter(x=>BAD_ST.includes(String(x.st).split(' · ')[0])).length)} · 선수금·배송방식 ${n(share.filter(x=>tracked(x.tags)).length)})</span></h3>
     <p class="ec-note" style="margin-top:4px">대조에서 나온 문제 주문(미입력·금액불일치·결제유형·수량 등)과 진행을 따라가야 하는 선수금·배송방식(퀵·설치·차량 등) 주문이 모입니다.
-      메모에 진행 상황을 적고, 끝나면 처리완료를 체크하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> 주문은 행이 옅은 빨간색, <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span>은 뱃지로 표시합니다. 위 유형·정렬로 골라 보세요.</p>
+      선수금은 '선수금 진행'(발주 필요 → 발주 완료 → 입고 완료 → 출고 완료), 배송방식은 '배송 상태'를 바꿔 가며 따라가고, 이카운트 전표까지 바꾸면 처리완료로 승인하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> 주문은 행이 옅은 빨간색, <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span>은 뱃지로 표시합니다. 위 유형·정렬로 골라 보세요.</p>
     ${tfBar(share,r=>({tags:effTags(r.tags,r.o),st:r.st,id:r.o}))}${rvTable(tfApply(share,r=>({tags:effTags(r.tags,r.o),st:r.st,id:r.o})),true)}`;
 }
 function renderLog(){
@@ -411,8 +415,9 @@ function payType(o){
 const SHIP_RE=/(퀵|택배|설치|차량|배송|용달|방문|픽업|직배송|직접수령)/;
 function ecTags(e){
   const t=[];
-  // 선수금은 주문일 전표의 품목으로 본다(Su, 2026-10-14). 고객명의 '(발주필요)'는 덧붙이는 표시로만 쓴다.
-  if(e.some(x=>x.adv)) t.push(e.some(x=>/발주필요/.test(x.cust))?'선수금(발주필요)':'선수금');
+  // 선수금은 전표 품목으로 본다(Su, 2026-10-14). 품목 이름 그대로 종류를 붙인다: 선수금(완납)·(계약금)·(잔금) — 실데이터 279·13·1건.
+  const adv=e.find(x=>x.adv&&x.total>0)||e.find(x=>x.adv);
+  if(adv){ const m=String(adv.name).match(/^선수금\s*\((완납|계약금|잔금)/); t.push(m?`선수금(${m[1]})`:'선수금'); }
   const c=(e.find(x=>x.cust)||{}).cust||'';
   const head=c.replace(/선수금\s*\([^)]*\)/,'').trim().slice(0,8), m=head.match(SHIP_RE);
   if(m&&/^[\s\[]*(퀵|택배|설치|차량|배송|용달|방문|픽업|직배송|직접수령)/.test(head)) t.push(m[1]);
@@ -945,6 +950,7 @@ function wire(root){
     if(t.id==='ecTfSort'){ TF.sort=t.value; render(); return; }
     if(t.id==='ecRvMonth'){ RV.month=t.value||RV.month; RV.date=''; RV.idx=null; render(); loadRV().then(render); return; }
     if(t.dataset.a==='rvdone'){ saveNote(t.dataset.d,t.dataset.o,{done:t.checked}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
+    if(t.dataset.a==='rvast'){ saveNote(t.dataset.d,t.dataset.o,{ast:t.value}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
     if(t.dataset.a==='rvdst'){ saveNote(t.dataset.d,t.dataset.o,{dst:t.value}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
     if(t.id==='ecLogMonth'){ S.logMonth=t.value||S.logMonth; (async()=>{ await loadLog(); render(); })(); return; }
   });

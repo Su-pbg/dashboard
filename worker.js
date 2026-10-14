@@ -147,9 +147,10 @@ var worker_default = {
           if (!okDate(nt.date) || !/^\d{8}-\d{7}$/.test(ord)) return json({ error: "잘못된 메모" }, 400);
           const k = "ecrecon:note:" + nt.date.slice(0, 7), notes = await getJ(k, {});
           // dst = 배송 상태(퀵·설치·차량 등 배송방식이 있는 주문의 진행: 일정 조율중·출고 예정·출고완료·배송완료·설치완료·보류)
-          const dst = String(nt.dst || "").slice(0, 20);
-          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now, ...(dst ? { dst } : {}) };
-          if (!notes[ord].memo && !notes[ord].done && !notes[ord].dst) delete notes[ord];
+          // ast = 선수금 진행 상태(발주 필요·발주 완료·입고 완료·출고 완료·보류). 마지막 승인(이카운트 전표 변경)은 done.
+          const dst = String(nt.dst || "").slice(0, 20), ast = String(nt.ast || "").slice(0, 20);
+          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now, ...(dst ? { dst } : {}), ...(ast ? { ast } : {}) };
+          if (!notes[ord].memo && !notes[ord].done && !notes[ord].dst && !notes[ord].ast) delete notes[ord];
           await kv0.put(k, JSON.stringify(notes));
           return json({ ok: true, note: notes[ord] || null });
         }
