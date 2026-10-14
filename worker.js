@@ -146,10 +146,10 @@ var worker_default = {
           const nt = b.note, ord = String(nt.order || "");
           if (!okDate(nt.date) || !/^\d{8}-\d{7}$/.test(ord)) return json({ error: "잘못된 메모" }, 400);
           const k = "ecrecon:note:" + nt.date.slice(0, 7), notes = await getJ(k, {});
-          // ship = 이 페이지에서 고친 배송방식(퀵·택배·설치·차량·직접수령·용달, '없음'). undefined 면 이카운트 고객명 값을 쓴다.
-          const ship = nt.ship === undefined || nt.ship === null ? undefined : String(nt.ship).slice(0, 10);
-          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now, ...(ship !== undefined ? { ship } : {}) };
-          if (!notes[ord].memo && !notes[ord].done && notes[ord].ship === undefined) delete notes[ord];
+          // dst = 배송 상태(퀵·설치·차량 등 배송방식이 있는 주문의 진행: 일정 조율중·출고 예정·출고완료·배송완료·설치완료·보류)
+          const dst = String(nt.dst || "").slice(0, 20);
+          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now, ...(dst ? { dst } : {}) };
+          if (!notes[ord].memo && !notes[ord].done && !notes[ord].dst) delete notes[ord];
           await kv0.put(k, JSON.stringify(notes));
           return json({ ok: true, note: notes[ord] || null });
         }
