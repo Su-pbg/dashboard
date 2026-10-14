@@ -811,6 +811,10 @@ tm.save_json('radar-history.json', hist, sha)
   index.html 을 고치면 푸시 전에 반드시 `<script>` 를 뽑아 `node --check` 한다:
   `node -e "const fs=require('fs');const s=fs.readFileSync('index.html','utf8');fs.writeFileSync('/tmp/c.js',[...s.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n'))" && node --check /tmp/c.js`
 
+- **[2026-10-14] `ecount-tab.js` 를 고치다 함수 하나(`sumTxt`)를 같이 지워 '이카운트 판매 입력' 첫 화면이 깨졌다.**
+  `node --check` 는 문법만 본다. 이카운트 화면 코드를 고치면 푸시 전에 `node test_ecount.mjs` 를 돌린다
+  (가짜 데이터로 네 화면을 실제로 그려 보고 날짜 읽기·남은 금액·판매입력 금액·대조 상태를 검사한다). 저장소가 공개라 테스트에 실데이터를 넣지 않는다.
+
 - **`newMembers` 가 안 나온다고 "고장났다" 고 하지 말 것.**
   2026-08-03 에 **의도적으로 폐기**하고 GA4 `joinDone` 기반 '신규 가입' KPI 로 대체했다.
   워커 주석에 그렇게 적혀 있었는데 안 읽고 세 번 연속 엉뚱한 원인을 짚었다.

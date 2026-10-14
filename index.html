@@ -3726,7 +3726,14 @@ async function enterSettle(){
 async function enterEcount(){
   showGate(false);
   try{
-    if(!window.loadEcountTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='ecount-tab.js?v='+Math.floor(Date.now()/600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    // [2026-10-14] 10분 단위 주소 대신 매번 서버에 최신인지 물어보고(cache:no-cache → 바뀌지 않았으면 304) 받는다.
+    //   10분 캐시 때문에 고친 화면이 늦게 반영되고 사람마다 버전이 섞여, 옛 화면으로 대조 결과가 저장된 일이 있었다.
+    if(!window.loadEcountTab){
+      const code=await (await fetch('ecount-tab.js',{cache:'no-cache'})).text();
+      const url=URL.createObjectURL(new Blob([code+'\n//# sourceURL=ecount-tab.js'],{type:'text/javascript'}));
+      await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src=url;sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+      URL.revokeObjectURL(url);
+    }
     await window.loadEcountTab($('ecountContent'), {eclog:'log',ecdaily:'daily',ecrecon:'recon',ecmap:'map'}[MENU]);
   }catch(e){ $('ecountContent').innerHTML='<div class="err">이카운트 전표 입력 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }

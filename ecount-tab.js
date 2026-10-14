@@ -62,20 +62,34 @@ function loadXLSX(){ return window.XLSX?Promise.resolve():new Promise((ok,ng)=>{
 
 // ---------- 이카운트 판매현황(품목별) ----------
 // 머리글(일자·품목코드·품명 및 규격·수량)을 찾고, 주문번호 열은 값 모양(20260801-0000047)으로 찾는다(머리글이 결제일·주문일 등으로 다르다).
-// 전표 날짜 → 'MMDD' ('08/01-18' · '2026/08/01' · '20260801-3' · 엑셀 날짜 숫자)
-function vdayOf(v){
+// 전표 날짜 → 'YYYYMMDD'. 이카운트 내려받기 형식이 여러 가지다:
+//   판매현황 일자 '08/01-18'(연도 없음) · 판매조회 '20261014-28' · '26/10/14-28'(연도 2자리, 판매조회 (5)) · '2026/10/14' · 엑셀 날짜 숫자
+//   연도가 없으면 주문번호 연도를 쓰고, 주문일보다 앞 날짜면 다음 해(12월 주문 → 1월 전표).
+//   예전엔 연도 없이 'MMDD' 로 비교해서 '26/10/14' 를 26월 10일로 읽고(H6), 12월↔1월에 기간 판단이 깨졌다(H4).
+function vdayOf(v,ord){
   if(v==null||v==='') return '';
-  if(typeof v==='number'&&v>30000&&v<80000){ const d=new Date(Math.round((v-25569)*86400e3)); return String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0'); }
-  const t=String(v).trim(); let m=t.match(/^(\d{4})[\/.-]?(\d{2})[\/.-]?(\d{2})/); if(m) return m[2]+m[3];
-  m=t.match(/^(\d{1,2})\/(\d{1,2})/); return m?m[1].padStart(2,'0')+m[2].padStart(2,'0'):'';
+  const p2=x=>String(x).padStart(2,'0');
+  if(typeof v==='number'&&v>30000&&v<80000){ const d=new Date(Math.round((v-25569)*86400e3)); return d.getUTCFullYear()+p2(d.getUTCMonth()+1)+p2(d.getUTCDate()); }
+  const t=String(v).trim(); let m;
+  if((m=t.match(/^(\d{4})[\/.-]?(\d{2})[\/.-]?(\d{2})/))) return m[1]+m[2]+m[3];
+  if((m=t.match(/^(\d{2})\/(\d{2})\/(\d{2})(?!\d)/))) return '20'+m[1]+m[2]+m[3];
+  if((m=t.match(/^(\d{1,2})\/(\d{1,2})/))){
+    const md=p2(m[1])+p2(m[2]), o=String(ord||'');
+    let y=/^\d{8}/.test(o)?Number(o.slice(0,4)):Number(kstDay(0).slice(0,4));
+    if(/^\d{8}/.test(o)&&md<o.slice(4,8)) y++;
+    return y+md;
+  }
+  return '';
 }
+const vdLabel=d=>d?`${d.slice(4,6)}/${d.slice(6,8)}`:'';
+const ymdAdd=(d,n)=>{ const t=new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T00:00:00Z`); t.setUTCDate(t.getUTCDate()+n); return t.toISOString().slice(0,10).replace(/-/g,''); };
 // 판매조회(전표 단위) 형식: 판매번호 · 결제일(=주문번호) · 품 목(요약 'OO 외 n건') · 금 액 · 고객명 · 결제유형 · 수량 …  품목코드가 없다.
 function parseVoucher(rows,h,fname){
   const head=rows[h].map(c=>String(c??'').replace(/\s/g,'')), col=k=>head.indexOf(k);
   const cNo=col('판매번호'), cOrd=col('결제일'), cItem=col('품목'), cAmt=col('금액'), cPay=col('결제유형'), cQty=col('수량'), cCust=head.findIndex(x=>/고객명/.test(x)), cRes=col('배송결과'), cDday=col('배송일자');
   if(cOrd<0||cAmt<0) throw new Error(`${fname}: 판매조회 형식인데 결제일(주문번호)·금액 열을 찾지 못했습니다.`);
   return rows.slice(h+1).map(r=>({order:String(r[cOrd]??'').trim(),code:'',name:String(r[cItem]??'').trim(),qty:Number(r[cQty])||0,price:0,
-      total:Math.round(Number(r[cAmt])||0),vday:vdayOf(r[cNo]),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim(),voucher:true,
+      total:Math.round(Number(r[cAmt])||0),vday:vdayOf(r[cNo],r[cOrd]),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim(),voucher:true,
       dres:cRes<0?'':String(r[cRes]??'').trim(),dday:cDday<0?'':String(r[cDday]??'').trim()}))
     .map(r=>({...r,adv:/^선수금/.test(r.name)})).filter(r=>ORD.test(r.order));
 }
@@ -96,7 +110,7 @@ function parseEcount(wb,fname,keepAdv){
   for(let i=0;i<head.length;i++){ const k=body.reduce((t,r)=>t+(ORD.test(String(r[i]??'').trim())?1:0),0); if(k>best){best=k;cOrd=i;} }
   if(best<body.length*0.3) throw new Error(`${fname}: 주문번호(예: 20260801-0000047) 열을 찾지 못했습니다.`);
   return body.map(r=>({order:String(r[cOrd]??'').trim(),code:String(r[cCode]).trim(),name:String(r[cName]??'').trim(),qty:Number(r[cQty])||0,price:cPrice<0?0:Math.round(Number(r[cPrice])||0),
-      total:cTot<0?0:Math.round(Number(r[cTot])||0),vday:vdayOf(cDay<0?'':r[cDay]),dres:cRes<0?'':String(r[cRes]??'').trim(),dday:cDday<0?'':String(r[cDday]??'').trim(),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim()}))
+      total:cTot<0?0:Math.round(Number(r[cTot])||0),vday:vdayOf(cDay<0?'':r[cDay],r[cOrd]),dres:cRes<0?'':String(r[cRes]??'').trim(),dday:cDday<0?'':String(r[cDday]??'').trim(),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim()}))
     .map(r=>({...r,adv:/선수금/.test(r.code+r.name)}))
     .filter(r=>ORD.test(r.order)&&(keepAdv||!r.adv));   // 선수금 품목은 실제 상품이 아니다(데일리 금액 대조에는 합계로 넣는다)
 }
@@ -249,9 +263,10 @@ async function saveNote(date,order,patch){
   const cur=RV.notes[order]||{}, nt={memo:cur.memo||'',done:!!cur.done,dst:cur.dst||'',ast:cur.ast||'',...patch};
   const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:{date,order,...nt}})});
   if(d.note) RV.notes[order]=d.note; else delete RV.notes[order];
+  const c=monthCache[date.slice(0,7)]; if(c){ if(d.note) c.notes[order]=d.note; else delete c.notes[order]; }   // 같은 달 캐시도 맞춘다
 }
 const noteTimers={};
-function noteMemo(date,order,memo){ const cur=RV.notes[order]||{}; RV.notes[order]={...cur,date,memo}; clearTimeout(noteTimers[order]); noteTimers[order]=setTimeout(()=>saveNote(date,order,{memo}).catch(()=>{}),700); }
+function noteMemo(date,order,memo){ const cur=RV.notes[order]||{}; RV.notes[order]={...cur,date,memo}; const c=monthCache[date.slice(0,7)]; if(c) c.notes[order]=RV.notes[order]; clearTimeout(noteTimers[order]); noteTimers[order]=setTimeout(()=>saveNote(date,order,{memo}).catch(()=>{}),700); }
 // 배송 상태 — 배송방식(퀵·설치·차량 등)이 있는 주문은 배송이 어디까지 진행됐는지 여기서 바꿔 가며 따라간다(Su, 2026-10-14).
 //   배송방식 자체는 이카운트 고객명 값 그대로. 이카운트의 배송일자·배송결과(판매조회 열)는 참고로 같이 보여준다.
 const DSTS=['일정 조율중','출고 예정','출고완료','배송완료','설치완료','보류'];
@@ -437,45 +452,75 @@ const payNo=s=>{ const m=String(s||'').match(/^\s*(\d+)\s*\./); return m?m[1]:St
 const paidOf=o=>(o.payment_amount||0)+(o.naver_point||0);
 // 부분취소 주문의 남은 금액 — 카페24 결제액은 환불이 끝나면 줄어든 값, 환불 전(취소·반품 신청 중)이면 원래 값 그대로다.
 //   실데이터(2026-10-14): 20260929-0000039 환불 완료 → 결제액 278,800 = 남은 상품 net. 20261011-0000132 반품 신청 → 결제액 354,460 그대로.
-//   결제액이 전체 상품 net 합 이상이면 '환불 전'으로 보고 취소된 상품 net 을 뺀다(배송비는 남긴다). 아니면 결제액이 이미 환불 반영된 값.
+//   결제액이 전체 상품 net 합 이상이면 '환불 전', 아니면 결제액이 이미 환불 반영된 값(정확).
+//   환불 전은 정확한 환불액을 모른다(무료배송 기준·반품 배송비). Su(2026-10-14): 기본 선택에서 빼고 '환불 대기'로 두고,
+//   직접 체크하면 공급사 배송비 정책으로 남은 상품 기준 배송비를 다시 계산한 '예상' 금액을 넣는다.
+//   예상 = 결제액 − 취소 상품 net + (다시 계산한 배송비 − 원래 낸 배송비). 정책을 모르면(차등·수량·무게) 배송비 그대로로 둔다.
 const isExch=l=>/^E/i.test(String(l.status||''));
+const SHIPPOL={};   // 공급사코드 → {type,fee,free_over}
+async function loadShipPol(codes){
+  const need=[...new Set(codes)].filter(c=>/^S[0-9A-Z]{7}$/.test(c)&&!(c in SHIPPOL));
+  for(let i=0;i<need.length;i+=15){ const part=need.slice(i,i+15), f=D.date||kstDay(0);
+    try{ const d=await getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=settleprod&suppliers=${part.join(',')}`); Object.assign(SHIPPOL,d.shipping||{}); }catch(e){ for(const c of part) SHIPPOL[c]={error:true}; } }
+}
+function shipFor(code,net){
+  const v=SHIPPOL[code]; if(!v||v.error||v.none) return null;
+  if(v.type==='T') return 0; if(v.type==='R') return v.fee; if(v.type==='M') return net>=(v.free_over||0)?0:v.fee; return null;
+}
 function remainOf(r){
   const paid=paidOf(r.o), canc=(r.ls||[]).filter(l=>l.canceled==='Y'&&l.paywin!=='Y'&&!isExch(l));
   if(!canc.length) return {amt:paid,mode:'none'};
   const cancNet=canc.reduce((t,l)=>t+l.net,0), liveNet=(r.live||[]).reduce((t,l)=>t+l.net,0);
-  if(paid>=liveNet+cancNet-1) return {amt:paid-cancNet,mode:'pending',orig:paid,canc:cancNet,n:canc.length};
+  if(paid>=liveNet+cancNet-1){
+    const by={}; for(const l of (r.live||[])) by[l.supplier_id]=(by[l.supplier_id]||0)+l.net;
+    const fees=Object.entries(by).map(([c,v])=>shipFor(c,v)), known=fees.length>0&&fees.every(x=>x!=null);
+    const oldShip=Math.max(0,(r.o.shipping_fee||0)-(r.o.shipping_discount||0)), newShip=known?fees.reduce((t,x)=>t+x,0):oldShip;
+    return {amt:paid-cancNet+(newShip-oldShip),mode:'pending',orig:paid,canc:cancNet,n:canc.length,oldShip,newShip,known};
+  }
   return {amt:paid,mode:'refunded',canc:cancNet,n:canc.length};
 }
 const exchTxt=r=>(r.ls||[]).some(isExch)?'교환 진행 중 — 교환 상품 확인':'';
-const remainTxt=m=>m.mode==='pending'?`부분취소: 원래 ${n(m.orig)} → 취소 ${n(m.canc)} → 남은 ${n(m.amt)}원 (환불 전 계산)`
+const remainTxt=m=>m.mode==='pending'?`환불 전 예상: 원래 ${n(m.orig)} − 취소 ${n(m.canc)}${m.newShip!==m.oldShip?` · 배송비 ${n(m.oldShip)}→${n(m.newShip)}`:''} = ${n(m.amt)}원${m.known?'':' (배송비 정책 확인 불가 — 배송비 그대로 가정)'}`
   :m.mode==='refunded'?`부분취소 ${m.n}줄: 카페24 결제액이 이미 환불 반영된 금액(${n(m.amt)}원)`:'';
 // 고객명 — 이카운트 실데이터(2026-08, 517건): 주문자=수령인이면 이름 하나, 다르면 대부분 '수령인(주문자)'(51건 중 39건). 연락처는 수령인 것.
 const diffRc=o=>!!(o.buyer&&o.rc_name&&o.buyer.replace(/\s/g,'')!==o.rc_name.replace(/\s/g,''));
 const custDefault=o=>diffRc(o)?`${o.rc_name}(${o.buyer})`:(o.rc_name||o.buyer||'');
 const ymd=d=>d.replace(/-/g,'');
 
-async function loadDailyC24(){
-  const f=D.date;
-  D.loading=`카페24 ${f} 주문 받는 중…`; D.err=null; render();
-  try{
-    const d=await getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=orderitems&from=${f}&to=${f}&full=1&nocache=1&daily=1`);
-    D.orders=d.orders||[]; D.lines={};
-    for(const l of (d.lines||[])) (D.lines[l.order_id] ||= []).push(l);
-    D.truncated=!!d.truncated;
-  }catch(e){ D.err=e; D.orders=[]; D.lines={}; }
-  await loadMade();
-  try{ RV.notes={...RV.notes,...((await getJSON(`${WORKER}/ecrecon?date=${D.date}`)).notes||{})}; }catch(e){}
-  D.ed=lsGet(edKey(),{}); D.names={}; D.sel={}; D.selInit=false; D.loading=''; D.reconSaved='';
-  compute(); render();
-  if(S.page==='recon'&&!D.batch) saveRecon();
+// 날짜를 빨리 바꾸면 늦게 온 이전 날짜 응답이 화면을 덮지 않게 순번(seq)으로 막는다(H3).
+// 같은 달 판매입력 이력·메모는 1분 안이면 다시 받지 않는다(일괄 대조 때 날짜마다 받던 것 — 효율).
+const MONTH_TTL=60e3, monthCache={};
+async function monthData(ym,force){
+  const c=monthCache[ym];
+  if(!force&&c&&Date.now()-c.at<MONTH_TTL) return c;
+  const [log,notes]=await Promise.all([
+    getJSON(`${WORKER}/ecsales?month=${ym}`).then(d=>d.log||[]).catch(()=>[]),
+    getJSON(`${WORKER}/ecrecon?month=${ym}`).then(d=>d.notes||{}).catch(()=>({})),
+  ]);
+  return (monthCache[ym]={at:Date.now(),log,notes});
 }
-// 그 달 판매입력 파일 이력 → 주문번호별로 어떤 파일에 들어갔는지
-async function loadMade(){
-  D.made={};
-  try{
-    const log=(await getJSON(`${WORKER}/ecsales?month=${D.date.slice(0,7)}`)).log||[];
-    for(const f of log) for(const id of (f.ids||[])) (D.made[id] ||= []).push({by:f.by,at:f.at,filename:f.filename});
-  }catch(e){}
+async function loadDailyC24(){
+  const f=D.date, seq=(D.seq=(D.seq||0)+1);
+  D.loading=`카페24 ${f} 주문 받는 중…`; D.err=null; render();
+  let d=null, err=null;
+  const [res,md]=await Promise.all([
+    getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=orderitems&from=${f}&to=${f}&full=1&nocache=1&daily=1`).catch(e=>{ err=e; return null; }),
+    monthData(f.slice(0,7)),
+  ]);
+  if(seq!==D.seq) return;   // 그사이 다른 날짜를 골랐다
+  d=res;
+  D.err=err; D.orders=(d&&d.orders)||[]; D.lines={};
+  for(const l of ((d&&d.lines)||[])) (D.lines[l.order_id] ||= []).push(l);
+  D.truncated=!!(d&&d.truncated);
+  D.made={}; for(const fl of md.log) for(const id of (fl.ids||[])) (D.made[id] ||= []).push({by:fl.by,at:fl.at,filename:fl.filename});
+  RV.notes={...RV.notes,...md.notes};
+  D.ed=lsGet(edKey(),{}); D.names={}; D.sel={}; D.selInit=false; D.loading=''; D.reconSaved='';
+  compute();
+  // 환불 전 부분취소 주문이 있으면 그 공급사 배송비 정책을 받아 예상 금액을 다시 계산
+  const pend=(D.rows||[]).filter(r=>r.gst==='환불 대기');
+  if(pend.length){ await loadShipPol(pend.flatMap(r=>r.live.map(l=>l.supplier_id))); if(seq!==D.seq) return; compute(); }
+  render();
+  if(S.page==='recon'&&!D.batch) saveRecon();
 }
 // 대조 결과를 워커에 남긴다(대조 현황 · 엑셀용). 이카운트 파일에 그 날짜 주문이 하나도 없으면 남기지 않는다(전부 미입력으로 잘못 쌓이므로).
 function reconRows(){
@@ -487,8 +532,8 @@ function reconRows(){
 }
 // 파일이 덮는 기간 — 이카운트 판매조회·판매현황은 '전표 날짜'로 뽑는다. 그 기간에 들어갈 주문(주말 주문 월요일 입력 고려해 시작 2일 전부터)만
 // 파일에 없으면 미입력이다. 그보다 옛 주문은 이미 그 전에 입력됐을 수 있어 '파일 기간 밖'(문제 아님)으로 둔다. (2026-10-14: 옛 날짜가 전부 미입력으로 저장된 사고)
-function ecRange(){ const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(); return vd.length?{lo:String(Number(vd[0])-2).padStart(4,'0'),hi:vd[vd.length-1]}:null; }
-function covered(date){ const R=ecRange(); if(!R) return true; const md=ymd(date).slice(4); return md>=R.lo&&md<=R.hi; }
+function ecRange(){ const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(); return vd.length?{lo:ymdAdd(vd[0],-2),hi:vd[vd.length-1]}:null; }
+function covered(date){ const R=ecRange(); if(!R) return true; const d=ymd(date); return d>=R.lo&&d<=R.hi; }
 function buildSummary(rows){
   const sm={total:rows.length,missAmt:0,issues:[]};   // issues = 전표입력공유용, 짧게
   for(const r of rows){ sm[r.st]=(sm[r.st]||0)+1; if(r.st==='미입력') sm.missAmt+=r.paid||0;
@@ -496,22 +541,24 @@ function buildSummary(rows){
     if(BAD_ST.includes(r.st)||tracked(r.tags)) sm.issues.push({o:r.o,tags:r.tags,dres:r.dres,dday:r.dday,st:[r.st,...(r.more||[])].join(' · '),paid:r.paid,ec:r.ec,diff:r.diff,want:r.want,ecPay:r.ecPay,sup:r.sup,items:String(r.items||'').slice(0,120)}); }
   return sm;
 }
+// 저장을 시작한 순간의 날짜·결과를 고정한다 — 기다리는 사이 날짜를 바꿔도 다른 날짜 이름으로 저장되지 않게(H3).
 async function saveRecon(){
   if(!D.ec||!D.orders.length) return;
-  const pre=ymd(D.date); if(!D.ec.some(r=>r.order.startsWith(pre))){ D.reconSaved='nodate'; return; }
+  const date=D.date, pre=ymd(date); if(!D.ec.some(r=>r.order.startsWith(pre))){ D.reconSaved='nodate'; return; }
   let rows=reconRows(), file=D.ecFile;
-  if(!covered(D.date)){
+  if(!covered(date)){
     // 기간 밖 날짜: 저장된 결과가 있을 때만, 이 파일에 있는 주문 줄만 바꿔 합친다. 없으면 저장하지 않는다.
-    let old=null; try{ old=(await getJSON(`${WORKER}/ecrecon?date=${D.date}`)).day; }catch(e){}
-    if(!old){ D.reconSaved='skip-old'; render(); return; }
+    let old=null; try{ old=(await getJSON(`${WORKER}/ecrecon?date=${date}`)).day; }catch(e){}
+    if(!old){ if(D.date===date){ D.reconSaved='skip-old'; render(); } return; }
     const upd=new Map(rows.filter(r=>r.st!=='파일 기간 밖').map(r=>[r.o,r]));
     rows=old.rows.map(r=>upd.get(r.o)||r); for(const [o,r] of upd) if(!old.rows.some(x=>x.o===o)) rows.push(r);
     file=`${old.file||''} + ${D.ecFile}`.slice(0,120);
   }
   const sm=buildSummary(rows);
-  try{ const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:D.date,summary:sm,rows,file})}); D.reconSaved=d.at; }
-  catch(e){ D.reconSaved='fail:'+e.message; }
-  render();
+  let res; try{ res=(await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,summary:sm,rows,file})})).at; }
+  catch(e){ res='fail:'+e.message; }
+  if(D.date===date){ D.reconSaved=res; render(); }   // 그사이 다른 날짜로 넘어갔으면 화면 표시는 건드리지 않는다
+  return res;
 }
 async function onDailyFile(f){
   D.err=null; D.loading='이카운트 파일 읽는 중…'; render();
@@ -525,7 +572,6 @@ async function onDailyFile(f){
 function fileDates(){
   const cnt={}; for(const r of (D.ec||[])) cnt[r.order.slice(0,8)]=(cnt[r.order.slice(0,8)]||0)+1;
   const orders={}; for(const r of (D.ec||[])) (orders[r.order.slice(0,8)] ||= new Set()).add(r.order);
-  const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(), lo=vd[0], hi=vd[vd.length-1];
   // 주말 주문은 월요일 전표로 들어가니 전표 기간 시작 2일 전 주문까지 포함
   const inR=d=>covered(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`);
   D.fdates=Object.keys(cnt).sort().reverse().map(d=>({d:`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`,n:orders[d].size,inR:inR(d)}));
@@ -553,10 +599,10 @@ async function attachLater(){
   const by={}; for(const r of D.ec) (by[r.order] ||= []).push(r);
   const attach=[];
   for(const [o,rs] of Object.entries(by)){
-    const od=`${o.slice(0,4)}-${o.slice(4,6)}-${o.slice(6,8)}`, md=o.slice(4,8); if(od===D.date) continue;
-    const days=[...new Set(rs.map(r=>r.vday).filter(v=>v&&v!==md&&(v>md||md>'1100')))];   // 주문일 뒤 날짜(12월→1월 포함)
+    const od=`${o.slice(0,4)}-${o.slice(4,6)}-${o.slice(6,8)}`; if(od===D.date) continue;
+    const days=[...new Set(rs.map(r=>r.vday).filter(v=>v&&v>o.slice(0,8)))];   // 주문일 뒤 날짜의 전표
     for(const d of days){ const g=rs.filter(r=>r.vday===d), t=g.reduce((a,r)=>a+r.total,0);
-      const kind=t<0?'반품':g.some(r=>r.adv)&&t===0?'선수금 정산':''; if(kind) attach.push({date:od,order:o,tag:`${kind} 전표 ${d.slice(0,2)}/${d.slice(2)}`}); }
+      const kind=t<0?'반품':g.some(r=>r.adv)&&t===0?'선수금 정산':''; if(kind) attach.push({date:od,order:o,tag:`${kind} 전표 ${vdLabel(d)}`}); }
   }
   if(!attach.length) return;
   try{ const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attach})}); D.attached=d.attached||[]; }
@@ -571,15 +617,14 @@ function compute(){
   // 금액은 그 주문번호 전표를 '모두' 합쳐 맞춘다. 8월 실데이터: 전표 2장 이상인 주문 24건은 분할 출고(8/1+8/4)·0원 뒤 재입력이었고
   // 합쳐야 카페24 실결제와 맞았다. 선수금 정산 전표는 0원이라 합쳐도 같다. 첫 전표 뒤 날짜 전표는 '이후 전표'로 표시만 한다.
   // (주말 주문은 월요일 전표로 들어가 주문일 ≠ 전표일이 흔하다 — 8월 227줄. 전표일로 거르지 않는다.)
-  const md=pre.slice(4), key=v=>v?(v<md?'1'+v:'0'+v):'';   // 12월 주문 → 1월 전표는 해를 넘김
   const ecBy={}, later={};
   for(const r of (D.ec||[])) if(r.order.startsWith(pre)) (ecBy[r.order] ||= []).push(r);
   // 같은 주문번호로 나중 날짜에 들어간 전표 — 종류를 붙여 보여준다: 반품(합계 마이너스) · 선수금 정산(선수금 품목) · 추가(분할 출고 등)
   for(const [k,rs] of Object.entries(ecBy)){
-    const days=[...new Set(rs.map(r=>r.vday).filter(Boolean))].sort((x,y)=>key(x).localeCompare(key(y)));
+    const days=[...new Set(rs.map(r=>r.vday).filter(Boolean))].sort();
     if(days.length<2) continue;
     later[k]=days.slice(1).map(d=>{ const g=rs.filter(r=>r.vday===d), t=g.reduce((a,r)=>a+r.total,0);
-      return `${t<0?'반품':g.some(r=>r.adv)?'선수금 정산':'추가'} 전표 ${d.slice(0,2)}/${d.slice(2)}`; });
+      return `${t<0?'반품':g.some(r=>r.adv)?'선수금 정산':'추가'} 전표 ${vdLabel(d)}`; });
   }
   const out=[];
   for(const o of D.orders){
@@ -594,7 +639,7 @@ function compute(){
     if(o.paid!=='Y') r.st='입금대기';
     else if(o.canceled==='Y'||!live.length&&ls.some(l=>l.canceled==='Y')) r.st=e?'취소 확인':'취소';
     else if(ls.length&&ls.every(l=>l.paywin==='Y')) r.st='개인결제창';
-    r.gst=r.st||(D.made[o.order_id]?'파일 있음':'새 주문');
+    r.gst=r.st||(D.made[o.order_id]?'파일 있음':remainOf({o,ls,live}).mode==='pending'?'환불 대기':'새 주문');
     if(!r.st){
       if(!D.ec) r.st='대조 전';
       else if(!e) r.st=covered(D.date)?'미입력':'파일 기간 밖';
@@ -700,7 +745,7 @@ async function generate(){
   const noPay=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length&&!r.want).length;
   const partial=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length&&remainOf(r).mode==='pending');
   const newCodes=Object.entries(D.codes).filter(([k,c])=>c&&(!S.map[k]||S.map[k].code!==c));
-  if(!confirm(`${D.date} 판매입력 파일을 만듭니다.\n주문 ${orders.length}건 · ${rows.length}행 · 판매자 ${D.seller}`+(newCodes.length?`\n\n직접 넣은 품목코드 ${newCodes.length}건은 품목코드 맵핑에도 저장합니다.`:'')+(partial.length?`\n\n부분취소(환불 전) 주문 ${partial.length}건은 취소된 상품 금액을 빼고 넣습니다:\n${partial.slice(0,5).map(r=>`· ${r.o.order_id} ${remainTxt(remainOf(r))}`).join('\n')}`:'')+(noPay?`\n\n결제유형을 정할 수 없는 주문 ${noPay}건은 결제유형 칸이 비어 있습니다 — 이카운트에서 넣어 주세요.`:'')+`\n\n만든 파일은 판매입력 파일 이력에 남습니다.`)) return;
+  if(!confirm(`${D.date} 판매입력 파일을 만듭니다.\n주문 ${orders.length}건 · ${rows.length}행 · 판매자 ${D.seller}`+(newCodes.length?`\n\n직접 넣은 품목코드 ${newCodes.length}건은 품목코드 맵핑에도 저장합니다.`:'')+(partial.length?`\n\n⚠ 환불 전 부분취소 주문 ${partial.length}건은 예상 금액으로 넣습니다(환불이 끝나면 카페24 금액과 다를 수 있음):\n${partial.slice(0,5).map(r=>`· ${r.o.order_id} ${remainTxt(remainOf(r))}`).join('\n')}`:'')+(noPay?`\n\n결제유형을 정할 수 없는 주문 ${noPay}건은 결제유형 칸이 비어 있습니다 — 이카운트에서 넣어 주세요.`:'')+`\n\n만든 파일은 판매입력 파일 이력에 남습니다.`)) return;
   await loadXLSX();
   const ws=XLSX.utils.aoa_to_sheet([TPL,...rows]);
   ws['!cols']=TPL.map((h,i)=>({wch:[12,5,12,12,8,14,14,22,8,18,10,14,20,8,30,14,40,8,6,8,10,10,8,10,10,24,8,8][i]||10}));
@@ -714,7 +759,8 @@ async function generate(){
   const msgs=[];
   try{ await getJSON(`${WORKER}/ecsales`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dates:[D.date],by:D.seller.trim(),orders:orders.length,rows:rows.length,filename,b64,ids:orders})}); msgs.push('판매입력 파일 이력에 남겼습니다');
     const at=new Date(Date.now()+9*3600e3).toISOString().slice(0,16).replace('T',' ');
-    for(const id of orders){ (D.made[id] ||= []).push({by:D.seller.trim(),at,filename}); delete D.sel[id]; } }
+    for(const id of orders){ (D.made[id] ||= []).push({by:D.seller.trim(),at,filename}); delete D.sel[id]; }
+    delete monthCache[D.date.slice(0,7)]; }   // 다음에 이 달을 열 때 새 이력을 받게
   catch(e){ msgs.push('이력 저장 실패: '+e.message); }
   if(newCodes.length){
     try{
@@ -753,22 +799,22 @@ function initDate(){ if(!D.date){ D.date=kstDay(-1); D.seller=lsGet('pbg_ecdaily
 function renderDaily(){
   initDate();
   const R=(D.rows||[]).filter(r=>r.ls.length), cnt={}; for(const r of R) cnt[r.gst]=(cnt[r.gst]||0)+1;
-  const views=[['new','새 주문',cnt['새 주문']||0],['made','파일 있음',cnt['파일 있음']||0],['etc','취소·입금대기 등',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)],['all','전체',R.length]];
-  const gv=['new','made','etc','all'].includes(D.gview)?D.gview:'new';
-  const list=gv==='all'?R:gv==='new'?R.filter(r=>r.gst==='새 주문'):gv==='made'?R.filter(r=>r.gst==='파일 있음'):R.filter(r=>['취소','입금대기','개인결제창'].includes(r.gst));
+  const views=[['new','새 주문',cnt['새 주문']||0],['wait','환불 대기',cnt['환불 대기']||0],['made','파일 있음',cnt['파일 있음']||0],['etc','취소·입금대기 등',(cnt['취소']||0)+(cnt['입금대기']||0)+(cnt['개인결제창']||0)],['all','전체',R.length]];
+  const gv=['new','wait','made','etc','all'].includes(D.gview)?D.gview:'new';
+  const list=gv==='all'?R:gv==='new'?R.filter(r=>r.gst==='새 주문'):gv==='wait'?R.filter(r=>r.gst==='환불 대기'):gv==='made'?R.filter(r=>r.gst==='파일 있음'):R.filter(r=>['취소','입금대기','개인결제창'].includes(r.gst));
   const nSel=R.filter(r=>D.sel[r.o.order_id]&&r.live.length).length;
   const rowsHtml=list.map(r=>{
     const o=r.o, id=esc(o.order_id), mf=D.made[o.order_id];
     return `<tr><td><input type="checkbox" data-a="sel" data-o="${id}" ${D.sel[o.order_id]?'checked':''} ${r.live.length?'':'disabled'} aria-label="판매입력에 넣기"></td>
       <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div>${diffRc(o)?'<span class="ec-badge ec-warn">주문자≠수령인</span>':''}</td>
       <td class="l" style="min-width:280px">${itemsHtml(r)}</td>
-      <td>${(()=>{ const m=remainOf(r); return m.mode==='pending'?`<s style="color:var(--muted)">${n(m.orig)}</s><br><b>${n(m.amt)}</b><div><span class="ec-badge ec-warn">부분취소</span></div>`:`${n(r.paid)}${m.mode==='refunded'?'<div><span class="ec-badge ec-warn">부분취소·환불됨</span></div>':''}`; })()}${exchTxt(r)?'<div><span class="ec-badge ec-warn">교환</span></div>':''}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
+      <td>${(()=>{ const m=remainOf(r); return m.mode==='pending'?`<s style="color:var(--muted)">${n(m.orig)}</s><br><b>${n(m.amt)}</b><div><span class="ec-badge ec-warn">환불 전 예상</span></div>`:`${n(r.paid)}${m.mode==='refunded'?'<div><span class="ec-badge ec-warn">부분취소·환불됨</span></div>':''}`; })()}${exchTxt(r)?'<div><span class="ec-badge ec-warn">교환</span></div>':''}${o.naver_point?`<div class="ec-sub">네이버포인트 ${n(o.naver_point)}</div>`:''}</td>
       <td style="${r.want?'':'color:var(--down)'}">${esc(r.want||'(정할 수 없음)')}</td>
-      <td><span class="ec-badge ${r.gst==='새 주문'?'ec-ok':r.gst==='파일 있음'?'ec-info':'ec-warn'}">${esc(r.gst)}</span>${mf?`<div class="ec-sub">${mf.map(f=>`${esc(f.by||'')} ${esc(f.at.slice(5))}`).join('<br>')}</div>`:''}</td></tr>`;
+      <td><span class="ec-badge ${r.gst==='새 주문'?'ec-ok':r.gst==='파일 있음'?'ec-info':'ec-warn'}">${esc(r.gst)}</span>${r.gst==='환불 대기'?'<div class="ec-sub" style="white-space:normal;max-width:160px">카페24 환불이 끝나면 정확한 금액으로 바뀝니다. 급하면 체크(예상 금액)</div>':''}${mf?`<div class="ec-sub">${mf.map(f=>`${esc(f.by||'')} ${esc(f.at.slice(5))}`).join('<br>')}</div>`:''}</td></tr>`;
   }).join('');
   S.root.innerHTML=`<div class="ec-card"><h2>데일리 전표 생성</h2>
     <p class="ec-lead">날짜를 고르면 그날 카페24 주문을 받습니다. 체크한 주문으로 이카운트 판매입력 엑셀을 만듭니다(이카운트 파일은 필요 없음).
-      이미 판매입력 파일에 넣은 주문은 '파일 있음'으로 표시되고 기본으로 빠집니다. 입력이 잘 됐는지는 <a href="#" data-a="gorecon">판매 입력 대조</a>에서 확인하세요.</p>
+      이미 판매입력 파일에 넣은 주문은 '파일 있음', 부분취소인데 카페24 환불이 아직 안 끝난 주문은 '환불 대기'로 표시되고 기본으로 빠집니다. 입력이 잘 됐는지는 <a href="#" data-a="gorecon">판매 입력 대조</a>에서 확인하세요.</p>
     ${dateRow(false)}
     <div class="ec-kpis" style="grid-template-columns:repeat(4,1fr)">
       ${kpi('카페24 주문',n(R.length)+'건')}${kpi('새 주문 (파일 없음)',n(cnt['새 주문']||0)+'건',cnt['새 주문']?'warn':'ok')}${kpi('파일 있음',n(cnt['파일 있음']||0)+'건')}${kpi('고른 주문',n(nSel)+'건')}
@@ -1057,7 +1103,7 @@ function wire(root){
     if(a==='tftype'){ TF.type=t.dataset.v; render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
     if(a==='gorecon'){ e.preventDefault(); setMenu('ecrecon'); return; }
-    if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }
+    if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='wait'&&r.gst==='환불 대기')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }
     if(a==='togen'){ D.sel={}; for(const r of (D.rows||[])) if(r.st==='미입력'&&r.live.length) D.sel[r.o.order_id]=true; D.selInit=true; D.gview='all'; setMenu('ecdaily'); return; }
     if(a==='dreload'){ await loadDailyC24(); return; }
     if(a==='dgen'){ t.disabled=true; try{ await generate(); }catch(err){ dflash('만들지 못했습니다: '+err.message,true); } t.disabled=false; return; }
@@ -1100,5 +1146,6 @@ window.loadEcountTab=async function(el,page){
   if((S.page==='daily'||S.page==='recon')&&!D.loadedDate){ render(); D.loadedDate=true; await loadDailyC24(); return; }
   render();
 };
-window.__ecount={S,D,learn,parseEcount,payType,buildRows,compute};
+// 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
+window.__ecount={S,D,RV,TF,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();
