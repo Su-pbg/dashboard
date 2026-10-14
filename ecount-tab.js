@@ -504,6 +504,10 @@ function compute(){
           const same=Object.keys(C).length===Object.keys(E).length&&Object.keys(C).every(c=>E[c]===C[c]);
           r.item=same?'일치':'불일치'; if(!same) r.issues.push('품목·수량 불일치');
         }
+        // 부분취소·반품: 카페24 실결제금액은 그대로이고 이카운트는 반품 전표가 따로 들어간다 → 금액이 다른 이유를 같이 보여준다
+        const pc=ls.filter(l=>l.canceled==='Y');
+        if(pc.length){ const ds=[...new Set(pc.map(l=>(l.cancel_done||l.cancel_req||'').slice(5).replace('-','/')).filter(Boolean))];
+          const note=`부분취소·반품 ${pc.length}줄${ds.length?' '+ds.join(', '):''}`; if(r.issues.length) r.issues.push(note); else r.item=(r.item&&r.item!=='일치'&&r.item!=='수량 일치'?r.item+' · ':'')+note; }
         r.st=r.issues.length?r.issues[0]:'정상';
       }
     }
