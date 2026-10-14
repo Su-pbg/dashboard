@@ -1,4 +1,4 @@
-// 이카운트 전표 입력 — 왼쪽 메뉴 큰 카테고리. 하위: '데일리 전표 생성'(view=daily) · '품목코드 맵핑'(view=map).
+// 이카운트 판매 입력 — 왼쪽 메뉴 큰 카테고리(page=log: 판매입력 파일 이력). 하위: '데일리 전표 생성'(page=daily) · '품목코드 맵핑'(page=map).
 // index.html 의 enterEcount() 가 불러와 loadEcountTab(el, view) 를 부른다.
 //
 // 품목코드 맵핑: 카페24 상품·옵션 → 이카운트 품목코드 대응표
@@ -50,7 +50,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={root:null, page:'map', map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
+const S={root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, months:[], loading:'', err:null, result:null, view:'new', q:''};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -175,6 +175,47 @@ async function saveManual(key,code,label,name){
 async function reloadMap(){ S.map=(await getJSON(`${WORKER}/ecmap`)).map||{}; }
 
 // ---------- 화면 ----------
+// ---------- 이카운트 판매 입력: 판매입력 파일 이력 ----------
+// 날짜마다 판매입력 파일을 만든 적이 있는지 · 누가(판매자로 고른 담당자) · 언제 만들었는지, 파일은 목록에서 바로 받는다.
+// 이력은 달마다 따로 저장돼 있어 고른 달 것만 부른다(지워지지 않는다). 파일은 만든 날부터 400일 보관.
+async function loadLog(){
+  if(!S.logMonth) S.logMonth=new Date(Date.now()+9*3600e3).toISOString().slice(0,7);
+  S.logErr=null; try{ S.log=(await getJSON(`${WORKER}/ecsales?month=${S.logMonth}`)).log||[]; }catch(e){ S.logErr=e; S.log=[]; }
+}
+const expired=f=>{ const t=new Date(f.at.replace(' ','T')+':00+09:00'); return Date.now()-t.getTime()>400*86400e3; };
+async function downloadFile(id){
+  const d=await getJSON(`${WORKER}/ecsales?id=${encodeURIComponent(id)}`);
+  const bin=atob(d.b64), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})); a.download=d.filename;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+function renderLog(){
+  if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }
+  const [y,m]=S.logMonth.split('-').map(Number), last=new Date(y,m,0).getDate();
+  const today=new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
+  const byDate={}; for(const f of (S.log||[])) for(const d of (f.dates||[])) (byDate[d] ||= []).push(f);
+  const days=[]; for(let d=last;d>=1;d--){ const ds=`${S.logMonth}-${String(d).padStart(2,'0')}`; if(ds<=today) days.push(ds); }
+  const made=days.filter(d=>byDate[d]).length;
+  const wd=ds=>'일월화수목금토'[new Date(ds+'T00:00:00').getDay()];
+  const rows=days.map(ds=>{
+    const fs=byDate[ds]||[];
+    if(!fs.length) return `<tr><td><b>${ds.slice(5).replace('-','/')}</b> <span class="ec-sub" style="display:inline">${wd(ds)}</span></td><td colspan="5" style="color:var(--ghost)">아직 만든 판매입력 파일 없음</td></tr>`;
+    return fs.map((f,i)=>`<tr>${i===0?`<td rowspan="${fs.length}"><b>${ds.slice(5).replace('-','/')}</b> <span class="ec-sub" style="display:inline">${wd(ds)}</span>${fs.length>1?`<div class="ec-sub">${fs.length}개</div>`:''}</td>`:''}
+      <td class="l">${esc(f.filename)}${(f.dates||[]).length>1?`<div class="ec-sub">${esc(f.dates.map(d=>d.slice(5).replace('-','/')).join(', '))} 포함</div>`:''}</td>
+      <td>${esc(f.by||'—')}</td><td>${esc(f.at)}</td><td>${n(f.orders)}건 · ${n(f.rows)}행</td>
+      <td>${expired(f)?'<span class="ec-sub" style="margin:0">보관 기간 지남</span>':`<button class="ec-dl" data-a="logdl" data-id="${esc(f.id)}">받기</button>`}</td></tr>`).join('');
+  }).join('');
+  S.root.innerHTML=`<div class="ec-card"><h2>판매입력 파일 이력</h2>
+    <p class="ec-lead">데일리 전표 생성에서 만든 이카운트 판매입력 파일이 날짜별로 남습니다. 만든 사람은 파일을 만들 때 고른 담당자(판매자)입니다. 이력은 계속 남고, 파일은 만든 날부터 400일 보관합니다.</p>
+    <div class="ec-row"><label>월 <input type="month" class="ec-in" id="ecLogMonth" value="${esc(S.logMonth)}"></label>
+      <span class="ec-sub" style="margin:0">${n(days.length)}일 중 <b style="color:var(--ink)">${n(made)}일</b> 파일 있음</span>
+      <span style="flex:1"></span><button class="ec-dl" data-a="logreload">새로고침</button>
+      <button class="go" data-a="godaily" style="height:36px">데일리 전표 생성으로</button></div>
+    ${S.logErr?`<div class="ec-stat err">${esc(S.logErr.message)}</div>`:''}
+    <div class="ec-scroll"><table class="ec-t" style="min-width:720px"><thead><tr><th>날짜</th><th>판매입력 파일</th><th>만든 사람</th><th>만든 시각</th><th>주문 · 행</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" style="color:var(--muted)">이 달에는 날짜가 없습니다.</td></tr>'}</tbody></table></div></div>`;
+}
+
 // 데일리 전표 생성 — 다음 단계(준비 중)
 function renderDaily(){
   const cnt=Object.keys(S.map).length;
@@ -190,6 +231,7 @@ function renderDaily(){
 function render(){
   if(!S.root) return;
   if(S.page==='daily') return renderDaily();
+  if(S.page==='log') return renderLog();
   const saved=Object.values(S.map), man=saved.filter(v=>v.src==='manual').length;
   let h=`<div class="ec-card"><h2>품목코드 맵핑</h2>
     <p class="ec-lead">카페24 상품·옵션을 이카운트 품목코드에 잇는 표입니다. 이미 입력된 이카운트 판매현황(품목별)을 올리면 같은 주문번호의 카페24 주문과 맞춰 자동으로 채우고,
@@ -283,12 +325,16 @@ function wire(root){
   root.addEventListener('change',e=>{
     const t=e.target;
     if(t.id==='ecFiles'){ const fs=[...t.files]; t.value=''; if(fs.length) onFiles(fs); return; }
+    if(t.id==='ecLogMonth'){ S.logMonth=t.value||S.logMonth; (async()=>{ await loadLog(); render(); })(); return; }
   });
   root.addEventListener('input',e=>{ if(e.target.id==='ecQ'){ S.q=e.target.value; const pos=e.target.selectionStart; render(); const q=$('ecQ'); if(q){ q.focus(); q.setSelectionRange(pos,pos); } } });
   root.addEventListener('click',async e=>{
     const t=e.target.closest('[data-a]'); if(!t) return;
     const a=t.dataset.a;
     if(a==='view'){ S.view=t.dataset.v; render(); return; }
+    if(a==='logreload'){ await loadLog(); render(); return; }
+    if(a==='godaily'){ setMenu('ecdaily'); return; }
+    if(a==='logdl'){ t.disabled=true; const txt=t.textContent; t.textContent='받는 중…'; try{ await downloadFile(t.dataset.id); }catch(err){ alert('받지 못했습니다: '+err.message); } t.disabled=false; t.textContent=txt; return; }
     if(a==='pick'){
       e.preventDefault();
       const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`);
@@ -316,7 +362,10 @@ window.loadEcountTab=async function(el,page){
   if(!$('ecCss')){ const s=document.createElement('style'); s.id='ecCss'; s.textContent=STYLE; document.head.appendChild(s); }
   S.root=el; S.page=page||'map';
   if(!WIRED){ wire(el); WIRED=true; }
-  if(!S.loadedMap){
+  if(S.page==='log'){
+    el.innerHTML='<div class="state"><div class="spinner"></div>판매입력 파일 이력 불러오는 중…</div>';
+    await loadLog();   // 열 때마다 새로 받는다(다른 사람이 만든 파일도 보이게)
+  }else if(!S.loadedMap){
     el.innerHTML='<div class="state"><div class="spinner"></div>품목코드 맵핑 불러오는 중…</div>';
     try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }
   }

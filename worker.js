@@ -114,6 +114,56 @@ var worker_default = {
         return json({ error: "지원하지 않는 메서드" }, 405);
       }
 
+      // ===== 이카운트 판매 입력: 판매입력 파일 이력 · 보관 =====
+      // [2026-10-14] 데일리 전표 생성에서 만든 판매입력 엑셀을 날짜별로 남기고 다시 받을 수 있게 한다.
+      //   이력은 대상 날짜의 달마다 따로 둔다(ecsales:log:YYYY-MM) — 화면은 그 달 것만 부른다. 이력은 지우지 않는다.
+      //   파일은 만든 날부터 400일 보관(Su, 2026-10-14). 지나면 파일만 사라지고 이력은 남는다.
+      //   GET ?month=YYYY-MM → {log:[{id,dates,by,orders,rows,filename,size,at}]} (최근 것이 앞)
+      //   GET ?id=           → {filename, b64}
+      //   POST {dates,by,orders,rows,filename,b64} → 저장
+      // 파일엔 고객 이름·연락처·주소가 들어간다 → 로그인한 사람만 받는다(이 경로는 인증 뒤에 있다).
+      if (url.pathname === "/ecsales") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        const logKey = (ym) => "ecsales:log:" + ym;
+        const readLog = async (ym) => { const r = await kv0.get(logKey(ym)); return r ? JSON.parse(r) : []; };
+        if (request.method === "GET") {
+          const id = q.get("id");
+          if (id) {
+            if (!/^[a-z0-9]{6,24}$/.test(id)) return json({ error: "잘못된 id" }, 400);
+            const f = await kv0.get("ecsales:file:" + id);
+            if (!f) return json({ error: "파일이 없습니다(만든 지 400일이 지나 보관 기간이 끝났을 수 있습니다)" }, 404);
+            const meta = await kv0.get("ecsales:meta:" + id);
+            return json({ filename: meta ? JSON.parse(meta).filename : "판매입력.xlsx", b64: f });
+          }
+          const ym = q.get("month") || "";
+          if (!/^\d{4}-\d{2}$/.test(ym)) return json({ error: "month=YYYY-MM 이 필요합니다" }, 400);
+          return json({ log: await readLog(ym) });
+        }
+        if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
+        let b = {};
+        try { b = await request.json(); } catch (e) { }
+        const b64 = String(b.b64 || "");
+        if (!b64 || b64.length > 20e6) return json({ error: "파일이 없거나 너무 큽니다" }, 400);
+        const dates = (Array.isArray(b.dates) ? b.dates : []).map(String).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 62);
+        if (!dates.length) return json({ error: "대상 날짜가 없습니다" }, 400);
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const entry = {
+          id, at: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " "),
+          dates, by: String(b.by || "").slice(0, 20), orders: Number(b.orders) || 0, rows: Number(b.rows) || 0,
+          filename: String(b.filename || "판매입력.xlsx").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120),
+          size: Math.round(b64.length * 0.75)
+        };
+        const TTL = { expirationTtl: 400 * 86400 };
+        await kv0.put("ecsales:file:" + id, b64, TTL);
+        await kv0.put("ecsales:meta:" + id, JSON.stringify(entry), TTL);
+        for (const ym of [...new Set(dates.map((d) => d.slice(0, 7)))]) {
+          const log = await readLog(ym);
+          log.unshift(entry);
+          await kv0.put(logKey(ym), JSON.stringify(log));
+        }
+        return json({ ok: true, entry });
+      }
       // ===== 전표 입력 대조: 카페24 상품(옵션) → 이카운트 품목코드 대응표 =====
       // [2026-10-14] 카페24 자체상품코드는 이카운트 품목코드가 아니라(ARG…·4205… 등, 1/3 만 채워짐) 따로 대응표를 둔다.
       // 키 = 카페24 variant_code(옵션별), 없으면 상품번호. 값 = {code, name, src:'auto'|'manual', by, at, n(근거 건수), label}.
