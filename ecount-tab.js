@@ -258,10 +258,9 @@ async function loadRVDay(date){
   try{ const d=await getJSON(`${WORKER}/ecrecon?date=${date}`); RV.day=d.day; RV.notes={...RV.notes,...(d.notes||{})}; }catch(e){ RV.err=e; }
   render();
 }
-// 메모·처리완료·배송 상태 — 팀 공유. patch 를 지금 값에 합쳐 보낸다.
+// 메모·처리완료·선수금 진행·배송 상태 — 팀 공유. 바꾼 칸만 보낸다(워커가 지금 값에 합친다) — 다른 사람이 바꾼 칸을 내 화면의 옛 값으로 덮지 않게(H2).
 async function saveNote(date,order,patch){
-  const cur=RV.notes[order]||{}, nt={memo:cur.memo||'',done:!!cur.done,dst:cur.dst||'',ast:cur.ast||'',...patch};
-  const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:{date,order,...nt}})});
+  const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:{date,order,...patch}})});
   if(d.note) RV.notes[order]=d.note; else delete RV.notes[order];
   const c=monthCache[date.slice(0,7)]; if(c){ if(d.note) c.notes[order]=d.note; else delete c.notes[order]; }   // 같은 달 캐시도 맞춘다
 }
@@ -302,7 +301,7 @@ function rvTable(rows,withDate){
       <td>${r.paid==null?'—':n(r.paid)}</td><td>${r.ec==null?'—':n(r.ec)}</td><td style="${r.diff?'color:var(--down);font-weight:700':''}">${r.diff==null?'—':n(r.diff)}</td>
       <td style="${(r.more||[]).includes('결제유형 확인')||r.st==='결제유형 확인'?'color:var(--down)':''}">${esc(r.want||'—')}${r.ecPay?`<div class="ec-sub">이카운트 ${esc(r.ecPay)}</div>`:''}</td>
       <td><span class="ec-badge ${stCls(r.st)}">${esc(r.st)}</span>${(r.more||[]).length?`<div class="ec-sub">${esc(r.more.join(' · '))}</div>`:''}</td>
-      <td><input class="ec-in" data-a="rvmemo" data-o="${esc(r.o)}" data-d="${esc(dt)}" value="${esc(nt.memo||'')}" placeholder="메모" style="width:140px"></td>
+      <td><input class="ec-in" data-a="rvmemo" data-o="${esc(r.o)}" data-d="${esc(dt)}" value="${esc(nt.memo||'')}" placeholder="메모" maxlength="200" style="width:140px"></td>
       <td><input type="checkbox" data-a="rvdone" data-o="${esc(r.o)}" data-d="${esc(dt)}" ${nt.done?'checked':''} aria-label="처리완료"></td></tr>`; }).join('')
     ||'<tr><td colspan="12" style="color:var(--muted)">없습니다.</td></tr>'}</tbody></table></div>`;
 }
@@ -745,6 +744,10 @@ async function generate(){
   const {rows,miss,orders}=buildRows();
   if(!rows.length) return dflash('판매입력에 넣을 주문을 골라 주세요.',true);
   if(miss.length) return dflash(`품목코드가 없는 상품이 ${miss.length}줄 있습니다. 아래 빨간 칸에 품목코드를 넣어 주세요.`,true);
+  // 만들기 직전에 이 달 이력을 새로 읽어, 그사이 다른 사람이 이미 파일에 넣은 주문이 있는지 본다(중복 입력 방지 — M2)
+  const fresh=await monthData(D.date.slice(0,7),true), dup=[];
+  for(const fl of fresh.log) for(const id of (fl.ids||[])) if(orders.includes(id)&&!dup.some(x=>x.id===id)) dup.push({id,by:fl.by,at:fl.at});
+  if(dup.length&&!confirm(`이미 다른 판매입력 파일에 들어간 주문이 ${dup.length}건 있습니다:\n${dup.slice(0,6).map(x=>`· ${x.id} (${x.by||'?'} ${x.at})`).join('\n')}${dup.length>6?'\n…':''}\n\n그래도 같이 넣을까요? (취소하면 아무것도 만들지 않습니다)`)) return;
   const noPay=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length&&!r.want).length;
   const partial=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length&&remainOf(r).mode==='pending');
   const newCodes=Object.entries(D.codes).filter(([k,c])=>c&&(!S.map[k]||S.map[k].code!==c));
@@ -858,7 +861,7 @@ function renderRecon(){
       <td style="${diff?'color:var(--down);font-weight:700':''}">${diff==null?'—':n(diff)}</td>
       <td style="${payBad?'color:var(--down)':''}">${esc(r.want||'(정할 수 없음)')}${r.ecPay?`<div class="ec-sub">이카운트 ${esc(r.ecPay)}</div>`:''}</td>
       <td><span class="ec-badge ${stCls(r.st)}">${esc(r.st)}</span>${r.issues.length>1?`<div class="ec-sub">${esc(r.issues.slice(1).join(' · '))}</div>`:''}${r.st==='미입력'&&mf?`<div class="ec-sub">판매입력 파일은 있음(${esc(mf[0].by||'')})</div>`:''}</td>
-      <td><input class="ec-in" data-a="rvmemo" data-o="${id}" data-d="${esc(D.date)}" value="${esc((RV.notes[o.order_id]||{}).memo||'')}" placeholder="메모" style="width:130px"></td>
+      <td><input class="ec-in" data-a="rvmemo" data-o="${id}" data-d="${esc(D.date)}" value="${esc((RV.notes[o.order_id]||{}).memo||'')}" placeholder="메모" maxlength="200" style="width:130px"></td>
       <td><input type="checkbox" data-a="rvdone" data-o="${id}" data-d="${esc(D.date)}" ${(RV.notes[o.order_id]||{}).done?'checked':''} aria-label="처리완료"></td></tr>`;
   }).join('');
   const miss=R.filter(r=>r.st==='미입력').length;

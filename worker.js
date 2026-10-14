@@ -133,11 +133,25 @@ var worker_default = {
         const okDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
         const getJ = async (k, d) => { const r = await kv0.get(k); return r ? JSON.parse(r) : d; };
         const now = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " ");
+        // [2026-10-14] 메모·상태는 주문마다 따로 둔다: ecrecon:n:{월}:{주문번호}, 값은 KV metadata(목록 한 번에 다 읽힘).
+        //   예전엔 한 달 전체가 ecrecon:note:{월} 값 하나라 동시에 저장하면 한쪽이 사라졌다(리포트 H2). 예전 값은 그대로 두고 같이 읽는다.
+        //   빈 메모(지움)도 키로 남겨야 예전 값이 다시 살아나지 않는다 → 읽을 때 빈 것은 뺀다.
+        const readNotes = async (ym) => {
+          const out = await getJ("ecrecon:note:" + ym, {});
+          let cursor;
+          do {
+            const l = await kv0.list({ prefix: `ecrecon:n:${ym}:`, cursor });
+            for (const k of l.keys) out[k.name.slice(`ecrecon:n:${ym}:`.length)] = k.metadata || {};
+            cursor = l.list_complete ? null : l.cursor;
+          } while (cursor);
+          for (const [o, v] of Object.entries(out)) if (!v || (!v.memo && !v.done && !v.dst && !v.ast)) delete out[o];
+          return out;
+        };
         if (request.method === "GET") {
           const date = q.get("date"), month = q.get("month");
-          if (okDate(date)) return json({ day: await getJ("ecrecon:day:" + date, null), notes: await getJ("ecrecon:note:" + date.slice(0, 7), {}) });
+          if (okDate(date)) return json({ day: await getJ("ecrecon:day:" + date, null), notes: await readNotes(date.slice(0, 7)) });
           if (!/^\d{4}-\d{2}$/.test(month || "")) return json({ error: "month=YYYY-MM 또는 date=YYYY-MM-DD 가 필요합니다" }, 400);
-          return json({ idx: await getJ("ecrecon:idx:" + month, {}), notes: await getJ("ecrecon:note:" + month, {}) });
+          return json({ idx: await getJ("ecrecon:idx:" + month, {}), notes: await readNotes(month) });
         }
         if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
         let b = {};
@@ -145,14 +159,20 @@ var worker_default = {
         if (b.note) {
           const nt = b.note, ord = String(nt.order || "");
           if (!okDate(nt.date) || !/^\d{8}-\d{7}$/.test(ord)) return json({ error: "잘못된 메모" }, 400);
-          const k = "ecrecon:note:" + nt.date.slice(0, 7), notes = await getJ(k, {});
           // dst = 배송 상태(퀵·설치·차량 등 배송방식이 있는 주문의 진행: 일정 조율중·출고 예정·출고완료·배송완료·설치완료·보류)
           // ast = 선수금 진행 상태(발주 필요·발주 완료·입고 완료·출고 완료·보류). 마지막 승인(이카운트 전표 변경)은 done.
-          const dst = String(nt.dst || "").slice(0, 20), ast = String(nt.ast || "").slice(0, 20);
-          notes[ord] = { date: nt.date, memo: String(nt.memo || "").slice(0, 300), done: !!nt.done, at: now, ...(dst ? { dst } : {}), ...(ast ? { ast } : {}) };
-          if (!notes[ord].memo && !notes[ord].done && !notes[ord].dst && !notes[ord].ast) delete notes[ord];
-          await kv0.put(k, JSON.stringify(notes));
-          return json({ ok: true, note: notes[ord] || null });
+          // 보낸 칸만 바꾼다(다른 사람이 바꾼 칸을 내 화면의 옛 값으로 덮지 않게). metadata 는 1KB 한도라 메모는 200자.
+          const ym = nt.date.slice(0, 7), nk = `ecrecon:n:${ym}:${ord}`;
+          const cur = (await kv0.getWithMetadata(nk)).metadata || (await getJ("ecrecon:note:" + ym, {}))[ord] || {};
+          const next = { date: nt.date, memo: String(cur.memo || "").slice(0, 200), done: !!cur.done, dst: cur.dst || "", ast: cur.ast || "" };
+          if ("memo" in nt) next.memo = String(nt.memo || "").slice(0, 200);
+          if ("done" in nt) next.done = !!nt.done;
+          if ("dst" in nt) next.dst = String(nt.dst || "").slice(0, 20);
+          if ("ast" in nt) next.ast = String(nt.ast || "").slice(0, 20);
+          next.at = now;
+          await kv0.put(nk, "", { metadata: next });
+          const empty = !next.memo && !next.done && !next.dst && !next.ast;
+          return json({ ok: true, note: empty ? null : next });
         }
         // remove — 잘못 저장된 날짜 결과 지우기(메모·처리완료 등 note 는 그대로 둔다)
         if (b.remove && okDate(b.remove.date)) {
@@ -205,7 +225,16 @@ var worker_default = {
         const kv0 = env.CAFE24_TOKEN_KV;
         if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
         const logKey = (ym) => "ecsales:log:" + ym;
-        const readLog = async (ym) => { const r = await kv0.get(logKey(ym)); return r ? JSON.parse(r) : []; };
+        // [2026-10-14] 이력은 파일마다 ecsales:m:{월}:{id} 에 둔다(예전 ecsales:log:{월} 한 값은 동시에 만들면 하나가 사라졌다 — 리포트 M2).
+        //   예전 값도 같이 읽고 id 로 겹침을 없앤다. 최신이 위로.
+        const readLog = async (ym) => {
+          const r = await kv0.get(logKey(ym)), old = r ? JSON.parse(r) : [];
+          const ids = []; let cursor;
+          do { const l = await kv0.list({ prefix: `ecsales:m:${ym}:`, cursor }); ids.push(...l.keys.map((k) => k.name)); cursor = l.list_complete ? null : l.cursor; } while (cursor);
+          const fresh = (await Promise.all(ids.map((k) => kv0.get(k)))).filter(Boolean).map((x) => JSON.parse(x));
+          const seen = new Set(fresh.map((e) => e.id));
+          return [...fresh, ...old.filter((e) => !seen.has(e.id))].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+        };
         if (request.method === "GET") {
           const id = q.get("id");
           if (id) {
@@ -238,11 +267,7 @@ var worker_default = {
         const TTL = { expirationTtl: 400 * 86400 };
         await kv0.put("ecsales:file:" + id, b64, TTL);
         await kv0.put("ecsales:meta:" + id, JSON.stringify(entry), TTL);
-        for (const ym of [...new Set(dates.map((d) => d.slice(0, 7)))]) {
-          const log = await readLog(ym);
-          log.unshift(entry);
-          await kv0.put(logKey(ym), JSON.stringify(log));
-        }
+        for (const ym of [...new Set(dates.map((d) => d.slice(0, 7)))]) await kv0.put(`ecsales:m:${ym}:${id}`, JSON.stringify(entry));
         return json({ ok: true, entry });
       }
       // ===== 전표 입력 대조: 카페24 상품(옵션) → 이카운트 품목코드 대응표 =====

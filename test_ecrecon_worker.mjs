@@ -1,0 +1,62 @@
+// 워커 /ecrecon 메모 · /ecsales 이력 저장 점검.  실행: node test_ecrecon_worker.mjs
+// 가짜 KV 로 worker.js 를 그대로 돌린다(운영 KV 를 건드리지 않는다). 데이터는 모두 가짜.
+// 확인: ① 바꾼 칸만 합쳐 저장(다른 칸을 덮지 않음) ② 예전 한 달 묶음(ecrecon:note:{월}) 도 같이 읽음
+//       ③ 지운 메모가 예전 값으로 되살아나지 않음 ④ 판매입력 이력이 파일마다 남고 예전 묶음과 합쳐 읽힘
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+let bad = 0, ok = 0;
+const eq = (name, got, want) => { const g = JSON.stringify(got), w = JSON.stringify(want); if (g === w) ok++; else { bad++; console.log(`FAIL ${name}\n  got  ${g}\n  want ${w}`); } };
+
+const kv = new Map();   // key → {value, metadata}
+const KV = {
+  get: async (k) => (kv.has(k) ? kv.get(k).value : null),
+  getWithMetadata: async (k) => (kv.has(k) ? { value: kv.get(k).value, metadata: kv.get(k).metadata ?? null } : { value: null, metadata: null }),
+  put: async (k, v, o = {}) => { if (o.metadata && JSON.stringify(o.metadata).length > 1024) throw new Error('metadata > 1KB'); kv.set(k, { value: v, metadata: o.metadata }); },
+  delete: async (k) => { kv.delete(k); },
+  list: async ({ prefix }) => ({ keys: [...kv.keys()].filter((k) => k.startsWith(prefix)).sort().map((name) => ({ name, metadata: kv.get(name).metadata })), list_complete: true }),
+};
+const env = { CAFE24_TOKEN_KV: KV, DASHBOARD_KEY: 'k' };
+
+// worker.js 는 ES 모듈(export default) — 마지막 export 를 globalThis 로 바꿔 vm 에서 돌린다
+let src = readFileSync(new URL('./worker.js', import.meta.url), 'utf8');
+src = src.replace(/export\s*\{\s*worker_default\s+as\s+default\s*\};?/, 'globalThis.__worker = worker_default;');
+const ctx = { console, URL, Response, Request, Headers, fetch, crypto, TextEncoder, TextDecoder, atob, btoa, setTimeout, Date, Math, JSON };
+vm.createContext(ctx); vm.runInContext(src, ctx, { filename: 'worker.js' });
+const W = ctx.__worker;
+const call = async (path, body) => {
+  const r = await W.fetch(new Request('https://w.test' + path + (path.includes('?') ? '&' : '?') + 'key=k', body ? { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {}), env);
+  return r.json();
+};
+const D = '2026-10-13', A = '20261013-0000001', B = '20261013-0000002', C = '20261013-0000003';
+
+// 예전 한 달 묶음에 B·C 메모가 있다
+await KV.put('ecrecon:note:2026-10', JSON.stringify({ [B]: { date: D, memo: '예전 메모', done: false }, [C]: { date: D, memo: '지울 메모', done: false } }));
+
+// ① 두 사람이 같은 주문의 다른 칸을 따로 저장
+await call('/ecrecon', { note: { date: D, order: A, ast: '발주 완료' } });
+await call('/ecrecon', { note: { date: D, order: A, memo: '퀵 픽업 예정' } });
+let n = (await call('/ecrecon?month=2026-10')).notes;
+eq('바꾼 칸만 합침', [n[A].ast, n[A].memo, n[A].done], ['발주 완료', '퀵 픽업 예정', false]);
+// ② 예전 묶음 같이 읽고, 그 위에 칸 하나 바꿔도 메모 유지
+await call('/ecrecon', { note: { date: D, order: B, done: true } });
+n = (await call('/ecrecon?date=' + D)).notes;
+eq('예전 메모 위에 처리완료', [n[B].memo, n[B].done], ['예전 메모', true]);
+// ③ 지운 메모는 되살아나지 않음
+const r = await call('/ecrecon', { note: { date: D, order: C, memo: '' } });
+n = (await call('/ecrecon?month=2026-10')).notes;
+eq('지운 메모', [r.note, C in n], [null, false]);
+// 긴 메모(200자 넘음)도 저장 실패하지 않음
+await call('/ecrecon', { note: { date: D, order: A, memo: '가'.repeat(400) } });
+n = (await call('/ecrecon?month=2026-10')).notes;
+eq('긴 메모는 200자로', n[A].memo.length, 200);
+
+// ④ 판매입력 이력: 예전 묶음 + 파일마다
+await KV.put('ecsales:log:2026-10', JSON.stringify([{ id: 'old1', at: '2026-10-01 09:00', dates: ['2026-10-01'], ids: [A] }]));
+await call('/ecsales', { dates: [D], by: '가', orders: 1, rows: 1, filename: 'a.xlsx', b64: 'QQ==', ids: [B] });
+await call('/ecsales', { dates: [D], by: '나', orders: 1, rows: 1, filename: 'b.xlsx', b64: 'QQ==', ids: [C] });
+const log = (await call('/ecsales?month=2026-10')).log;
+eq('이력 3건(예전 1 + 새 2), 모든 주문번호', [log.length, log.flatMap((e) => e.ids).sort()], [3, [A, B, C].sort()]);
+
+console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
+process.exit(bad ? 1 : 0);
