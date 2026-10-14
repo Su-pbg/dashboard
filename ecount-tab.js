@@ -254,7 +254,7 @@ const sumTxt=sm=>ST_ORDER.filter(k=>sm[k]).map(k=>`${k} ${n(sm[k])}`).join(' · 
 function rvTable(rows,withDate){
   return `<div class="ec-scroll"><table class="ec-t" style="min-width:1100px"><thead><tr>${withDate?'<th>날짜</th>':''}<th>주문번호</th><th>선수금 · 배송방식</th><th>공급사</th><th>상품</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead><tbody>
     ${rows.map(r=>{ const nt=RV.notes[r.o]||{}, dt=r.date||RV.date;
-      return `<tr style="${nt.done?'opacity:.55':''}">${withDate?`<td>${esc(dt.slice(5))}</td>`:''}<td><b>${esc(r.o)}</b><div class="ec-sub">${esc(r.t||'')}</div></td><td>${tagHtml(r.tags)}</td><td>${esc(r.sup||'')}</td>
+      return `<tr style="${rowBg(r.tags,nt.done)}">${withDate?`<td>${esc(dt.slice(5))}</td>`:''}<td><b>${esc(r.o)}</b><div class="ec-sub">${esc(r.t||'')}</div></td><td>${tagHtml(r.tags)}</td><td>${esc(r.sup||'')}</td>
       <td class="l" style="min-width:240px">${esc(r.items||'')}${r.item&&r.item!=='일치'?`<div class="ec-sub">${esc(r.item)}</div>`:''}</td>
       <td>${r.paid==null?'—':n(r.paid)}</td><td>${r.ec==null?'—':n(r.ec)}</td><td style="${r.diff?'color:var(--down);font-weight:700':''}">${r.diff==null?'—':n(r.diff)}</td>
       <td style="${(r.more||[]).includes('결제유형 확인')||r.st==='결제유형 확인'?'color:var(--down)':''}">${esc(r.want||'—')}${r.ecPay?`<div class="ec-sub">이카운트 ${esc(r.ecPay)}</div>`:''}</td>
@@ -279,7 +279,7 @@ async function exportRV(btn){
   const H=['주문번호','주문시각','선수금/배송방식','공급사명','상품 (옵션 ×수량)','카페24 품목코드','이카운트 품목','카페24 실결제금액','이카운트 합계금액','차액(카페24-이카운트)','결제유형(카페24 기준)','이카운트 결제유형','상태','추가 확인','품목대조','메모','처리완료'];
   const line=(r,dt)=>{ const nt=RV.notes[r.o]||{}; return [r.o,r.t,r.tags||'',r.sup,r.items,r.codes||'',r.eccodes||'',r.paid,r.ec,r.diff,r.want,r.ecPay,r.st,(r.more||[]).join(', '),r.item,nt.memo||'',nt.done?'Y':'']; };
   const share=[['발견일','주문번호','선수금/배송방식','상태','카페24 실결제금액','이카운트 합계금액','차액','결제유형(카페24 기준)','이카운트 결제유형','메모','처리완료']];
-  for(const dt of days) for(const r of ((dayData[dt]||{}).rows||[])) if(BAD_ST.includes(r.st)){ const nt=RV.notes[r.o]||{}; share.push([dt,r.o,r.tags||'',[r.st,...(r.more||[])].join(', '),r.paid,r.ec,r.diff,r.want,r.ecPay,nt.memo||'',nt.done?'Y':'']); }
+  for(const dt of days) for(const r of ((dayData[dt]||{}).rows||[])) if(BAD_ST.includes(r.st)||tracked(r.tags)){ const nt=RV.notes[r.o]||{}; share.push([dt,r.o,r.tags||'',[r.st,...(r.more||[])].join(', '),r.paid,r.ec,r.diff,r.want,r.ecPay,nt.memo||'',nt.done?'Y':'']); }
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(share),'전표입력공유');
   for(const dt of days){ const d=dayData[dt]; if(!d) continue;
     const rows=d.rows.slice().sort((a,b)=>ST_ORDER.indexOf(a.st)-ST_ORDER.indexOf(b.st)||String(a.o).localeCompare(String(b.o)));
@@ -318,8 +318,9 @@ function rvHtml(){
         <td>${c(m['금액불일치'],1)}</td><td>${c(m['결제유형 확인'],1)}</td><td>${c(m['품목·수량 불일치'],1)}</td><td>${c((m['취소']||0)+(m['입금대기']||0)+(m['취소 확인']||0))}</td><td>${c(m.tagged)}</td>
         <td><span class="ec-sub" style="margin:0">${esc(v.at)}</span></td><td><button class="ec-dl" data-a="rvday" data-d="${esc(dt)}">보기</button></td></tr>`; }).join('')
       ||'<tr><td colspan="12" style="color:var(--muted)">이 달에는 아직 대조한 날짜가 없습니다. 판매 입력 대조에서 이카운트 파일을 올리면 여기에 쌓입니다.</td></tr>'}</tbody></table></div>
-    <h3 style="font-size:15px;margin:var(--s5) 0 0">전표입력공유 <span class="ec-sub" style="display:inline">처리 안 된 문제 주문 ${n(share.length)}건</span></h3>
-    <p class="ec-note" style="margin-top:4px">대조에서 나온 문제 주문(미입력·금액불일치·결제유형·품목·수량 등)이 모입니다. 메모를 남기고, 이카운트에서 고치면 처리완료를 체크하세요.</p>
+    <h3 style="font-size:15px;margin:var(--s5) 0 0">전표입력공유 <span class="ec-sub" style="display:inline">처리 안 된 것 ${n(share.length)}건 (문제 ${n(share.filter(x=>BAD_ST.includes(String(x.st).split(' · ')[0])).length)} · 선수금·배송방식 ${n(share.filter(x=>tracked(x.tags)).length)})</span></h3>
+    <p class="ec-note" style="margin-top:4px">대조에서 나온 문제 주문(미입력·금액불일치·결제유형·수량 등)과 진행을 따라가야 하는 선수금·배송방식(퀵·설치·차량 등) 주문이 모입니다.
+      메모에 진행 상황을 적고, 끝나면 처리완료를 체크하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span> 주문은 행이 민트색입니다.</p>
     ${rvTable(share,true)}`;
 }
 function renderLog(){
@@ -445,8 +446,8 @@ async function saveRecon(){
   const rows=reconRows(), sm={total:rows.length,missAmt:0};
   sm.issues=[];   // 전표입력공유용 — 문제 주문만 짧게
   for(const r of rows){ sm[r.st]=(sm[r.st]||0)+1; if(r.st==='미입력') sm.missAmt+=r.paid||0;
-    if(r.tags) sm.tagged=(sm.tagged||0)+1;
-    if(BAD_ST.includes(r.st)) sm.issues.push({o:r.o,tags:r.tags,st:[r.st,...r.more].join(' · '),paid:r.paid,ec:r.ec,diff:r.diff,want:r.want,ecPay:r.ecPay,sup:r.sup,items:r.items.slice(0,120)}); }
+    if(tracked(r.tags)) sm.tagged=(sm.tagged||0)+1;
+    if(BAD_ST.includes(r.st)||tracked(r.tags)) sm.issues.push({o:r.o,tags:r.tags,st:[r.st,...r.more].join(' · '),paid:r.paid,ec:r.ec,diff:r.diff,want:r.want,ecPay:r.ecPay,sup:r.sup,items:r.items.slice(0,120)}); }
   try{ const d=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:D.date,summary:sm,rows,file:D.ecFile})}); D.reconSaved=d.at; }
   catch(e){ D.reconSaved='fail:'+e.message; }
   render();
@@ -523,7 +524,11 @@ function compute(){
 function signOn(l){ const k=l.variant_code||String(l.product_no); return k in D.signOn?D.signOn[k]:!!(S.sign||{})[codeOf(l)]; }
 function codeOf(l){ const k=l.variant_code||String(l.product_no); return D.codes[k]||(S.map[k]&&S.map[k].code)||''; }
 const BAD_ST=['미입력','금액불일치','결제유형 확인','품목·수량 불일치','취소 확인','카페24에 없음'];
-const tagHtml=t=>t?String(t).split(' · ').map(x=>`<span class="ec-badge" style="background:#E0F7F4;color:#00796B;margin:1px">${esc(x)}</span>`).join('<br>'):'<span style="color:var(--ghost)">—</span>';
+// 선수금(보라) · 배송방식(청록) · 이후 전표(회색) — 선수금·배송방식 주문은 진행 상황을 메모로 따라간다(Su, 2026-10-14)
+const tagStyle=x=>/^선수금/.test(x)?'background:#F1E8FF;color:#6B3FB8':/^이후 전표/.test(x)?'background:var(--fill);color:var(--muted)':'background:#E0F7F4;color:#00796B';
+const tagHtml=t=>t?String(t).split(' · ').map(x=>`<span class="ec-badge" style="${tagStyle(x)};margin:1px">${esc(x)}</span>`).join('<br>'):'<span style="color:var(--ghost)">—</span>';
+const tracked=t=>String(t||'').split(' · ').some(x=>x&&!/^이후 전표/.test(x));   // 선수금·배송방식이 있는 주문
+const rowBg=(t,done)=>done?'opacity:.55':tracked(t)?'background:#F2FBF9':'';
 const stCls=st=>{ st=String(st||'').split(' · ')[0]; return st==='정상'?'ec-ok':BAD_ST.includes(st)?'ec-bad':st==='대조 전'?'ec-info':'ec-warn'; };
 
 // ---------- 판매입력 양식 ----------
@@ -658,7 +663,7 @@ function renderRecon(){
     const ecItems=r.e&&r.ls.length?`<div class="ec-sub">이카운트: ${r.e.map(x=>`${esc(x.code)}×${n(x.qty)}`).join(', ')}</div>`:'';
     const diff=r.paid!=null&&r.ecTot!=null?r.paid-r.ecTot:null;
     const payBad=r.issues.includes('결제유형 확인'), mf=D.made[o.order_id];
-    return `<tr style="${(RV.notes[o.order_id]||{}).done?'opacity:.55':''}">
+    return `<tr style="${rowBg(r.tags,(RV.notes[o.order_id]||{}).done)}">
       <td><b>${id}</b><div class="ec-sub">${esc(o.time||'')}</div></td>
       <td>${tagHtml(r.tags)}</td>
       <td class="l" style="min-width:260px">${items}${ecItems}${r.item&&r.item!=='일치'?`<div class="ec-sub">${esc(r.item)}</div>`:''}</td>
@@ -688,7 +693,7 @@ function renderRecon(){
       <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`
     :`<div class="ec-stat">이카운트 → 판매현황(품목별) 또는 판매조회에서 해당 날짜가 든 엑셀을 받아 올려 주세요. 판매조회는 품목코드가 없어 품목 대조 대신 수량 합계를 봅니다.</div>`}
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
-      품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 이카운트 고객명의 선수금(발주필요)·퀵)·택배)·설치)·차량) 표기와 선수금 품목 · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
+      품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 선수금 품목과 이카운트 고객명의 퀵)·택배)·설치)·차량) 표기(민트 행 — 진행 상황을 메모로 남기세요) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`;
 }
 // 판매입력 양식 각 주문 아래: 카페24 주문 정보 — 위 칸(고객명·앞말·출고처)을 보고 채우거나 버튼으로 바로 채운다
 function c24Info(o,r){
