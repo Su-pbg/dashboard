@@ -497,6 +497,8 @@ async function runBatch(){
   if(!ds.length) return;
   D.batch=true; D.fres={};
   try{
+    const old=ds.filter(d=>!(D.fdates||[]).find(x=>x.d===d&&x.inR));
+    if(old.length&&!confirm(`전표 기간보다 옛 주문 날짜 ${old.length}개가 포함돼 있습니다(${old.slice(0,5).map(d=>d.slice(5)).join(', ')}${old.length>5?' …':''}).\n이 날짜들은 파일에 반품·정산 전표만 있어 대부분 '미입력'으로 저장되고, 이미 있던 그 날짜 대조 결과를 덮어씁니다.\n\n그래도 대조할까요?`)) return;
     for(const [i,dt] of ds.entries()){
       D.date=dt; D.batchMsg=`${i+1}/${ds.length} · ${dt} 대조 중…`; await loadDailyC24(); await saveRecon();
       const R=D.rows||[], st={}; for(const r of R) st[r.st]=(st[r.st]||0)+1;
@@ -777,7 +779,8 @@ function renderRecon(){
       <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px">${D.fdates.map(x=>{ const r=D.fres&&D.fres[x.d];
         return `<label style="font-size:12px;display:flex;gap:4px;align-items:center;${x.inR?'':'color:var(--muted)'}"><input type="checkbox" data-a="fsel" data-d="${x.d}" ${D.fsel[x.d]?'checked':''} ${D.batch?'disabled':''}>${esc(x.d.slice(5).replace('-','/'))} <span class="ec-sub" style="display:inline;margin:0">${n(x.n)}건</span>
           ${r?`<span class="ec-badge ${r.saved&&!String(r.saved).startsWith('fail')&&r.saved!=='nodate'?'ec-ok':'ec-bad'}">${r.saved==='nodate'?'파일에 없음':String(r.saved).startsWith('fail')?'저장 실패':ST_ORDER.filter(k=>r.st[k]&&k!=='정상').map(k=>k+' '+r.st[k]).join(' · ')||'모두 정상'}</span>`:''}</label>`; }).join('')}</div>
-      <div class="ec-row" style="margin-top:8px"><button class="go" data-a="runbatch" style="height:34px" ${D.batch?'disabled':''}>${D.batch?esc(D.batchMsg||'대조 중…'):`체크한 날짜 ${n(Object.values(D.fsel||{}).filter(Boolean).length)}개 모두 대조`}</button>
+      <div class="ec-row" style="margin-top:8px"><button class="ec-dl" data-a="fall" ${D.batch?'disabled':''}>전체 날짜 체크</button><button class="ec-dl" data-a="frange" ${D.batch?'disabled':''}>전표 기간만</button><button class="ec-dl" data-a="fnone" ${D.batch?'disabled':''}>모두 해제</button>
+        <button class="go" data-a="runbatch" style="height:34px" ${D.batch?'disabled':''}>${D.batch?esc(D.batchMsg||'대조 중…'):`체크한 날짜 ${n(Object.values(D.fsel||{}).filter(Boolean).length)}개 모두 대조`}</button>
         ${Object.keys(D.fres||{}).length&&!D.batch?'<button class="ec-dl" data-a="gorv">대조 현황에서 보기</button>':''}</div></div>`:''}
     ${D.reconSaved==='nodate'?`<div class="ec-stat err">올린 이카운트 파일에 ${esc(D.date)} 주문이 없습니다 — 그 날짜가 든 판매현황을 올려 주세요(대조 현황에 남기지 않았습니다).</div>`
       :D.reconSaved&&D.reconSaved.startsWith('fail:')?`<div class="ec-stat err">대조 결과를 남기지 못했습니다: ${esc(D.reconSaved.slice(5))}</div>`
@@ -1004,6 +1007,7 @@ function wire(root){
     if(a==='fillname'){ D.names[t.dataset.o]=t.dataset.v; render(); return; }
     if(a==='fillpre'){ ed(t.dataset.o).pre=t.dataset.v; saveEd(); render(); return; }
     if(a==='runbatch'){ await runBatch(); return; }
+    if(a==='fall'||a==='frange'||a==='fnone'){ D.fsel={}; for(const x of (D.fdates||[])) if(a==='fall'||(a==='frange'&&x.inR)) D.fsel[x.d]=true; render(); return; }
     if(a==='gorv'){ S.logView='rv'; RV.idx=null; setMenu('eclog'); return; }
     if(a==='tftype'){ TF.type=t.dataset.v; render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
