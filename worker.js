@@ -175,10 +175,25 @@ var worker_default = {
         const KEY = "ecmap:v1";
         const raw = await kv0.get(KEY);
         const map = raw ? JSON.parse(raw) : {};
-        if (request.method === "GET") return json({ map, count: Object.keys(map).length });
+        // [2026-10-14] 사인지 — 에디션 품목 중 일부는 이카운트에 사인지 품목(코드+SI, 0원)을 같이 넣는다.
+        //   카페24 주문엔 표시가 없어서 '이 이카운트 품목코드엔 사인지가 붙는다'를 따로 둔다. {에디션코드: 사인지코드}
+        const SIGN_KEY = "ecsign:v1";
+        const signRaw = await kv0.get(SIGN_KEY);
+        const sign = signRaw ? JSON.parse(signRaw) : {};
+        if (request.method === "GET") return json({ map, sign, count: Object.keys(map).length });
         if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
         let b = {};
         try { b = await request.json(); } catch (e) { }
+        if (b.sign && typeof b.sign === "object") {
+          let ch = 0;
+          for (const [c, v] of Object.entries(b.sign).slice(0, 2000)) {
+            if (!/^[^\s\u0000-\u001f]{1,40}$/.test(c)) continue;
+            if (v === null || v === false) { if (sign[c]) { delete sign[c]; ch++; } }
+            else if (/^[^\s\u0000-\u001f]{1,40}$/.test(String(v)) && sign[c] !== String(v)) { sign[c] = String(v); ch++; }
+          }
+          if (ch) await kv0.put(SIGN_KEY, JSON.stringify(sign));
+          if (!Array.isArray(b.entries) && !Array.isArray(b.remove)) return json({ ok: true, sign, changed: ch });
+        }
         const today = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
         let saved = 0, skipped = 0, removed = 0;
         for (const k of (Array.isArray(b.remove) ? b.remove : [])) { if (map[k]) { delete map[k]; removed++; } }

@@ -99,7 +99,8 @@ function learn(){
   // 주문별 카페24 옵션(variant_code) · 이카운트 품목코드 (순수량 > 0 만)
   // 이카운트 품목 정가, 카페24 옵션 판매 단가(판매가÷수량) — 후보를 금액으로도 고를 수 있게
   const ecBy={}, ecName={}, ecPrice={};
-  for(const r of S.ecRows){ const o=(ecBy[r.order] ||= {}); o[r.code]=(o[r.code]||0)+r.qty; if(!ecName[r.code]) ecName[r.code]=r.name; if(r.price&&!ecPrice[r.code]) ecPrice[r.code]=r.price; }
+  for(const r of S.ecRows){ if(isSignRow(r)) continue;   // 사인지 줄은 카페24 옵션과 짝이 아니다
+    const o=(ecBy[r.order] ||= {}); o[r.code]=(o[r.code]||0)+r.qty; if(!ecName[r.code]) ecName[r.code]=r.name; if(r.price&&!ecPrice[r.code]) ecPrice[r.code]=r.price; }
   const label={}, orders=[];
   for(const o of Object.keys(ecBy)){
     const ls=S.c24[o]; if(!ls) continue;
@@ -175,7 +176,22 @@ async function saveManual(key,code,label,name){
   await reloadMap(); learn();
   flash(`저장됨: ${label} → ${code}`); return true;
 }
-async function reloadMap(){ S.map=(await getJSON(`${WORKER}/ecmap`)).map||{}; }
+async function reloadMap(){ const d=await getJSON(`${WORKER}/ecmap`); S.map=d.map||{}; S.sign=d.sign||{}; }
+// 사인지 — 일부 에디션은 이카운트에 사인지 품목(에디션코드+SI, 수량 같게, 0원)을 같이 넣는다. 카페24 주문엔 표시가 없다.
+//   이카운트 파일에서 한 주문에 X 와 X사인지(이름에 [사인지], 보통 XSI)가 같이 있으면 'X 엔 사인지가 붙는다'로 배워 워커에 둔다.
+const isSignRow=r=>/\[사인지\]/.test(r.name);
+async function learnSign(rows){
+  const by={}; for(const r of rows) (by[r.order] ||= []).push(r);
+  const add={};
+  for(const rs of Object.values(by)) for(const si of rs.filter(isSignRow)){
+    const base=rs.find(r=>!isSignRow(r)&&(si.code===r.code+'SI'||si.code.startsWith(r.code)))||rs.filter(r=>!isSignRow(r)).length===1&&rs.find(r=>!isSignRow(r));
+    if(base&&S.sign[base.code]!==si.code) add[base.code]=si.code;
+  }
+  if(!Object.keys(add).length) return 0;
+  const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sign:add})});
+  S.sign=d.sign||S.sign; return Object.keys(add).length;
+}
+const signName=nm=>{ nm=String(nm||''); const m=nm.match(/^(.*?)(\s*\[[^\]]*\])$/); return m?`${m[1]} [사인지]${m[2]}`:`${nm} [사인지]`; };
 
 // ---------- 화면 ----------
 // ---------- 이카운트 판매 입력: 판매입력 파일 이력 ----------
@@ -225,14 +241,15 @@ function renderLog(){
 //    · 결제유형 = 결제업체·결제수단으로 정한 이카운트 결제유형 ↔ 이카운트 결제유형
 //    · 품목·수량 = 품목코드 맵핑으로 바꾼 카페24 옵션 ↔ 이카운트 품목코드 (선수금 주문은 건너뜀)
 // ② 판매입력 양식: 고른 주문을 이카운트 판매입력 템플릿(28열)으로 만든다.
-//    · 이카운트 실데이터(2026-08) 규칙: 배송비 품목은 따로 없고, 주문 실결제금액을 상품 줄에 정가×수량 비율로 나눠 넣는다(끝 줄이 나머지).
+//    · 이카운트 실데이터(2026-08) 규칙: 배송비 품목은 따로 없다. 줄 금액 = 카페24 상품별 할인 후 금액(net),
+//      주문 실결제금액과의 차이(배송비·적립금·주문 쿠폰)는 net 비율로 나눠 더한다(끝 줄이 나머지). 8/5 정상 주문 36줄 중 35줄 원 단위 일치.
 //      단가 = 정가÷1.1, 공급가액 = 배분액÷1.1, 부가세 = 나머지. 면세(세율 0) 품목은 ÷1.1 하지 않는다.
 //    · 판매처·출고처는 이름으로 넣는다(Su, 2026-10-14). 출고처·고객명 앞말(퀵)·택배)·설치))·판매자는 사람이 넣는다.
 //    · 고객 정보는 브라우저에서만 쓴다. 만든 파일만 워커 /ecsales 에 보관(로그인 뒤, 400일).
 const WH=['온라인창고','온라인 브랜드창고'];
 const PRE=['퀵)','택배)','설치)','차량)'];
 const TPL=['판매일-No.','순번','판매처','판매처명','판매자','출고처','거래유형','결제유형','결제사항','결제일','배송일자','고객연락처','[택배/차량배송/설치여부] - 고객명','배송결과','배송주소','품목코드','품목명','규격','수량','에디션 No.','정가','단가','외화공급가액','공급가액','부가세','상품옵션','생산전표생성','적요'];
-const D={date:'',orders:[],lines:{},ec:null,ecFile:'',loading:'',err:null,view:'bad',sel:{},ed:{},names:{},codes:{},seller:'',wh:WH[0],flash:null};
+const D={signOn:{},date:'',orders:[],lines:{},ec:null,ecFile:'',loading:'',err:null,view:'bad',sel:{},ed:{},names:{},codes:{},seller:'',wh:WH[0],flash:null};
 const kstDay=off=>new Date(Date.now()+9*3600e3+off*86400e3).toISOString().slice(0,10);
 const lsGet=(k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
 const lsSet=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
@@ -271,7 +288,8 @@ async function loadDailyC24(){
 }
 async function onDailyFile(f){
   D.err=null; D.loading='이카운트 파일 읽는 중…'; render();
-  try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name; }
+  try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name;
+    try{ const k=await learnSign(D.ec); if(k) D.signLearned=k; }catch(e){} }
   catch(e){ D.err=e; }
   D.loading=''; compute(); render();
 }
@@ -301,7 +319,7 @@ function compute(){
         if(r.adv) r.item='선수금';
         else if(unmapped.length) r.item=`맵핑 없음 ${unmapped.length}`;
         else{
-          const C={},E={}; for(const l of live){ const c=codeOf(l); C[c]=(C[c]||0)+l.qty; } for(const x of e) E[x.code]=(E[x.code]||0)+x.qty;
+          const C={},E={}; for(const l of live){ const c=codeOf(l); C[c]=(C[c]||0)+l.qty; } for(const x of e) if(!isSignRow(x)) E[x.code]=(E[x.code]||0)+x.qty;
           const same=Object.keys(C).length===Object.keys(E).length&&Object.keys(C).every(c=>E[c]===C[c]);
           r.item=same?'일치':'불일치'; if(!same) r.issues.push('품목·수량 불일치');
         }
@@ -317,12 +335,13 @@ function compute(){
   // 처음 열 때 '미입력'(파일 없으면 대조 전 · 정상 결제) 주문을 판매입력 대상으로 고른다
   if(!D.selInit&&D.ec){ for(const r of out) if(r.st==='미입력') D.sel[r.o.order_id]=true; D.selInit=true; }
 }
+function signOn(l){ const k=l.variant_code||String(l.product_no); return k in D.signOn?D.signOn[k]:!!(S.sign||{})[codeOf(l)]; }
 function codeOf(l){ const k=l.variant_code||String(l.product_no); return D.codes[k]||(S.map[k]&&S.map[k].code)||''; }
 const BAD_ST=['미입력','금액불일치','결제유형 확인','품목·수량 불일치','취소 확인','카페24에 없음'];
 const stCls=st=>st==='정상'?'ec-ok':BAD_ST.includes(st)?'ec-bad':st==='대조 전'?'ec-info':'ec-warn';
 
 // ---------- 판매입력 양식 ----------
-// 주문 실결제금액을 정가×수량 비율로 상품 줄에 나눈다(끝 줄이 나머지) — 배송비·할인·포인트가 다 들어간 금액이 된다.
+// 줄 금액 = 상품별 할인 후 금액 + (주문 실결제금액 − 그 합)을 비율로 나눈 몫. 끝 줄이 나머지 → 줄 합계 = 실결제금액.
 function buildRows(){
   const rows=[], miss=[], orders=[];
   let seq=0;
@@ -332,16 +351,18 @@ function buildRows(){
     const E=ed(o.order_id), wh=E.wh||D.wh, preTxt=(E.pre||'').trim();
     const nm=D.names[o.order_id]??(o.rc_name||o.buyer||'');
     const cust=preTxt?`${preTxt}${/[\s]$/.test(preTxt)?'':' '}${nm}`:nm;
-    const tot=paidOf(o), base=r.live.reduce((t,l)=>t+l.sale,0);
+    const tot=paidOf(o), base=r.live.reduce((t,l)=>t+l.net,0);
     let left=tot;
     r.live.forEach((l,i)=>{
-      const amt=i===r.live.length-1?left:Math.round(base?tot*l.sale/base:tot/r.live.length); left-=amt;
+      const amt=i===r.live.length-1?left:Math.round(l.net+(tot-base)*(base?l.net/base:1/r.live.length)); left-=amt;
       const unit=l.qty?Math.round(l.sale/l.qty):0, tax=Number(l.tax_rate)>0;
       const supply=tax?Math.round(amt/1.1):amt;
       const code=codeOf(l); if(!code) miss.push(l);
       const k=l.variant_code||String(l.product_no), m=S.map[k];
-      rows.push([ymd(D.date),seq,'온라인 직영몰','온라인 직영몰',D.seller,wh,'온라인 (직영몰)',r.want||'','',o.order_id,'',o.rc_phone||'',cust,'',o.rc_addr||'',
-        code,(m&&m.code===code&&m.name)||l.product_name,'',l.qty,'',unit,tax?Math.round(unit/1.1):unit,'',supply,amt-supply,optText(l.option_value),'','']);
+      const head=[ymd(D.date),seq,'온라인 직영몰','온라인 직영몰',D.seller,wh,'온라인 (직영몰)',r.want||'','',o.order_id,'',o.rc_phone||'',cust,'',o.rc_addr||''];
+      const pname=(m&&m.code===code&&m.name)||l.product_name;
+      rows.push([...head,code,pname,'',l.qty,'',unit,tax?Math.round(unit/1.1):unit,'',supply,amt-supply,optText(l.option_value),'','']);
+      if(code&&signOn(l)) rows.push([...head,S.sign[code]||code+'SI',signName(pname),'',l.qty,'',0,'','',0,0,'','','']);
     });
   }
   return {rows,miss,orders};
@@ -374,6 +395,8 @@ async function generate(){
       await reloadMap(); D.codes={}; msgs.push(`품목코드 ${d.saved}건 맵핑 저장`);
     }catch(e){ msgs.push('맵핑 저장 실패: '+e.message); }
   }
+  const sg={}; for(const l of Object.values(D.lines).flat()){ const k=l.variant_code||String(l.product_no), c=codeOf(l); if(!c||!(k in D.signOn)) continue; const was=!!(S.sign||{})[c]; if(D.signOn[k]!==was) sg[c]=D.signOn[k]?c+'SI':null; }
+  if(Object.keys(sg).length){ try{ const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sign:sg})}); S.sign=d.sign||S.sign; D.signOn={}; msgs.push(`사인지 설정 ${Object.keys(sg).length}건 기억`); }catch(e){ msgs.push('사인지 설정 저장 실패: '+e.message); } }
   lsSet('pbg_ecdaily_seller',D.seller.trim());
   lsSet('pbg_ecdaily_sellers',[...new Set([D.seller.trim(),...lsGet('pbg_ecdaily_sellers',[])])].slice(0,20));
   compute(); dflash(`${filename} 을(를) 받았습니다 · ${msgs.join(' · ')}`,msgs.some(m=>/실패/.test(m)));
@@ -421,6 +444,7 @@ function renderDaily(){
       <span style="flex:1"></span><button class="ec-dl" data-a="dreload">카페24 다시 받기</button></div>
     ${D.loading?`<div class="ec-stat">${esc(D.loading)}</div>`:''}
     ${D.err?`<div class="ec-stat err">${esc(D.err.message||D.err)}</div>`:''}
+    ${D.signLearned?`<div class="ec-stat">이카운트 파일에서 사인지가 붙는 에디션 ${n(D.signLearned)}개를 새로 배웠습니다.</div>`:''}
     ${D.truncated?'<div class="ec-stat err">카페24 주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${D.flash?`<div class="ec-stat" style="position:sticky;top:8px;z-index:5;background:${D.flash.bad?'var(--down-soft)':'var(--up-soft)'};color:${D.flash.bad?'var(--down)':'var(--up)'};border-radius:8px;padding:8px 12px;font-weight:600">${esc(D.flash.msg)}</div>`:''}
     <div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
@@ -443,7 +467,8 @@ function formCard(){
     const o=r.o, E=ed(o.order_id), id=esc(o.order_id), nm=D.names[o.order_id]??(o.rc_name||o.buyer||'');
     const lines=r.live.map(l=>{ const key=l.variant_code||String(l.product_no), c=codeOf(l);
       return `<div style="display:flex;gap:8px;align-items:center;margin:2px 0"><span style="flex:1">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}</span>
-        <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드" style="width:140px;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}"></div>`; }).join('');
+        <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드" style="width:140px;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}">
+        <label style="font-size:12px;white-space:nowrap;display:flex;gap:4px;align-items:center;${signOn(l)?'color:var(--accent);font-weight:700':'color:var(--muted)'}"><input type="checkbox" data-a="sign" data-k="${esc(key)}" ${signOn(l)?'checked':''}>사인지${signOn(l)&&c?` <span class="ec-sub" style="display:inline;margin:0">${esc((S.sign||{})[c]||c+'SI')}</span>`:''}</label></div>`; }).join('');
     return `<tr><td><b>${id}</b><div class="ec-sub">${n(paidOf(o))}원 · ${esc(r.want||'결제유형 확인')}</div></td>
       <td><input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:96px"></td>
       <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:110px"></td>
@@ -453,7 +478,7 @@ function formCard(){
   const miss=sel.reduce((t,r)=>t+r.live.filter(l=>!codeOf(l)).length,0);
   return `<div class="ec-card"><h2>판매입력 양식 만들기</h2>
     <p class="ec-lead">위 표에서 체크한 주문을 이카운트 판매입력 템플릿(28열)으로 만듭니다. 판매처는 온라인 직영몰, 거래유형은 온라인 (직영몰), 결제일 칸에는 주문번호가 들어갑니다.
-      금액은 주문 실결제금액(배송비·할인 포함)을 정가 비율로 상품 줄에 나눈 값이고, 단가·공급가액은 ÷1.1 합니다(면세 상품 제외).</p>
+      줄 금액은 상품별 할인 후 금액이고 배송비 등 남는 차액은 비율로 나눠 더해 주문 합계가 실결제금액과 같게 맞춥니다. 단가·공급가액은 ÷1.1 합니다(면세 상품 제외).</p>
     <div class="ec-row">
       <label>판매자 <input class="ec-in" id="ecdSeller" list="ecdSellers" value="${esc(D.seller)}" placeholder="담당자 이름" style="width:130px"></label>
       <label>출고처 전체 <select class="ec-in" id="ecdWh">${WH.map(w=>`<option ${D.wh===w?'selected':''}>${esc(w)}</option>`).join('')}</select></label>
@@ -464,7 +489,9 @@ function formCard(){
     ${sel.length?`<div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>주문</th><th>고객명 앞말</th><th>고객명</th><th>출고처</th><th>상품 · 품목코드</th></tr></thead><tbody>${body}</tbody></table></div>`
       :'<div class="ec-stat">위 표의 \'판매입력\' 칸을 체크하면 여기에 나옵니다. 미입력 주문은 처음부터 체크돼 있습니다.</div>'}
     <p class="ec-note">고객명 앞말은 퀵·택배·설치 등 배송 방법이 다를 때만 넣습니다(예: 퀵) 홍길동). 출고처는 위에서 한 번에 고르고, 주문마다 바꿀 수 있습니다.
-      직접 넣은 품목코드는 파일을 만들 때 품목코드 맵핑에도 저장됩니다. 만든 파일은 판매입력 파일 이력에서 다시 받을 수 있습니다.</p></div>`;
+      직접 넣은 품목코드는 파일을 만들 때 품목코드 맵핑에도 저장됩니다.
+      <b>사인지</b>: 에디션에 사인지가 같이 나가면 체크하세요 — 바로 아래 줄에 사인지 품목(에디션코드+SI · 같은 수량 · 0원)이 들어가고, 그 품목은 다음부터 자동으로 체크됩니다.
+      이카운트 판매현황에 사인지가 같이 입력된 주문이 있으면 그것도 배워 둡니다(카페24 주문에는 사인지 표시가 없음). 만든 파일은 판매입력 파일 이력에서 다시 받을 수 있습니다.</p></div>`;
 }
 function onDailyInput(t){
   const a=t.dataset.a, o=t.dataset.o;
@@ -484,6 +511,7 @@ function onDailyChange(t){
   if(a==='sel'){ D.sel[o]=t.checked; render(); return true; }
   if(a==='done'){ ed(o).done=t.checked; saveEd(); render(); return true; }
   if(a==='wh'){ ed(o).wh=t.value; saveEd(); return true; }
+  if(a==='sign'){ D.signOn[t.dataset.k]=t.checked; render(); return true; }
   if(a==='dcode'){ compute(); render(); return true; }
   return false;
 }
@@ -571,6 +599,7 @@ async function onFiles(files){
       const rows=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name);
       S.ecRows.push(...rows); S.files.push({name:f.name,rows:rows.length});
     }
+    try{ await learnSign(S.ecRows); }catch(e){}
     // 이카운트 주문번호가 걸친 달만 카페24 에서 받는다(주문 5건 미만인 달은 건너뜀 — 이월·반품 전표)
     const mc={}; for(const r of S.ecRows){ const ym=r.order.slice(0,4)+'-'+r.order.slice(4,6); mc[ym]=(mc[ym]||0)+1; }
     const need=Object.keys(mc).filter(m=>mc[m]>=5&&!S.months.includes(m)).sort().slice(-6);
