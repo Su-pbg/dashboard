@@ -69,12 +69,12 @@ function parseEcount(wb,fname){
   for(let i=0;i<Math.min(rows.length,15);i++){ const r=(rows[i]||[]).map(c=>String(c??'').trim()); if(r.includes('품목코드')&&r.includes('수량')&&(r.includes('품명 및 규격')||r.includes('품목명'))){ h=i; break; } }
   if(h<0) throw new Error(`${fname}: 머리글(품목코드·품명 및 규격·수량)을 찾지 못했습니다. 이카운트 판매현황(품목별) 엑셀이 맞는지 확인해 주세요.`);
   const head=rows[h].map(c=>String(c??'').trim()), col=k=>head.indexOf(k);
-  const cCode=col('품목코드'), cName=col('품명 및 규격')>=0?col('품명 및 규격'):col('품목명'), cQty=col('수량');
+  const cCode=col('품목코드'), cName=col('품명 및 규격')>=0?col('품명 및 규격'):col('품목명'), cQty=col('수량'), cPrice=col('정가');
   const body=rows.slice(h+1).filter(r=>r[cCode]);
   let cOrd=-1,best=0;
   for(let i=0;i<head.length;i++){ const k=body.reduce((t,r)=>t+(ORD.test(String(r[i]??'').trim())?1:0),0); if(k>best){best=k;cOrd=i;} }
   if(best<body.length*0.3) throw new Error(`${fname}: 주문번호(예: 20260801-0000047) 열을 찾지 못했습니다.`);
-  return body.map(r=>({order:String(r[cOrd]??'').trim(),code:String(r[cCode]).trim(),name:String(r[cName]??'').trim(),qty:Number(r[cQty])||0}))
+  return body.map(r=>({order:String(r[cOrd]??'').trim(),code:String(r[cCode]).trim(),name:String(r[cName]??'').trim(),qty:Number(r[cQty])||0,price:cPrice<0?0:Math.round(Number(r[cPrice])||0)}))
     .filter(r=>ORD.test(r.order)&&!/선수금/.test(r.code+r.name));   // 선수금 품목은 실제 상품이 아니다
 }
 
@@ -95,12 +95,14 @@ const optText=v=>String(v||'').replace(/^(선택|옵션)=/,'').replace(/,\s*(선
 
 function learn(){
   // 주문별 카페24 옵션(variant_code) · 이카운트 품목코드 (순수량 > 0 만)
-  const ecBy={}, ecName={};
-  for(const r of S.ecRows){ const o=(ecBy[r.order] ||= {}); o[r.code]=(o[r.code]||0)+r.qty; if(!ecName[r.code]) ecName[r.code]=r.name; }
+  // 이카운트 품목 정가, 카페24 옵션 판매 단가(판매가÷수량) — 후보를 금액으로도 고를 수 있게
+  const ecBy={}, ecName={}, ecPrice={};
+  for(const r of S.ecRows){ const o=(ecBy[r.order] ||= {}); o[r.code]=(o[r.code]||0)+r.qty; if(!ecName[r.code]) ecName[r.code]=r.name; if(r.price&&!ecPrice[r.code]) ecPrice[r.code]=r.price; }
   const label={}, orders=[];
   for(const o of Object.keys(ecBy)){
     const ls=S.c24[o]; if(!ls) continue;
-    const C={}; for(const l of ls){ const k=l.variant_code||String(l.product_no); C[k]=(C[k]||0)+l.qty; if(!label[k]) label[k]={name:l.product_name,opt:optText(l.option_value),pno:l.product_no}; }
+    const C={}; for(const l of ls){ const k=l.variant_code||String(l.product_no); C[k]=(C[k]||0)+l.qty; if(!label[k]) label[k]={name:l.product_name,opt:optText(l.option_value),pno:l.product_no,price:0};
+      if(l.qty>0&&!label[k].price) label[k].price=Math.round(l.sale/l.qty); }
     const E=Object.keys(ecBy[o]).filter(c=>ecBy[o][c]>0);
     if(E.length) orders.push({o,C:Object.keys(C),E});
   }
@@ -138,7 +140,7 @@ function learn(){
     else if(!saved) st='새로 연결';
     else if(saved.code===top[0][0]) st='저장됨과 같음';
     else st=saved.src==='manual'?'담당자 값과 다름':'저장됨과 다름';
-    rows.push({key:k,...label[k],code:top[0][0],ecname:ecName[top[0][0]]||'',n:top[0][1],cands:top.map(([c,v])=>({code:c,n:v,name:ecName[c]||''})),how:[...how[k]].join('·'),st,saved});
+    rows.push({key:k,...label[k],code:top[0][0],ecname:ecName[top[0][0]]||'',ecprice:ecPrice[top[0][0]]||0,n:top[0][1],cands:top.map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0})),how:[...how[k]].join('·'),st,saved});
   }
   // 연결 못한 옵션: 주문에 이카운트 품목이 남아 있는데 짝을 못 찾은 것만(재고2 파일이면 위탁 아닌 품목은 애초에 이카운트에 없다)
   const un={};
@@ -146,9 +148,12 @@ function learn(){
     const r=rest.get(x.o); if(!r||!r.C.length||!r.E.length) continue;
     for(const k of r.C){ if(ev[k]) continue; const u=(un[k] ||= {key:k,...label[k],orders:0,cands:{}}); u.orders++; for(const c of r.E) u.cands[c]=(u.cands[c]||0)+1; }
   }
-  const unmatched=Object.values(un).map(u=>({...u,st:S.map[u.key]?'저장됨':'미연결',cands:Object.entries(u.cands).sort((a,b)=>b[1]-a[1]).map(([c,v])=>({code:c,n:v,name:ecName[c]||''})),saved:S.map[u.key]}));
+  // 후보는 금액이 같은 것 → 같이 나온 주문 수 순
+  const sortC=(price,arr)=>arr.sort((a,b)=>((b.price===price&&price>0)-(a.price===price&&price>0))||b.n-a.n);
+  const unmatched=Object.values(un).map(u=>({...u,st:S.map[u.key]?'저장됨':'미연결',cands:sortC(u.price,Object.entries(u.cands).map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0}))),saved:S.map[u.key]}));
+  for(const r of rows) sortC(r.price,r.cands);
   const ecOrders=Object.keys(ecBy).length, both=orders.length;
-  S.result={rows,unmatched,ecOrders,both,ecName};
+  S.result={rows,unmatched,ecOrders,both,ecName,ecPrice};
 }
 
 // ---------- 저장 ----------
@@ -202,21 +207,26 @@ function resultCard(){
   const codes=Object.keys(R.ecName).sort();
   const picker=(x,cands)=>`<input class="ec-in" list="ecCodes" data-a="code" data-k="${esc(x.key)}" data-label="${esc(`${x.name||x.label||''}${x.opt?' / '+x.opt:''}`)}" placeholder="품목코드 입력·선택" style="width:170px">
      <button class="ec-dl" data-a="savecode" data-k="${esc(x.key)}">저장</button>
-     ${cands&&cands.length?`<div class="ec-sub">후보: ${cands.slice(0,4).map(c=>`<a href="#" data-a="pick" data-k="${esc(x.key)}" data-c="${esc(c.code)}">${esc(c.code)}</a> ${esc(ecProd(c.name)).slice(0,24)} (${c.n})`).join(' · ')}</div>`:''}`;
+     ${cands&&cands.length?`<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">${cands.slice(0,5).map(c=>{const same=c.price>0&&c.price===x.price;
+       return `<a href="#" data-a="pick" data-k="${esc(x.key)}" data-c="${esc(c.code)}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${same?'var(--up-soft)':'var(--fill)'};border-radius:8px;padding:4px 8px;font-size:12px">
+         <b>${esc(c.code)}</b><span style="flex:1">${esc(ecProd(c.name))}</span><span style="white-space:nowrap">정가 ${c.price?n(c.price)+'원':'—'}</span>
+         ${same?'<span class="ec-badge ec-ok">✓ 금액 일치</span>':''}<span class="ec-sub" style="margin:0">${c.n}주문</span></a>`;}).join('')}</div>`:''}`;
   if(S.view==='saved'){
     body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>이카운트 품목코드</th><th>이카운트 품명</th><th>출처</th><th>근거</th><th>저장일</th></tr></thead><tbody>
       ${list.slice(0,500).map(x=>`<tr><td class="l">${esc(x.label)}</td><td>${esc(x.key)}</td><td><b>${esc(x.code)}</b></td><td class="l">${esc(x.name)}</td>
         <td><span class="ec-badge ${x.src==='manual'?'ec-ok':'ec-info'}">${x.src==='manual'?'담당자':'자동'}</span>${x.by?`<div class="ec-sub">${esc(x.by)}</div>`:''}</td><td>${x.n?n(x.n)+'건':''}</td><td>${esc(x.at||'')}</td></tr>`).join('')}</tbody>`;
   }else if(S.view==='un'){
-    body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>나온 주문</th><th>이카운트 품목코드 넣기</th></tr></thead><tbody>
-      ${list.map(x=>`<tr><td class="l">${esc(x.name)}${x.opt?`<div class="ec-sub">${esc(x.opt)}</div>`:''}</td><td>${esc(x.key)}</td><td>${n(x.orders)}</td><td class="l">${picker(x,x.cands)}</td></tr>`).join('')}</tbody>`;
+    body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>카페24 판매가</th><th>나온 주문</th><th>이카운트 품목코드 넣기 (후보를 누르면 채워짐)</th></tr></thead><tbody>
+      ${list.map(x=>`<tr><td class="l">${esc(x.name)}${x.opt?`<div class="ec-sub">${esc(x.opt)}</div>`:''}</td><td>${esc(x.key)}</td><td><b>${x.price?n(x.price)+'원':'—'}</b></td><td>${n(x.orders)}</td><td class="l" style="min-width:420px">${picker(x,x.cands)}</td></tr>`).join('')}</tbody>`;
   }else{
-    body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>이카운트 품목코드</th><th>이카운트 품명</th><th>근거</th><th>상태</th>${S.view==='check'?'<th>담당자 확인</th>':''}</tr></thead><tbody>
+    body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>이카운트 품목코드</th><th>이카운트 품명</th><th>카페24 판매가</th><th>이카운트 정가</th><th>근거</th><th>상태</th>${S.view==='check'?'<th>담당자 확인</th>':''}</tr></thead><tbody>
       ${list.map(x=>`<tr><td class="l">${esc(x.name)}${x.opt?`<div class="ec-sub">${esc(x.opt)}</div>`:''}</td><td>${esc(x.key)}</td>
         <td><b>${esc(x.code)}</b>${x.cands.length>1?`<div class="ec-sub">${x.cands.map(c=>`${esc(c.code)} ${c.n}건`).join(' / ')}</div>`:''}${x.saved&&x.saved.code!==x.code?`<div class="ec-sub">저장된 값 ${esc(x.saved.code)}(${x.saved.src==='manual'?'담당자':'자동'})</div>`:''}</td>
-        <td class="l">${esc(ecProd(x.ecname))}</td><td>${n(x.n)}건<div class="ec-sub">${esc(x.how)}</div></td>
+        <td class="l">${esc(ecProd(x.ecname))}</td>
+        <td>${x.price?n(x.price)+'원':'—'}</td><td>${x.ecprice?n(x.ecprice)+'원':'—'}${x.price&&x.ecprice?(x.price===x.ecprice?' <span class="ec-badge ec-ok">✓</span>':' <span class="ec-badge ec-warn">다름</span>'):''}</td>
+        <td>${n(x.n)}건<div class="ec-sub">${esc(x.how)}</div></td>
         <td><span class="ec-badge ${x.st==='새로 연결'||x.st==='저장됨과 같음'?'ec-ok':x.st==='확인 필요'||x.st==='담당자 값과 다름'?'ec-bad':'ec-warn'}">${esc(x.st)}</span></td>
-        ${S.view==='check'?`<td class="l">${picker(x,x.cands)}</td>`:''}</tr>`).join('')}</tbody>`;
+        ${S.view==='check'?`<td class="l" style="min-width:420px">${picker(x,x.cands)}</td>`:''}</tr>`).join('')}</tbody>`;
   }
   return `<div class="ec-card"><h2>학습 결과</h2>
     <div class="ec-kpis">
@@ -231,7 +241,7 @@ function resultCard(){
       <span style="flex:1"></span>
       <button class="go" data-a="saveauto" style="height:36px">새로 연결 ${n((cnt['새로 연결']||0)+(cnt['저장됨과 다름']||0))}개 대응표에 저장</button></div>
     <div class="ec-scroll"><table class="ec-t">${body}</table></div><datalist id="ecCodes">${codes.map(c=>`<option value="${esc(c)}">${esc(ecProd(R.ecName[c]))}</option>`).join('')}</datalist>
-    <p class="ec-note">근거 = 그 짝이 확인된 주문 수 · 1:1 = 한 주문에 남은 카페24 옵션 1개와 이카운트 품목 1개 · 이름 = 같은 주문 안에서 상품명이 가장 비슷한 짝 ·
+    <p class="ec-note">카페24 판매가 = 그 옵션의 판매 단가(할인 전) · 이카운트 정가 = 판매현황의 정가 · 후보는 금액이 같은 것이 먼저 나옵니다(✓ 금액 일치) · 근거 = 그 짝이 확인된 주문 수 · 1:1 = 한 주문에 남은 카페24 옵션 1개와 이카운트 품목 1개 · 이름 = 같은 주문 안에서 상품명이 가장 비슷한 짝 ·
       확인 필요 = 한 옵션에 서로 다른 코드가 나옴(담당자가 골라야 함) · 미연결 = 같은 주문에 이카운트 품목이 남았는데 짝을 못 찾음.
       재고2(위탁)만 뽑은 파일이면 위탁이 아닌 상품은 애초에 이카운트 파일에 없어 학습되지 않습니다 — 전체 품목으로 뽑으면 더 많이 채워집니다.</p></div>`;
 }
