@@ -384,6 +384,8 @@
   .main{margin-left:var(--side-w);min-width:0;}
   #expenseView[hidden]{display:none;}
   #settleView[hidden]{display:none;}
+  #ecountView[hidden]{display:none;}
+  .nav-item.nav-sub{height:38px;padding-left:44px;font-size:14px;font-weight:500;}   /* 위탁 정산 아래 하위 메뉴 */
   #expenseView.wrap{max-width:1440px;}   /* 경비환급은 1440 로 고정. 본문 기본값(1600)보다 좁다 — 영수증 표가 너무 늘어지면 읽기 나빠서. */
   #expenseFrame{display:block;width:100%;height:1200px;border:0;background:transparent;}
   @media(max-width:860px){
@@ -423,6 +425,7 @@
     <button class="nav-item" data-menu="trend"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>트렌드 분석</button>
     <button class="nav-item" data-menu="expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>경비환급</button>
     <button class="nav-item" data-menu="settle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>위탁 정산</button>
+    <button class="nav-item nav-sub" data-menu="ecount">전표 입력 대조</button>
   </nav>
 </aside>
 <main class="main">
@@ -483,6 +486,15 @@
   <h1>위탁 정산</h1>
   <p class="sub">담당자별 카페24 판매 건수를 이카운트 판매내역서와 대조한 뒤, 업체별 정산서를 기존 양식 그대로 만들어요</p>
   <div id="settleContent"></div>
+</div>
+
+<!-- [2026-10-14] 전표 입력 대조: 카페24 주문 ↔ 이카운트 전표. 첫 단계는 품목코드 대응표(카페24 상품·옵션 → 이카운트 품목코드).
+     ecount-tab.js 를 처음 열 때 불러온다. 로그인은 대시보드와 같다. -->
+<div class="wrap" id="ecountView" hidden>
+  <p class="eyebrow">PrintBakery · 위탁 정산</p>
+  <h1>전표 입력 대조</h1>
+  <p class="sub">카페24 주문이 이카운트 전표로 제대로 들어갔는지 맞춰 보고, 빠진 주문은 이카운트 판매입력 양식으로 만들어요 — 지금은 품목코드 대응표부터</p>
+  <div id="ecountContent"></div>
 </div>
 </main>
 </div>
@@ -607,7 +619,7 @@ const DASH_TABS=TABS.filter(t=>t.id!=='trend');
 const URL_Q=new URLSearchParams(location.search);
 const URL_TAB=URL_Q.get('tab');
 const SAVED_TAB=localStorage.getItem('pbg_dashboard_tab');
-const MENUS=['dashboard','trend','expense','settle'];
+const MENUS=['dashboard','trend','expense','settle','ecount'];
 let MENU = MENUS.includes(URL_Q.get('m')) ? URL_Q.get('m')
          : (URL_TAB==='trend' ? 'trend'
          : 'dashboard');   // 주소에 m 이 없으면 늘 대시보드(마지막 메뉴를 기억하면 북마크가 헷갈린다)
@@ -3679,6 +3691,7 @@ function applyMenuView(){
 function enterDashboard(){
   showGate(false);
   if(MENU==='settle'){ enterSettle(); return; }
+  if(MENU==='ecount'){ enterEcount(); return; }
   if(!ENTERED){
     ENTERED=true;
     stateFromUrl();
@@ -3703,6 +3716,17 @@ async function enterSettle(){
     await window.loadSettleTab($('settleContent'));
   }catch(e){ SETTLE_LOADED=false; $('settleContent').innerHTML='<div class="err">위탁 정산 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }
+// 전표 입력 대조도 별도 파일을 처음 열 때만 불러온다
+let ECOUNT_LOADED=false;
+async function enterEcount(){
+  showGate(false);
+  if(ECOUNT_LOADED) return;
+  ECOUNT_LOADED=true;
+  try{
+    if(!window.loadEcountTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='ecount-tab.js?v='+Math.floor(Date.now()/600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    await window.loadEcountTab($('ecountContent'));
+  }catch(e){ ECOUNT_LOADED=false; $('ecountContent').innerHTML='<div class="err">전표 입력 대조 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
+}
 function ensureExpenseFrame(){
   const f=$('expenseFrame');
   if(!f.getAttribute('src')) f.setAttribute('src','expense.html?embed=1');
@@ -3710,8 +3734,16 @@ function ensureExpenseFrame(){
 function setMenu(m){
   MENU=m;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.menu===m));
-  const ex=(m==='expense'), st=(m==='settle');
-  $('dashView').hidden=ex||st; $('expenseView').hidden=!ex; $('settleView').hidden=!st;
+  const ex=(m==='expense'), st=(m==='settle'), ec=(m==='ecount');
+  $('dashView').hidden=ex||st||ec; $('expenseView').hidden=!ex; $('settleView').hidden=!st; $('ecountView').hidden=!ec;
+  if(ec){
+    try{ history.replaceState(null,'',location.pathname+'?m=ecount'); }catch(e){}
+    document.title='전표 입력 대조 · PrintBakery';
+    window.scrollTo(0,0);
+    if(!authToken()){ showGate(true); return; }
+    enterEcount();
+    return;
+  }
   if(st){
     try{ history.replaceState(null,'',location.pathname+'?m=settle'); }catch(e){}
     document.title='위탁 정산 · PrintBakery';

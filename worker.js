@@ -114,6 +114,36 @@ var worker_default = {
         return json({ error: "지원하지 않는 메서드" }, 405);
       }
 
+      // ===== 전표 입력 대조: 카페24 상품(옵션) → 이카운트 품목코드 대응표 =====
+      // [2026-10-14] 카페24 자체상품코드는 이카운트 품목코드가 아니라(ARG…·4205… 등, 1/3 만 채워짐) 따로 대응표를 둔다.
+      // 키 = 카페24 variant_code(옵션별), 없으면 상품번호. 값 = {code, name, src:'auto'|'manual', by, at, n(근거 건수), label}.
+      // 담당자가 넣은 값(src=manual)은 자동 학습(auto)이 덮어쓰지 않는다.
+      // ponytail: 맵 전체를 키 하나에 둔다. 수천 건이라 KV 한 값(25MB)에 충분하다. 동시 저장은 나중 것이 이긴다.
+      if (url.pathname === "/ecmap") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        const KEY = "ecmap:v1";
+        const raw = await kv0.get(KEY);
+        const map = raw ? JSON.parse(raw) : {};
+        if (request.method === "GET") return json({ map, count: Object.keys(map).length });
+        if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
+        let b = {};
+        try { b = await request.json(); } catch (e) { }
+        const today = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
+        let saved = 0, skipped = 0, removed = 0;
+        for (const k of (Array.isArray(b.remove) ? b.remove : [])) { if (map[k]) { delete map[k]; removed++; } }
+        for (const e of (Array.isArray(b.entries) ? b.entries : []).slice(0, 5000)) {
+          const key = String(e.key || "").trim(), code = String(e.code || "").trim();
+          if (!/^[\w\-|.]{1,40}$/.test(key) || !/^[\w\-]{1,40}$/.test(code)) { skipped++; continue; }
+          const src = e.src === "manual" ? "manual" : "auto";
+          if (src === "auto" && map[key] && map[key].src === "manual") { skipped++; continue; }
+          map[key] = { code, name: String(e.name || "").slice(0, 120), label: String(e.label || "").slice(0, 160), src,
+                       by: String(e.by || "").slice(0, 20), n: Number(e.n) || 0, at: today };
+          saved++;
+        }
+        await kv0.put(KEY, JSON.stringify(map));
+        return json({ ok: true, saved, skipped, removed, count: Object.keys(map).length });
+      }
       // ===== 위탁 정산 ('위탁 정산' 탭) =====
       // [2026-10-12] 요율·정산서류·배송비는 [이커머스] 거래처 LIST 구글시트에만 있다.
       // 레포가 공개라 정적 파일로 둘 수 없어서, 워커가 서비스계정(GA_SA_KEY)으로 시트를 직접 읽어
@@ -632,7 +662,10 @@ var worker_default = {
             await kvPut("cafe24:brands:v1", brands);
           }
           const j = await cafe24Get(mallId, tok, `products?product_no=${nos.join(",")}&limit=100`, false, env);
-          for (const p of j.products || []) products[p.product_no] = { brand: brands[p.brand_code] || "", brand_code: p.brand_code || "" };
+          // custom_product_code(자체상품코드) = 이카운트 품목코드인지 확인용(전표 입력 대조·판매입력 양식)
+          for (const p of j.products || []) products[p.product_no] = { brand: brands[p.brand_code] || "", brand_code: p.brand_code || "",
+            custom_code: p.custom_product_code || "", product_code: p.product_code || "", price: p.price != null ? Number(p.price) : null,
+            retail_price: p.retail_price != null ? Number(p.retail_price) : null, tax_type: p.tax_type || "" };
         }
         const shipping = {};
         for (const code of sups) {
@@ -711,7 +744,11 @@ var worker_default = {
               //   cancel_done 취소·반품이 끝난 날 = 환불일 > 반품완료일 > 취소완료일 (반품 전표는 환불 때 들어온 것으로 보였다)
               shipped: String(it.shipped_date || "").slice(0, 10),
               cancel_req: String(it.cancel_request_date || it.return_request_date || "").slice(0, 10),
-              cancel_done: String(it.refund_date || it.return_confirmed_date || it.cancel_date || "").slice(0, 10)
+              cancel_done: String(it.refund_date || it.return_confirmed_date || it.cancel_date || "").slice(0, 10),
+              // [2026-10-14] 전표 입력 대조 — 이카운트 품목코드는 옵션마다 다르다(카페24 상품 1개 ↔ 이카운트 품목 여러 개).
+              //   variant_code = 카페24 옵션별 품목코드(P000…A 형태), option_value = 옵션 표기
+              variant_code: it.variant_code || "",
+              option_value: it.option_value || it.option_value_default || ""
             };
             lines.push(row);
             tot.qty += qty; tot.sale += sale; tot.disc += disc;
