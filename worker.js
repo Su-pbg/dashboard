@@ -704,7 +704,7 @@ var worker_default = {
               paid: o.paid === "T" ? "Y" : "N",
               canceled: isCanceledStatus(it.order_status) ? "Y" : "N",
               paywin: isExcludedPaywin(it.product_name) ? "Y" : "N",
-              // [2026-10-13] 위탁 정산 대사용 날짜. canceled 는 '지금' 상태라 지난달을 볼 때 틀린다
+              // [2026-10-13] 위탁 정산 대조용 날짜. canceled 는 '지금' 상태라 지난달을 볼 때 틀린다
               // (실측: 8월 주문을 10월에 취소신청한 건이 8월 대조에서 취소로 빠졌다).
               //   shipped     출고일 — 이카운트 판매 전표는 출고 때 만든다
               //   cancel_req  취소·반품 신청일 (신청만 된 건 아직 판매다)
