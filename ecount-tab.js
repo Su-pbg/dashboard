@@ -260,18 +260,27 @@ const ASTS=['발주 필요','발주 완료','입고 완료','출고 완료','보
 const isShipTag=x=>x&&!isLater(x)&&!/^선수금/.test(x);
 const effTags=t=>t||'';
 const dstStyle=v=>/^발주 필요/.test(v)?'background:var(--down-soft);color:var(--down)':/완료/.test(v)?'background:var(--up-soft);color:var(--up)':v==='보류'?'background:var(--down-soft);color:var(--down)':'background:#FFF3E0;color:#C25E00';
+// 선수금 뱃지 바로 아래 선수금 진행, 배송방식 뱃지 바로 아래 배송 상태 — 뱃지·드롭다운 가로 폭은 같게(Su, 2026-10-14)
+const TAGW='width:128px;box-sizing:border-box';
 function tagCell(tags,order,date,r){
-  const nt=RV.notes[order]||{}, parts=String(tags||'').split(' · '), ship=parts.some(isShipTag), adv=parts.some(x=>/^선수금(?! 정산)/.test(x)), settled=parts.some(x=>/^선수금 정산 전표/.test(x));
+  const nt=RV.notes[order]||{}, parts=String(tags||'').split(' · ').filter(Boolean);
+  if(!parts.length) return '<span style="color:var(--ghost)">—</span>';
+  const settled=parts.some(x=>/^선수금 정산 전표/.test(x));
   const ec=[r&&r.dday,r&&r.dres].filter(Boolean).join(' · ');
-  const sel=(a,list,v,label)=>`<div style="margin-top:4px"><select class="ec-in" data-a="${a}" data-o="${esc(order)}" data-d="${esc(date)}" style="height:26px;font-size:11px;padding:0 4px;${v?dstStyle(v):''}" aria-label="${label}">
-    <option value="" ${!v?'selected':''}>${label} —</option>${list.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
-  return `${tagHtml(tags)}${adv?sel('rvast',ASTS,nt.ast,'선수금 진행'):''}${adv&&settled&&!nt.done?'<div class="ec-sub" style="color:var(--up);font-weight:600">정산 전표 들어옴 — 승인 확인</div>':''}${ship?`<div style="margin-top:4px"><select class="ec-in" data-a="rvdst" data-o="${esc(order)}" data-d="${esc(date)}" style="height:26px;font-size:11px;padding:0 4px;${nt.dst?dstStyle(nt.dst):''}" aria-label="배송 상태">
-    <option value="" ${!nt.dst?'selected':''}>배송 상태 —</option>${DSTS.map(v=>`<option ${nt.dst===v?'selected':''}>${v}</option>`).join('')}</select></div>`:''}
-    ${ec?`<div class="ec-sub" title="이카운트 배송일자 · 배송결과">이카운트: ${esc(ec)}</div>`:''}`;
+  const badge=x=>`<span class="ec-badge" style="${tagStyle(x)};${TAGW};display:block;text-align:center;padding:3px 6px;white-space:normal">${esc(x)}</span>`;
+  const sel=(a,list,v,label)=>`<select class="ec-in" data-a="${a}" data-o="${esc(order)}" data-d="${esc(date)}" style="${TAGW};display:block;height:26px;font-size:11px;padding:0 4px;margin-top:3px;${v?dstStyle(v):''}" aria-label="${label}">
+    <option value="" ${!v?'selected':''}>${label} —</option>${list.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select>`;
+  const blocks=parts.map(x=>{
+    let h=badge(x);
+    if(!isLater(x)&&/^선수금/.test(x)){ h+=sel('rvast',ASTS,nt.ast,'선수금 진행'); if(settled&&!nt.done) h+=`<div class="ec-sub" style="${TAGW};color:var(--up);font-weight:600;white-space:normal">정산 전표 들어옴 — 승인 확인</div>`; }
+    else if(isShipTag(x)){ h+=sel('rvdst',DSTS,nt.dst,'배송 상태'); if(ec) h+=`<div class="ec-sub" style="${TAGW};white-space:normal" title="이카운트 배송일자 · 배송결과">이카운트: ${esc(ec)}</div>`; }
+    return `<div style="margin:2px auto 6px;${TAGW}">${h}</div>`;
+  }).join('');
+  return `<div style="display:flex;flex-direction:column;align-items:center">${blocks}</div>`;
 }
 const sumTxt=sm=>ST_ORDER.filter(k=>sm[k]).map(k=>`${k} ${n(sm[k])}`).join(' · ');
 function rvTable(rows,withDate){
-  return `<div class="ec-scroll"><table class="ec-t" style="min-width:1100px"><thead><tr>${withDate?'<th>날짜</th>':''}<th>주문번호</th><th>선수금 · 배송방식</th><th>공급사</th><th>상품</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead><tbody>
+  return `<div class="ec-scroll"><table class="ec-t" style="min-width:1100px"><thead><tr>${withDate?'<th>날짜</th>':''}<th>주문번호</th><th style="min-width:150px">선수금 · 배송방식</th><th>공급사</th><th>상품</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead><tbody>
     ${rows.map(r=>{ const nt=RV.notes[r.o]||{}, dt=r.date||RV.date;
       return `<tr style="${rowBg(effTags(r.tags,r.o),nt.done)}">${withDate?`<td>${esc(dt.slice(5))}</td>`:''}<td><b>${esc(r.o)}</b><div class="ec-sub">${esc(r.t||'')}</div></td><td>${tagCell(r.tags,r.o,dt,r)}</td><td>${esc(r.sup||'')}</td>
       <td class="l" style="min-width:240px">${esc(r.items||'')}${r.item&&r.item!=='일치'?`<div class="ec-sub">${esc(r.item)}</div>`:''}</td>
@@ -811,7 +820,7 @@ function renderRecon(){
     <div class="ec-row"><div class="ec-seg">${views.map(([v,l,c])=>`<button data-a="dview" data-v="${esc(v)}" class="${D.view===v?'on':''}">${l} ${n(c)}</button>`).join('')}</div>
       <span style="flex:1"></span>${miss?`<button class="go" data-a="togen" style="height:36px">미입력 ${n(miss)}건 판매입력 파일 만들기 →</button>`:''}</div>
     ${tfBar(stList,rg)}
-    <div class="ec-scroll"><table class="ec-t" style="min-width:1050px"><thead><tr><th>주문번호</th><th>선수금 · 배송방식</th><th>상품 · 품목코드</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead>
+    <div class="ec-scroll"><table class="ec-t" style="min-width:1050px"><thead><tr><th>주문번호</th><th style="min-width:150px">선수금 · 배송방식</th><th>상품 · 품목코드</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead>
       <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`
     :`<div class="ec-stat">이카운트 → 판매현황(품목별) 또는 판매조회에서 해당 날짜가 든 엑셀을 받아 올려 주세요. 판매조회는 품목코드가 없어 품목 대조 대신 수량 합계를 봅니다.</div>`}
     <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
