@@ -101,7 +101,9 @@ try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.D.sa
 truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__ecount.D.pending && ctx.__ecount.D.pending.run.length >= 1 && ctx.__ecount.D.pending.run[0] === ctx.__ecount.kstDay(-1));
 // 진행 중 주문: O1 은 대조 결과 선수금 표시 → 선수금 묶음, O5 는 퀵 → 배송방식 묶음
 await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'rv'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
-truthy('진행 중 주문 카드', root.innerHTML.includes('진행 중 주문') && root.innerHTML.includes('data-a="rvast"') && root.innerHTML.includes('data-a="rvdst"'));
+truthy('진행 중 주문 카드 묶음', root.innerHTML.includes('data-a="oocard"') && root.innerHTML.includes('단계 미정') && root.innerHTML.includes('상태 미정'));
+ctx.__ecount.OO.card = 'adv:'; ctx.__ecount.render(); truthy('카드 누르면 목록(선수금 진행 선택)', root.innerHTML.includes('data-a="rvast"'));
+ctx.__ecount.OO.card = 'ship:'; ctx.__ecount.render(); truthy('카드 누르면 목록(배송 상태 선택)', root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
