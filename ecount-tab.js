@@ -398,11 +398,15 @@ async function loadOpen(){
     const f=kstDay(0);
     const d=await getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=openorders&days=60${OO.force?'&nocache=1':''}`); OO.force=false; OO.at=d.fetchedAt||'';
     const months=[...new Set((d.orders||[]).map(o=>o.order_date.slice(0,7)).concat(kstDay(0).slice(0,7)))];
-    const tags={}, notes={};
-    await Promise.all(months.map(async ym=>{ try{ const m=await getJSON(`${WORKER}/ecrecon?month=${ym}`); for(const v of Object.values(m.idx||{})) for(const x of ((v.summary||{}).issues||[])) if(x.tags) tags[x.o]=x.tags; Object.assign(notes,m.notes||{}); }catch(e){} }));
+    const tags={}, notes={}, recDates=new Set(), missing=new Set();
+    await Promise.all(months.map(async ym=>{ try{ const m=await getJSON(`${WORKER}/ecrecon?month=${ym}`);
+      for(const [dt,v] of Object.entries(m.idx||{})){ recDates.add(dt); for(const x of ((v.summary||{}).issues||[])){ if(x.tags) tags[x.o]=x.tags; if(/^미입력/.test(String(x.st||''))) missing.add(x.o); } }
+      Object.assign(notes,m.notes||{}); }catch(e){} }));
+    OO.recDates=recDates; OO.missing=missing;
     Object.assign(RV.notes,notes);
     const lines={}; for(const l of (d.lines||[])) (lines[l.order_id] ||= []).push(l);
-    const mk=(o,t,nt)=>({o,ls:lines[o.order_id]||[],tags:t,nt,adv:hasAdv(t),ship:kinds(t).has('ship'),shipTag:String(t).split(' · ').find(isShipTag)||''});
+    // rec: 'none' 대조 안 됨(이카운트 입력 여부 모름) · 'missing' 대조 결과 미입력 · 'ok' 대조돼 입력 확인됨
+    const mk=(o,t,nt)=>({o,ls:lines[o.order_id]||[],tags:t,nt,adv:hasAdv(t),ship:kinds(t).has('ship'),shipTag:String(t).split(' · ').find(isShipTag)||'',rec:!recDates.has(o.order_date)?'none':missing.has(o.order_id)?'missing':'ok'});
     let list=(d.orders||[]).map(o=>mk(o,tags[o.order_id]||'',notes[o.order_id]||{}));
     // 선수금·배송방식인데 처리완료가 아니고 목록(배송전·배송중)에 없는 주문 = 카페24 배송완료 등 → 주문번호로 따로 받아 '배송완료' 묶음에 둔다(Su, 2026-10-15)
     const have=new Set(list.map(x=>x.o.order_id));
@@ -437,13 +441,23 @@ const ooAge=d=>Math.max(0,Math.round((new Date(kstDay(0)+'T00:00:00')-new Date(d
 function ooKind(x){ return x.adv?'adv':x.ship?'ship':x.o.ship_status==='M'?'m':'f'; }
 // 카드 묶음(Su, 2026-10-15): 선수금은 단계별 카드, 퀵·설치·차량은 상태별 카드, 일반은 배송전·배송중 카드.
 //   처음엔 카드만 보이고, 카드를 누르면 그 묶음의 목록이 아래에 펼쳐진다. 줄을 누르면 상세.
+// 화면 구역(Su, 2026-10-15): ① 이카운트 입력 현황 — 대조 안 됨 / 미입력 / 입력됨. 방식(선수금·퀵·설치)은 이카운트에 입력돼야 알 수 있으므로 여기가 첫 칸.
+//                            ② 배송 진행표 — 세로: 선수금 · 퀵·설치·차량 · 일반, 가로: 주문 접수 → 준비 → 출고 → 배송중 → 배송완료, 보류는 오른쪽.
+//   칸을 누르면 그 주문 목록, 줄을 누르면 상세. '배송완료'는 카페24 배송완료인데 처리완료(승인)를 아직 안 한 주문.
+const COLS=[['접수','주문 접수'],['준비','준비'],['출고','출고'],['배송중','배송중'],['완료','배송완료']];
+function ooCol(x){   // 방식별 단계 → 공통 칸
+  const k=ooKind(x), ss=x.o.ship_status;
+  if(k==='adv'){ const a=x.nt.ast||''; if(a==='보류') return '보류'; if(ss==='T') return '완료'; if(ss==='M') return '배송중'; if(a==='출고 완료') return '출고'; if(a) return '준비'; return '접수'; }
+  if(k==='ship'){ const d=x.nt.dst||''; if(d==='보류') return '보류'; if(ss==='T'||d==='배송완료'||d==='설치완료') return '완료'; if(ss==='M') return '배송중'; if(d==='출고완료') return '출고'; if(d) return '준비'; return '접수'; }
+  return ss==='T'?'완료':ss==='M'?'배송중':'접수';
+}
 function ooGroups(L){
-  const adv=L.filter(x=>ooKind(x)==='adv'), ship=L.filter(x=>ooKind(x)==='ship'), rest=L.filter(x=>['f','m'].includes(ooKind(x)));
-  const by=(arr,keyf,order,label)=>{ const g={}; for(const x of arr) (g[keyf(x)] ||= []).push(x); return [...order,...Object.keys(g).filter(k=>!order.includes(k))].filter(k=>g[k]).map(k=>({key:k,label:label(k),rows:g[k]})); };
+  const mk=(key,title,color,ink,rows,sub)=>{ const g={}; for(const x of rows) (g[ooCol(x)] ||= []).push(x);
+    return {key,title,color,ink,total:rows.length,sub,cells:COLS.map(([c,l])=>({key:c,label:l,rows:g[c]||[]})),hold:{key:'보류',label:'보류',rows:g['보류']||[]}}; };
   return [
-    {key:'adv',title:'선수금',color:'#F1E8FF',ink:'#6B3FB8',total:adv.length,cards:[...by(adv.filter(x=>x.o.ship_status!=='T'),x=>x.nt.ast||'',['발주 필요',...LISTS.ast.filter(x=>x!=='발주 필요'),''],k=>k||'단계 미정'),...by(adv.filter(x=>x.o.ship_status==='T'),()=>'T',['T'],()=>'카페24 배송완료 — 마무리 확인')]},
-    {key:'ship',title:'퀵 · 설치 · 차량',color:'#E0F7F4',ink:'#00796B',total:ship.length,cards:[...by(ship.filter(x=>x.o.ship_status!=='T'),x=>x.nt.dst||'',['',...LISTS.dst],k=>k||'상태 미정'),...by(ship.filter(x=>x.o.ship_status==='T'),()=>'T',['T'],()=>'카페24 배송완료 — 마무리 확인')]},
-    {key:'rest',title:'일반 주문',color:'var(--fill)',ink:'var(--ink-2)',total:rest.length,cards:by(rest,x=>x.o.ship_status,['F','M'],k=>k==='F'?'배송 가야 함':k==='M'?'배송 중':k)},
+    mk('adv','선수금','#F1E8FF','#6B3FB8',L.filter(x=>ooKind(x)==='adv'),'발주 필요 → 발주 완료 → 입고 완료 → 출고 완료'),
+    mk('ship','퀵 · 설치 · 차량','#E0F7F4','#00796B',L.filter(x=>ooKind(x)==='ship'),'일정 조율중 → 출고 예정 → 출고완료 → 배송완료 · 설치완료'),
+    mk('rest','일반 주문','#EEF1EF','#46504B',L.filter(x=>['f','m'].includes(ooKind(x))),'카페24 배송 상태 그대로'),
   ];
 }
 // 상세 페이지(Su, 2026-10-15): 줄을 누르면 그 주문 하나의 상세 — 카페24 주문·수령인·배송지·결제, 품목, 카페24 배송 상태, 대조 결과, 진행 단계·메모.
@@ -508,18 +522,33 @@ function openCard(){
   if(OO.loading&&!OO.list) return `<div class="ec-card"><h2>진행 중 주문</h2><div class="state"><div class="spinner"></div>카페24에서 배송이 안 끝난 주문 받는 중…</div></div>`;
   if(OO.err) return `<div class="ec-card"><h2>진행 중 주문</h2><div class="ec-stat err">${esc(OO.err.message)}</div></div>`;
   const L=OO.list||[], G=ooGroups(L), old=L.filter(x=>ooAge(x.o.order_date)>=7).length;
-  const selKey=OO.card||'';   // 'adv:발주 필요' 같은 묶음 키, 'old' = 7일 지남
-  const cardHtml=(g,c)=>{ const k=`${g.key}:${c.key}`, on=selKey===k, oldN=c.rows.filter(x=>ooAge(x.o.order_date)>=7).length;
-    return `<button data-a="oocard" data-k="${esc(k)}" style="text-align:left;border:2px solid ${on?g.ink:'transparent'};background:${g.color};border-radius:var(--r-ctrl);padding:10px 12px;min-width:132px;cursor:pointer;font-family:var(--sans)">
-      <div style="font-size:12px;font-weight:700;color:${g.ink}">${esc(c.label)}</div>
-      <div style="font-size:22px;font-weight:700;color:var(--ink);line-height:1.2">${n(c.rows.length)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> 건</span></div>
-      ${oldN?`<div class="ec-sub" style="color:var(--down);font-weight:600">7일 지남 ${n(oldN)}</div>`:'<div class="ec-sub">&nbsp;</div>'}</button>`; };
-  const groupsHtml=G.map(g=>`<div style="margin-top:var(--s3)"><div style="font-size:13px;font-weight:700;margin-bottom:6px">${esc(g.title)} <span class="ec-sub" style="display:inline">${n(g.total)}건</span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">${g.cards.map(c=>cardHtml(g,c)).join('')||'<span class="ec-sub">없습니다.</span>'}</div></div>`).join('');
+  const selKey=OO.card||'';
+  const recN={none:L.filter(x=>x.rec==='none').length,missing:L.filter(x=>x.rec==='missing').length,ok:L.filter(x=>x.rec==='ok').length};
+  const tile=(k,label,nn,sub,bad)=>`<button data-a="oocard" data-k="${esc(k)}" style="flex:1 1 0;min-width:150px;text-align:left;border:2px solid ${selKey===k?'var(--accent)':'var(--hair)'};background:var(--surface);border-radius:12px;padding:12px 14px;cursor:pointer;font-family:var(--sans)">
+      <div style="font-size:12px;font-weight:700;color:${bad&&nn?'var(--down)':'var(--muted)'}">${esc(label)}</div>
+      <div style="font-size:24px;font-weight:700;color:var(--ink);line-height:1.2;font-variant-numeric:tabular-nums">${n(nn)}<span style="font-size:12px;font-weight:400;color:var(--muted)"> 건</span></div>
+      <div class="ec-sub">${esc(sub)}</div></button>`;
+  const zone1=`<div style="margin-top:var(--s3)"><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px">1</span><b style="font-size:14px">이카운트 입력 현황</b><span class="ec-sub" style="margin:0">방식(선수금 · 퀵 · 설치)은 이카운트에 입력돼야 알 수 있습니다</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${tile('rec:none','대조 안 됨',recN.none,'판매 입력 대조를 아직 안 돌린 날짜의 주문',true)}
+      ${tile('rec:missing','이카운트 미입력',recN.missing,'대조 결과 이카운트에 없음 → 판매입력 필요',true)}
+      ${tile('rec:ok','입력 확인됨',recN.ok,'아래 진행표로 내려갑니다',false)}
+    </div></div>`;
+  // ② 진행표: 세로 방식 × 가로 단계. 칸 폭 동일.
+  const cell=(g,c,hold)=>{ const k=`${g.key}:${c.key}`, on=selKey===k, nn=c.rows.length, oldN=c.rows.filter(x=>ooAge(x.o.order_date)>=7).length;
+    return `<td style="padding:4px;${hold?'border-left:1px dashed var(--hair)':''}"><button data-a="oocard" data-k="${esc(k)}" style="width:100%;height:64px;border:2px solid ${on?g.ink:'transparent'};background:${nn?g.color:'var(--fill)'};border-radius:10px;cursor:pointer;font-family:var(--sans);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+      <span style="font-size:20px;font-weight:700;color:${nn?'var(--ink)':'var(--ghost)'};line-height:1;font-variant-numeric:tabular-nums">${n(nn)}</span>
+      <span class="ec-sub" style="margin:0;${oldN?'color:var(--down);font-weight:600':''}">${oldN?`7일↑ ${n(oldN)}`:'&nbsp;'}</span></button></td>`; };
+  const zone2=`<div style="margin-top:var(--s5)"><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px">2</span><b style="font-size:14px">배송 진행표</b><span class="ec-sub" style="margin:0">입력 확인된 주문 · 칸을 누르면 목록</span></div>
+    <div class="ec-scroll"><table style="width:100%;border-collapse:separate;border-spacing:0;min-width:760px;table-layout:fixed">
+      <thead><tr><th style="width:170px;text-align:left;padding:6px 8px;font-size:12px;color:var(--muted)">방식</th>${COLS.map(([c,l],i)=>`<th style="padding:6px 4px;font-size:12px;color:var(--muted);font-weight:700">${esc(l)}${i<COLS.length-1?' <span style="color:var(--ghost)">›</span>':''}</th>`).join('')}<th style="width:110px;padding:6px 4px;font-size:12px;color:var(--muted);border-left:1px dashed var(--hair)">보류</th></tr></thead>
+      <tbody>${G.map(g=>`<tr><td style="padding:4px 8px;vertical-align:middle"><div style="font-size:13px;font-weight:700;color:${g.ink}">${esc(g.title)} <span class="ec-sub" style="display:inline;margin:0">${n(g.total)}</span></div><div class="ec-sub" style="white-space:normal">${esc(g.sub)}</div></td>${g.cells.map(c=>cell(g,c,false)).join('')}${cell(g,g.hold,true)}</tr>`).join('')}</tbody></table></div></div>`;
+  const groupsHtml=zone1+zone2;
   // 고른 카드의 목록
   let list=null, title='';
   if(selKey==='old'){ list=L.filter(x=>ooAge(x.o.order_date)>=7); title='7일 지남'; }
-  else if(selKey){ const [gk,ck]=selKey.split(/:(.*)/); const g=G.find(x=>x.key===gk), c=g&&g.cards.find(x=>x.key===ck); if(c){ list=c.rows; title=`${g.title} · ${c.label}`; } }
+  else if(/^rec:/.test(selKey)){ const r=selKey.slice(4); list=L.filter(x=>x.rec===r); title={none:'대조 안 됨',missing:'이카운트 미입력',ok:'입력 확인됨'}[r]||''; }
+  else if(selKey){ const [gk,ck]=selKey.split(/:(.*)/); const g=G.find(x=>x.key===gk), c=g&&[...g.cells,g.hold].find(x=>x.key===ck); if(c){ list=c.rows; title=`${g.title} · ${c.label}`; } }
   const q=(OO.q||'').trim().toLowerCase();
   if(list&&q) list=list.filter(x=>[x.o.order_id,...x.ls.map(l=>l.product_name+' '+(l.supplier_name||''))].join(' ').toLowerCase().includes(q));
   if(list) list=list.slice().sort((a,b)=>a.o.order_date.localeCompare(b.o.order_date));
@@ -550,7 +579,7 @@ function openCard(){
       <span style="float:right;display:flex;gap:6px">${old?`<button class="ec-dl" data-a="oocard" data-k="old" style="color:var(--down);font-weight:700;${selKey==='old'?'outline:2px solid var(--down)':''}">7일 지남 ${n(old)}</button>`:''}<button class="ec-dl" data-a="ooreload">새로고침</button></span></h2>
     ${OO.truncated?'<div class="ec-stat err">주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${groupsHtml}
-    <p class="ec-note">카드를 누르면 그 묶음의 주문 목록이 열리고, 줄을 누르면 주문 상세가 열립니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</p></div>`;
+    <p class="ec-note">① 대조 안 된 주문은 판매 입력 대조를 돌리면 ②로 내려옵니다(미입력이면 데일리 전표 생성에서 판매입력 파일을 만드세요). ② 칸을 누르면 그 주문 목록, 줄을 누르면 상세. '주문 접수'는 아직 진행 단계를 고르지 않은 주문, '배송완료'는 카페24 배송완료인데 처리완료를 안 한 주문입니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</p></div>`;
 }
 function renderLog(){
   if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }

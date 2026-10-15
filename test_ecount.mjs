@@ -102,13 +102,14 @@ try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.D.sa
 truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__ecount.D.pending && ctx.__ecount.D.pending.run.length >= 1 && ctx.__ecount.D.pending.run[0] === ctx.__ecount.kstDay(-1));
 // 진행 중 주문: O1 은 대조 결과 선수금 표시 → 선수금 묶음, O5 는 퀵 → 배송방식 묶음
 await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'rv'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
-truthy('진행 중 주문 카드 묶음', root.innerHTML.includes('data-a="oocard"') && root.innerHTML.includes('단계 미정') && root.innerHTML.includes('카페24 배송완료 — 마무리 확인'));
-ctx.__ecount.OO.card = 'adv:'; ctx.__ecount.render(); truthy('카드 누르면 목록 페이지(선수금 진행 선택, 카드·대조 현황은 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-a="oocard" data-k="adv:"') && !root.innerHTML.includes('월간요약'));
+truthy('진행 중 주문 두 구역(입력 현황 + 진행표)', root.innerHTML.includes('data-k="rec:none"') && root.innerHTML.includes('data-k="rec:missing"') && root.innerHTML.includes('data-k="adv:접수"') && root.innerHTML.includes('data-k="ship:완료"') && root.innerHTML.includes('data-k="rest:배송중"') && !root.innerHTML.includes('마무리 확인'));
+eq('대조 상태 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.rec]), [[O1, 'ok'], [O5, 'missing']]);
+ctx.__ecount.OO.card = 'adv:접수'; ctx.__ecount.render(); truthy('칸 누르면 목록 페이지(선수금 진행 선택, 표·대조 현황은 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-k="adv:완료"') && !root.innerHTML.includes('월간요약'));
 ctx.__ecount.OO.detail = O1; ctx.__ecount.render(); truthy('줄 누르면 상세 페이지', root.innerHTML.includes('주문 상세') && root.innerHTML.includes('← 목록으로') && !root.innerHTML.includes('data-a="rvmemo" data-o="' + O5)); ctx.__ecount.OO.detail = '';
-ctx.__ecount.OO.card = 'ship:T'; ctx.__ecount.render(); truthy('배송완료 카드 누르면 목록(배송 상태 선택)', root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
+ctx.__ecount.OO.card = 'ship:완료'; ctx.__ecount.render(); truthy('배송완료 칸 누르면 목록(배송 상태 선택)', root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
 eq('웹훅 상태 덮기: O5 배송중 → 배송완료(배송방식이라 남김)', ctx.__ecount.OO.list.find((x) => x.o.order_id === O5).o.ship_status, 'T');
-truthy('배송완료 마무리 카드', (() => { ctx.__ecount.OO.card = ''; ctx.__ecount.render(); return root.innerHTML.includes('카페24 배송완료 — 마무리 확인'); })());
+truthy('웹훅으로 배송완료된 퀵 주문이 배송완료 칸에', (() => { ctx.__ecount.OO.card = ''; ctx.__ecount.render(); const x = ctx.__ecount.OO.list.find((y) => y.o.order_id === O5); return x.o.ship_status === 'T' && root.innerHTML.includes('data-k="ship:완료"'); })());
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }
