@@ -936,7 +936,7 @@ var worker_default = {
         const ids = String(q.get("ids") || "").split(",").map((x) => x.trim()).filter((x) => /^\d{8}-\d{7}$/.test(x)).slice(0, 2000);
         if (ids.length) {
           for (let i = 0; i < ids.length; i += 100) {
-            const j = await cafe24Get(mallId, tok, `orders?order_id=${ids.slice(i, i + 100).join(",")}&limit=100&embed=items`, false, env);
+            const j = await cafe24Get(mallId, tok, `orders?order_id=${ids.slice(i, i + 100).join(",")}&limit=100&embed=${daily ? "items,receivers,buyer" : "items"}`, false, env);
             orders = orders.concat(j.orders || []);
           }
         } else
