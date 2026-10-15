@@ -426,7 +426,7 @@
     <button class="nav-item" data-menu="trend"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>트렌드 분석</button>
     <button class="nav-item" data-menu="expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>경비환급</button>
     <button class="nav-item" data-menu="settle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>위탁 정산</button>
-    <button class="nav-item nav-group" data-menu="eclog"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>이카운트 판매 입력</button>
+    <button class="nav-item nav-group" data-menu="eclog"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>주문 처리</button>
     <button class="nav-item nav-sub" data-menu="ecdaily">데일리 전표 생성</button>
     <button class="nav-item nav-sub" data-menu="ecrecon">판매 입력 대조</button>
     <button class="nav-item nav-sub" data-menu="ecmap">품목코드 맵핑</button>
@@ -3748,12 +3748,12 @@ function setMenu(m){
   $('dashView').hidden=ex||st||ec; $('expenseView').hidden=!ex; $('settleView').hidden=!st; $('ecountView').hidden=!ec;
   if(ec){
     try{ history.replaceState(null,'',location.pathname+'?m='+m); }catch(e){}
-    const EC={eclog:['이카운트 판매 입력','날짜별 카페24 ↔ 이카운트 대조 현황과 판매입력 파일 이력을 봐요'],
+    const EC={eclog:['주문 처리','진행 중인 주문(선수금 · 배송)과 날짜별 카페24 ↔ 이카운트 대조 현황, 판매입력 파일 이력을 봐요'],
               ecdaily:['데일리 전표 생성','그날 카페24 주문을 이카운트 판매입력 양식(엑셀)으로 만들어요'],
               ecrecon:['판매 입력 대조','이카운트에서 받은 판매현황으로 카페24 주문이 제대로 입력됐는지 맞춰 봐요'],
               ecmap:['품목코드 맵핑','카페24 상품·옵션을 이카운트 품목코드에 잇는 표예요']}[m];
     $('ecTitle').textContent=EC[0]; $('ecSub').textContent=EC[1];
-    $('ecEyebrow').textContent=m==='eclog'?'PrintBakery':'PrintBakery · 이카운트 판매 입력';
+    $('ecEyebrow').textContent=m==='eclog'?'PrintBakery':'PrintBakery · 주문 처리';
     document.title=EC[0]+' · PrintBakery';
     window.scrollTo(0,0);
     if(!authToken()){ showGate(true); return; }

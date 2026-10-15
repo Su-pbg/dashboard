@@ -33,7 +33,7 @@ const LINES = [
   line(O4, 1), line(O4, 2, { canceled: 'Y', status: 'E00' }),
   line(O5, 1),
 ];
-const DAY = { date: DATE, at: '2026-10-14 10:00', file: '가짜.xlsx', summary: { total: 2, 정상: 1, 미입력: 1, missAmt: 10000, issues: [{ o: O5, st: '미입력', tags: '퀵', paid: 10000 }] },
+const DAY = { date: DATE, at: '2026-10-14 10:00', file: '가짜.xlsx', summary: { total: 2, 정상: 1, 미입력: 1, missAmt: 10000, issues: [{ o: O1, st: '정상', tags: '선수금(완납)', paid: 23000 }, { o: O5, st: '미입력', tags: '퀵', paid: 10000 }] },
   rows: [{ o: O1, st: '정상', tags: '선수금(완납)', paid: 23000, ec: 23000, diff: 0, items: '상품1 ×1' }, { o: O5, st: '미입력', tags: '퀵', paid: 10000 }] };
 
 // ---------- 브라우저 흉내 ----------
@@ -48,6 +48,7 @@ const fetchStub = async (url, opt = {}) => {
   if (u.includes('/ecsales')) return json({ log: [] });
   if (u.includes('/ecrecon?month')) return json({ idx: { [DATE]: { at: DAY.at, file: DAY.file, summary: DAY.summary } }, notes: {} });   // 대조된 날짜 = DATE 하나
   if (u.includes('/ecrecon?date')) return json({ day: DAY, notes: {} });
+  if (u.includes('tab=openorders')) return json({ from: '2026-08-14', to: DATE, orders: [ { order_id: O1, order_date: DATE, ship_status: 'F', payment_amount: 23000, naver_point: 0 }, { order_id: O5, order_date: DATE, ship_status: 'M', payment_amount: 10000, naver_point: 0 } ], lines: LINES.filter((l) => [O1, O5].includes(l.order_id)), truncated: false });
   if (u.includes('tab=settleprod')) return json({ shipping: { S000000A: { type: 'M', fee: 3000, free_over: 50000 } } });
   if (u.includes('tab=orderitems')) return json({ orders: ORDERS, lines: LINES, truncated: false });
   return json({ error: 'stub: ' + u });
@@ -98,6 +99,10 @@ truthy('목록 설정이 화면 목록에 반영', ctx.__ecount.LISTS.wh.include
 try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.D.savedDay = null; ctx.__ecount.compute(); ctx.__ecount.render(); truthy('대조 화면 파일 전 주문 표', root.innerHTML.includes(O1) && root.innerHTML.includes('대조 전') && root.innerHTML.includes('data-a="qdate"'));
   ctx.__ecount.D.savedDay = DAY; ctx.__ecount.compute(); ctx.__ecount.render(); const sv = ctx.__ecount.D.rows.find((r) => r.o.order_id === O1); truthy('저장된 대조 결과를 파일 없이 표에 채움', sv.st === '정상' && sv.ecTot === 23000 && root.innerHTML.includes('대조한 결과입니다')); ctx.__ecount.D.savedDay = null; } catch (e) { bad++; console.log('FAIL 대조 화면 파일 전 ' + e.message); }
 truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__ecount.D.pending && ctx.__ecount.D.pending.run.length >= 1 && ctx.__ecount.D.pending.run[0] === ctx.__ecount.kstDay(-1));
+// 진행 중 주문: O1 은 대조 결과 선수금 표시 → 선수금 묶음, O5 는 퀵 → 배송방식 묶음
+await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'rv'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
+truthy('진행 중 주문 카드', root.innerHTML.includes('진행 중 주문') && root.innerHTML.includes('data-a="rvast"') && root.innerHTML.includes('data-a="rvdst"'));
+eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }
@@ -115,6 +120,7 @@ eq('환불 전: 23000 − 취소 10000, 남은 10000 < 무료 기준이라 배�
 eq('환불 끝: 결제액 그대로', [E.remainOf(row(O3)).mode, E.remainOf(row(O3)).amt], ['refunded', 10000]);
 eq('교환은 취소 아님', [E.remainOf(row(O4)).mode, row(O4).live.length], ['none', 2]);
 
+D.date = DATE; E.compute();   // 화면 열기 테스트가 날짜를 '어제'로 바꿔 두므로 되돌린다
 // 판매입력 줄 금액: 주문별 합계 = 결제액(부분취소면 남은 금액), 사인지 줄 0원
 for (const id of [O2, O3, O4]) D.sel[id] = true;
 const B = E.buildRows(), sum = {};

@@ -397,7 +397,7 @@ var worker_default = {
       // [2026-09-22] paths·vers·client 등 탭별 파라미터도 캐시 키에 넣는다.
       // 안 넣었더니 tab=slotfunnel 을 구좌 1개로 부른 응답이, 구좌 9개로 부른 요청에
       // 그대로 돌아왔다(같은 키). 응답 내용을 바꾸는 파라미터는 전부 키에 있어야 한다.
-      const cacheKeyParts = ["bs", "be", "as", "ae", "tab", "excl", "autoExclLowEngagement", "cmp", "country", "paths", "vers", "client", "blen", "from", "to", "format", "anchorDate", "anchorTotal", "products"].map((k) => `${k}=${q.get(k) || ""}`).join("&");
+      const cacheKeyParts = ["bs", "be", "as", "ae", "tab", "excl", "autoExclLowEngagement", "cmp", "country", "paths", "vers", "client", "blen", "from", "to", "format", "anchorDate", "anchorTotal", "products", "days"].map((k) => `${k}=${q.get(k) || ""}`).join("&");
       const cacheKey = "resp:v2:" + cacheKeyParts;
       const bypassCache = q.get("nocache") === "1";
       const todayKst = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
@@ -889,6 +889,40 @@ var worker_default = {
         }
         return json({ products, shipping });
       }
+      // [2026-10-15] 주문 처리 첫 화면 — 아직 배송이 끝나지 않은 주문(카페24 배송 상태 F 배송전 · M 배송중), 최근 N일.
+      //   주문 단위 + 품목 줄. 수령인 정보는 넣지 않는다(이 화면엔 필요 없음) → 5분 캐시(jsonCached) 가능.
+      //   실측(2026-10-15): cafe24 가 shipping_status= 필터를 무시하고 전부 준다(60일 2,964건·25초) → 여기서 거른다.
+      if (q.get("tab") === "openorders") {
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const mallId = env.CAFE24_MALL_ID;
+        const days = Math.min(90, Math.max(7, Number(q.get("days")) || 60));
+        const to = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
+        const from = new Date(Date.now() + 9 * 3600 * 1e3 - days * 86400 * 1e3).toISOString().slice(0, 10);
+        const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+        const arrOf = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+        let orders = [], truncated = false;
+        for (let p = 0; p < ORDER_MAX_PAGES * 2; p++) {
+          const j = await cafe24Get(mallId, tok,
+            `orders?start_date=${from}&end_date=${to}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=items`, false, env);
+          const arr = j.orders || [];
+          orders = orders.concat(arr);
+          if (arr.length < ORDER_PAGE) break;
+          if (p === ORDER_MAX_PAGES * 2 - 1) truncated = true;
+        }
+        const out = [], lines = [];
+        for (const o of orders) {
+          if (o.paid !== "T" || o.canceled === "T" || !["F", "M"].includes(o.shipping_status)) continue;
+          const its = (o.items || []).filter((it) => !isExcludedPaywin(it.product_name));
+          if (!its.length) continue;
+          out.push({ order_id: o.order_id, order_date: String(o.order_date || "").slice(0, 10), ship_status: o.shipping_status || "",
+            payment_amount: n(o.payment_amount), naver_point: n(o.naver_point) });
+          for (const it of its) lines.push({ order_id: o.order_id, product_no: it.product_no, product_name: it.product_name || "", option_value: it.option_value || "",
+            qty: n(it.quantity), status: it.order_status || "", canceled: isCanceledStatus(it.order_status) ? "Y" : "N",
+            supplier_name: it.supplier_name || "", shipped: String(it.shipped_date || "").slice(0, 10), variant_code: it.variant_code || "" });
+        }
+        return jsonCached({ from, to, orders: out, lines, truncated, fetchedAt: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " ") }, 200);
+      }
       if (q.get("tab") === "orderitems") {
         const tok = await getCafe24AccessToken(env);
         if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
@@ -923,6 +957,9 @@ var worker_default = {
             buyer_phone: by.cellphone || by.phone || "",
             ship_fee: n((o.actual_order_amount || {}).shipping_fee),
             pay_name: o.payment_method_name || "",
+            // [2026-10-15] 주문 처리 첫 화면 — 배송 상태(F 배송전 · M 배송중 · T 배송완료)·주문일
+            ship_status: o.shipping_status || "",
+            order_date: String(o.order_date || "").slice(0, 10),
             time: String(o.order_date || "").slice(11, 16),
             naver_point: n(o.naver_point),
             easypay: o.easypay_name || "",
