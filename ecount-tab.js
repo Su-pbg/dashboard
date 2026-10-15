@@ -391,7 +391,7 @@ function rvHtml(){
 //   ② 배송방식(퀵·설치·차량 등) — 배송 상태별(일정 조율중 → … → 설치완료)
 //   ③ 그 밖에 배송 가야 하는 주문(배송전) · 배송 중인 주문
 // 선수금·배송방식 표시는 대조 현황 월간요약(issues)에서, 진행 단계·메모·처리완료는 공유 메모에서 가져온다. 처리완료면 뺀다.
-const OO={list:null,err:null,loading:false,open:{}};
+const OO={list:null,err:null,loading:false,exp:{},view:'all',sub:'*',q:''};
 async function loadOpen(){
   OO.loading=true; OO.err=null; render();
   try{
@@ -410,32 +410,60 @@ async function loadOpen(){
   OO.loading=false; render();
 }
 const SS_TXT={F:'배송전',M:'배송중',T:'배송완료'};
+// 화면 구성(2026-10-15, 주문 관리 UI 관례): 위에 건수 달린 상태 칩(누르면 필터) → 표 하나(세 묶음을 쌓지 않음) → 줄을 누르면 상세.
+//   구분 칩: 전체 · 선수금 · 배송방식 · 배송전 · 배송중 · 7일 지남. 선수금/배송방식을 고르면 단계·상태 칩이 한 줄 더.
+const ooAge=d=>Math.max(0,Math.round((new Date(kstDay(0)+'T00:00:00')-new Date(d+'T00:00:00'))/86400e3));
+function ooKind(x){ return x.adv?'adv':x.ship?'ship':x.o.ship_status==='M'?'m':'f'; }
+function ooStage(x){ return x.adv?(x.nt.ast||''):x.ship?(x.nt.dst||''):''; }
 function openCard(){
   if(OO.loading&&!OO.list) return `<div class="ec-card"><h2>진행 중 주문</h2><div class="state"><div class="spinner"></div>카페24에서 배송이 안 끝난 주문 받는 중…</div></div>`;
   if(OO.err) return `<div class="ec-card"><h2>진행 중 주문</h2><div class="ec-stat err">${esc(OO.err.message)}</div></div>`;
-  const L=OO.list||[];
-  const adv=L.filter(x=>x.adv), ship=L.filter(x=>!x.adv&&x.ship), rest=L.filter(x=>!x.adv&&!x.ship);
-  const groupBy=(arr,key,order)=>{ const g={}; for(const x of arr) (g[key(x)] ||= []).push(x); return [...order.filter(k=>g[k]),...Object.keys(g).filter(k=>!order.includes(k))].map(k=>[k,g[k]]); };
-  const row=x=>{ const o=x.o, id=esc(o.order_id), dt=o.order_date;
-    const items=x.ls.map(l=>`<div style="${l.canceled==='Y'?'text-decoration:line-through;color:var(--ghost)':''}">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}${l.shipped?` <span class="ec-sub" style="display:inline">출고 ${esc(l.shipped.slice(5))}</span>`:''}</div>`).join('');
-    return `<tr style="${x.adv?'background:#FDEDED':''}"><td>${esc(dt.slice(5).replace('-','/'))}</td><td><b>${id}</b></td><td>${tagCell(x.tags,o.order_id,dt,null)}</td>
-      <td class="l" style="min-width:260px">${items}</td><td>${n((o.payment_amount||0)+(o.naver_point||0))}</td>
+  const L=OO.list||[], view=OO.view||'all', q=(OO.q||'').trim().toLowerCase();
+  const cnt={all:L.length,adv:0,ship:0,f:0,m:0,old:0};
+  for(const x of L){ cnt[ooKind(x)]++; if(ooAge(x.o.order_date)>=7) cnt.old++; }
+  const CHIPS=[['all','전체'],['adv','선수금'],['ship','퀵·설치·차량'],['f','배송 가야 함'],['m','배송 중'],['old','7일 지남']];
+  let list=L.filter(x=>view==='all'||(view==='old'?ooAge(x.o.order_date)>=7:ooKind(x)===view));
+  // 단계·상태 칩 (선수금 / 배송방식일 때)
+  const stages=view==='adv'?LISTS.ast:view==='ship'?LISTS.dst:null;
+  let subBar='';
+  if(stages){
+    const sc={}; for(const x of list) sc[ooStage(x)]=(sc[ooStage(x)]||0)+1;
+    const keys=['',...stages].filter(k=>sc[k]);
+    subBar=`<div class="ec-row" style="margin-top:6px"><span class="ec-sub" style="margin:0">${view==='adv'?'진행':'상태'}</span><div class="ec-seg">${[['*','모두',list.length],...keys.map(k=>[k,k||'미정',sc[k]])].map(([k,l,c])=>`<button data-a="oosub" data-k="${esc(k)}" class="${(OO.sub??'*')===k?'on':''}">${esc(l)} ${n(c)}</button>`).join('')}</div></div>`;
+    if(OO.sub!=null&&OO.sub!=='*') list=list.filter(x=>ooStage(x)===OO.sub);
+  }
+  if(q) list=list.filter(x=>[x.o.order_id,...x.ls.map(l=>l.product_name+' '+(l.supplier_name||''))].join(' ').toLowerCase().includes(q));
+  list=list.slice().sort((a,b)=>a.o.order_date.localeCompare(b.o.order_date));
+  const sel=(a,listv,v,order,date,label)=>`<select class="ec-in" data-a="${a}" data-o="${esc(order)}" data-d="${esc(date)}" style="height:24px;font-size:11px;padding:0 4px;max-width:110px;${v?dstStyle(v):''}" aria-label="${label}"><option value="" ${!v?'selected':''}>${label} —</option>${listv.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select>`;
+  const kindPill=x=>{ const k=ooKind(x);
+    if(k==='adv') return `<span class="ec-badge" style="${tagStyle('선수금')}">${esc(String(x.tags).split(' · ').find(t=>/^선수금/.test(t)&&!isLater(t))||'선수금')}</span>`;
+    if(k==='ship') return `<span class="ec-badge" style="${tagStyle(x.shipTag)}">${esc(x.shipTag)}</span>`;
+    return `<span class="ec-badge ec-info">일반</span>`; };
+  const row=x=>{ const o=x.o, id=esc(o.order_id), dt=o.order_date, age=ooAge(dt), open=!!OO.exp[o.order_id], k=ooKind(x);
+    const first=x.ls[0], more=x.ls.length-1;
+    const later=String(x.tags).split(' · ').filter(isLater);
+    return `<tr style="${k==='adv'?'background:#FDEDED':''}${open?';border-bottom:0':''}">
+      <td style="white-space:nowrap">${esc(dt.slice(5).replace('-','/'))}<div class="ec-sub" style="${age>=7?'color:var(--down);font-weight:700':''}">${age}일</div></td>
+      <td><b style="font-family:ui-monospace,Menlo,monospace;font-size:12px">${id}</b></td>
+      <td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">${kindPill(x)}${k==='adv'?sel('rvast',LISTS.ast,x.nt.ast,o.order_id,dt,'진행'):k==='ship'?sel('rvdst',LISTS.dst,x.nt.dst,o.order_id,dt,'상태'):''}</div>${later.length?`<div class="ec-sub">${esc(later.join(' · '))}</div>`:''}</td>
+      <td class="l" style="min-width:240px;max-width:420px"><a href="#" data-a="ooexp" data-o="${id}" style="color:var(--ink);text-decoration:none">${open?'▾':'▸'} ${esc(first?first.product_name:'')}${more>0?` <span class="ec-sub" style="display:inline">외 ${more}건</span>`:''}</a></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${n((o.payment_amount||0)+(o.naver_point||0))}</td>
       <td><span class="ec-badge ${o.ship_status==='M'?'ec-warn':'ec-info'}">${esc(SS_TXT[o.ship_status]||o.ship_status||'—')}</span></td>
-      <td><input class="ec-in" data-a="rvmemo" data-o="${id}" data-d="${esc(dt)}" value="${esc(x.nt.memo||'')}" placeholder="메모" maxlength="200" style="width:140px"></td>
-      <td><input type="checkbox" data-a="rvdone" data-o="${id}" data-d="${esc(dt)}" aria-label="처리완료"></td></tr>`; };
-  const table=rows=>`<div class="ec-scroll"><table class="ec-t" style="min-width:1000px"><thead><tr><th>주문일</th><th>주문번호</th><th style="min-width:150px">선수금 · 배송방식</th><th>상품</th><th>실결제</th><th>카페24 배송</th><th>메모</th><th>처리완료</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table></div>`;
-  const sec=(key,title,groups,label)=>{ const total=groups.reduce((t,[,v])=>t+v.length,0); const open=OO.open[key]!==false;
-    return `<h3 style="font-size:15px;margin:var(--s4) 0 4px;cursor:pointer" data-a="oosec" data-k="${key}">${open?'▾':'▸'} ${title} <span class="ec-sub" style="display:inline">${n(total)}건</span></h3>
-      ${open?groups.map(([g,rows])=>`<div class="ec-sub" style="margin:6px 0 2px;font-weight:700;color:var(--ink)">${esc(label(g))} <span style="font-weight:400">${n(rows.length)}건</span></div>${table(rows)}`).join('')||'<div class="ec-sub">없습니다.</div>':''}`; };
-  return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일 · ${n(L.length)}건${OO.at?` · ${esc(OO.at)} 기준`:''}</span>
+      <td><input class="ec-in" data-a="rvmemo" data-o="${id}" data-d="${esc(dt)}" value="${esc(x.nt.memo||'')}" placeholder="메모" maxlength="200" style="width:150px;height:26px"></td>
+      <td><input type="checkbox" data-a="rvdone" data-o="${id}" data-d="${esc(dt)}" aria-label="처리완료"></td></tr>
+      ${open?`<tr style="${k==='adv'?'background:#FDEDED':''}"><td colspan="8" class="l" style="padding:4px 12px 10px 40px;border-top:0">
+        ${x.ls.map(l=>`<div style="${l.canceled==='Y'?'text-decoration:line-through;color:var(--ghost)':''}">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}${l.supplier_name?` <span class="ec-sub" style="display:inline">· ${esc(l.supplier_name)}</span>`:''}${l.shipped?` <span class="ec-sub" style="display:inline">· 출고 ${esc(l.shipped.slice(5))}</span>`:''}</div>`).join('')}
+        <div class="ec-sub" style="margin-top:4px">${x.tags?'대조 표시: '+esc(x.tags):'판매 입력 대조를 아직 돌리지 않은 주문입니다 — 대조하면 선수금·배송방식 표시가 붙습니다.'}${x.nt.at?` · 마지막 변경 ${esc(x.nt.at)}`:''}</div></td></tr>`:''}`; };
+  return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일${OO.at?` · ${esc(OO.at)} 기준`:''}</span>
       <button class="ec-dl" data-a="ooreload" style="float:right">새로고침</button></h2>
-    <p class="ec-lead">선수금은 진행 단계별, 퀵·설치·차량 등은 배송 상태별로 나눠 보여줍니다. 단계·상태·메모는 대조 화면과 같은 값이고, 처리완료를 체크하면 여기서 빠집니다.
-      선수금·배송방식 표시는 판매 입력 대조를 돌린 주문에만 붙습니다(아직 대조 안 한 주문은 아래 '그 밖의 주문'에 나옵니다).</p>
+    <div class="ec-row" style="margin-top:var(--s3)"><div class="ec-seg">${CHIPS.map(([k,l])=>`<button data-a="ooview" data-v="${k}" class="${view===k?'on':''}" style="${k==='old'&&cnt.old?'color:var(--down)':''}">${l} ${n(cnt[k])}</button>`).join('')}</div>
+      <input class="ec-in" id="ecOoQ" value="${esc(OO.q||'')}" placeholder="주문번호·상품·공급사 검색" style="width:200px"></div>
+    ${subBar}
     ${OO.truncated?'<div class="ec-stat err">주문이 너무 많아 일부만 받았습니다.</div>':''}
-    ${sec('adv','선수금',groupBy(adv,x=>x.nt.ast||'',['발주 필요','발주 완료','입고 완료','출고 완료','보류','']),g=>g||'단계 미정')}
-    ${sec('ship','배송방식 (퀵 · 설치 · 차량 등)',groupBy(ship,x=>x.nt.dst||'',['일정 조율중','출고 예정','출고완료','배송완료','설치완료','보류','']),g=>g||'상태 미정')}
-    ${sec('rest','그 밖의 주문',groupBy(rest,x=>x.o.ship_status,['F','M']),g=>g==='F'?'배송 가야 하는 주문 (배송전)':g==='M'?'배송 중':g)}
-  </div>`;
+    <div class="ec-scroll"><table class="ec-t" style="min-width:960px"><thead><tr><th>주문일</th><th>주문번호</th><th>구분 · 진행</th><th class="l">상품 (누르면 펼침)</th><th style="text-align:right">실결제</th><th>카페24</th><th>메모</th><th>완료</th></tr></thead>
+      <tbody>${list.map(row).join('')||`<tr><td colspan="8" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>
+    <p class="ec-note">선수금은 '진행'(발주 필요 → 발주 완료 → 입고 완료 → 출고 완료), 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다 — 대조 화면과 같은 값. 완료를 체크하면 여기서 빠집니다.
+      선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 '일반'으로 나옵니다. 7일 지남 = 주문 후 7일이 지났는데 배송이 안 끝난 주문.</p></div>`;
 }
 function renderLog(){
   if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }
@@ -1215,7 +1243,7 @@ function wire(root){
   });
   root.addEventListener('input',e=>{ if((S.page==='daily'||S.page==='recon')&&onDailyInput(e.target)) return; if(e.target.dataset.a==='rvmemo'){ noteMemo(e.target.dataset.d,e.target.dataset.o,e.target.value); return; }
     // 검색: 한 글자마다 표 전체를 다시 그리지 않고 입력이 멈추면(0.2초) 한 번
-    if(e.target.id==='ecRvQ'||e.target.id==='ecQ'){ const id=e.target.id; if(id==='ecRvQ') RV.q=e.target.value; else S.q=e.target.value;
+    if(e.target.id==='ecRvQ'||e.target.id==='ecQ'||e.target.id==='ecOoQ'){ const id=e.target.id; if(id==='ecRvQ') RV.q=e.target.value; else if(id==='ecOoQ') OO.q=e.target.value; else S.q=e.target.value;
       clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ const el=$(id), pos=el?el.selectionStart:0; render(); const q=$(id); if(q){ q.focus(); q.setSelectionRange(pos,pos); } },200); } });
   root.addEventListener('click',async e=>{
     const t=e.target.closest('[data-a]'); if(!t) return;
@@ -1226,7 +1254,9 @@ function wire(root){
     if(a==='dview'){ D.view=t.dataset.v; render(); return; }
     if(a==='logview'){ S.logView=t.dataset.v; render(); return; }
     if(a==='ooreload'){ OO.list=null; OO.force=true; await loadOpen(); return; }
-    if(a==='oosec'){ OO.open[t.dataset.k]=OO.open[t.dataset.k]===false; render(); return; }
+    if(a==='ooview'){ OO.view=t.dataset.v; OO.sub='*'; render(); return; }
+    if(a==='oosub'){ OO.sub=t.dataset.k; render(); return; }
+    if(a==='ooexp'){ e.preventDefault(); OO.exp[t.dataset.o]=!OO.exp[t.dataset.o]; render(); return; }
     if(a==='rvday'){ if(!t.dataset.d) return; RV.q=''; await loadRVDay(t.dataset.d); return; }
     if(a==='rvback'){ RV.date=''; RV.day=null; render(); return; }
     if(a==='gorecon2'){ setMenu('ecrecon'); return; }
