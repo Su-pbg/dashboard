@@ -402,14 +402,35 @@ async function loadOpen(){
     await Promise.all(months.map(async ym=>{ try{ const m=await getJSON(`${WORKER}/ecrecon?month=${ym}`); for(const v of Object.values(m.idx||{})) for(const x of ((v.summary||{}).issues||[])) if(x.tags) tags[x.o]=x.tags; Object.assign(notes,m.notes||{}); }catch(e){} }));
     Object.assign(RV.notes,notes);
     const lines={}; for(const l of (d.lines||[])) (lines[l.order_id] ||= []).push(l);
-    OO.list=(d.orders||[]).map(o=>{ const nt=notes[o.order_id]||{}, t=tags[o.order_id]||'';
-      return {o,ls:lines[o.order_id]||[],tags:t,nt,adv:hasAdv(t),ship:kinds(t).has('ship'),shipTag:String(t).split(' · ').find(isShipTag)||''}; })
-      .filter(x=>!x.nt.done).sort((a,b)=>a.o.order_date.localeCompare(b.o.order_date));
+    const mk=(o,t,nt)=>({o,ls:lines[o.order_id]||[],tags:t,nt,adv:hasAdv(t),ship:kinds(t).has('ship'),shipTag:String(t).split(' · ').find(isShipTag)||''});
+    let list=(d.orders||[]).map(o=>mk(o,tags[o.order_id]||'',notes[o.order_id]||{}));
+    // 선수금·배송방식인데 처리완료가 아니고 목록(배송전·배송중)에 없는 주문 = 카페24 배송완료 등 → 주문번호로 따로 받아 '배송완료' 묶음에 둔다(Su, 2026-10-15)
+    const have=new Set(list.map(x=>x.o.order_id));
+    const need=Object.keys(tags).filter(id=>tracked(tags[id])&&!(notes[id]||{}).done&&!have.has(id)&&id.slice(0,8)>=ymd(kstDay(-60)));
+    for(let i=0;i<need.length;i+=300){ const part=need.slice(i,i+300), f2=kstDay(0);
+      try{ const e=await getJSON(`${WORKER}/?bs=${f2}&be=${f2}&as=${f2}&ae=${f2}&tab=orderitems&from=${f2}&to=${f2}&full=1&nocache=1&daily=1&ids=${part.join(',')}`);
+        for(const l of (e.lines||[])) (lines[l.order_id] ||= []).push(l);
+        for(const o of (e.orders||[])){ if(o.paid!=='Y'||o.canceled==='Y') continue; list.push(mk({order_id:o.order_id,order_date:o.order_date||o.date,ship_status:o.ship_status||'T',payment_amount:o.payment_amount,naver_point:o.naver_point},tags[o.order_id],notes[o.order_id]||{})); } }catch(e){} }
+    OO.list=list.filter(x=>!x.nt.done).sort((a,b)=>a.o.order_date.localeCompare(b.o.order_date));
     OO.truncated=!!d.truncated;
+    await applyHooks();   // 웹훅으로 들어온 최신 상태 덮기
   }catch(e){ OO.err=e; OO.list=[]; }
   OO.loading=false; render();
 }
 const SS_TXT={F:'배송전',M:'배송중',T:'배송완료'};
+// 웹훅 상태 덮기: 카페24가 보낸 최신 배송 상태(워커 ecopen:*)를 목록 위에 덮는다. 전체 조회는 5분 캐시라 이게 더 새것.
+//   화면이 열려 있는 동안 1분마다 다시 받는다(가벼움). 배치는 없다 — 카페24가 바뀔 때마다 보낸다.
+async function applyHooks(){
+  if(!OO.list) return;
+  try{ const f=kstDay(0); const h=await getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=openhooks&nocache=1`);
+    OO.hookAt=(h.recent||[])[0]?h.recent[0].at:''; let ch=0;
+    for(const x of OO.list){ const st=h.states[x.o.order_id]; if(!st) continue;
+      if(st.ship_status&&st.ship_status!==x.o.ship_status){ x.o.ship_status=st.ship_status; x.o.hook_at=st.at; ch++; }
+      if(st.deleted||st.paid==='F'){ x.gone=true; ch++; } }
+    if(ch){ OO.list=OO.list.filter(x=>!x.gone&&(['F','M'].includes(x.o.ship_status)||tracked(x.tags))); }
+  }catch(e){}
+}
+function hookTimer(){ clearInterval(OO.timer); OO.timer=setInterval(async()=>{ if(S.page!=='log'||!document.body.contains(S.root)){ clearInterval(OO.timer); return; } await applyHooks(); render(); },60e3); }
 // 화면 구성(2026-10-15, 주문 관리 UI 관례): 위에 건수 달린 상태 칩(누르면 필터) → 표 하나(세 묶음을 쌓지 않음) → 줄을 누르면 상세.
 //   구분 칩: 전체 · 선수금 · 배송방식 · 배송전 · 배송중 · 7일 지남. 선수금/배송방식을 고르면 단계·상태 칩이 한 줄 더.
 const ooAge=d=>Math.max(0,Math.round((new Date(kstDay(0)+'T00:00:00')-new Date(d+'T00:00:00'))/86400e3));
@@ -420,8 +441,8 @@ function ooGroups(L){
   const adv=L.filter(x=>ooKind(x)==='adv'), ship=L.filter(x=>ooKind(x)==='ship'), rest=L.filter(x=>['f','m'].includes(ooKind(x)));
   const by=(arr,keyf,order,label)=>{ const g={}; for(const x of arr) (g[keyf(x)] ||= []).push(x); return [...order,...Object.keys(g).filter(k=>!order.includes(k))].filter(k=>g[k]).map(k=>({key:k,label:label(k),rows:g[k]})); };
   return [
-    {key:'adv',title:'선수금',color:'#F1E8FF',ink:'#6B3FB8',total:adv.length,cards:by(adv,x=>x.nt.ast||'',['발주 필요',...LISTS.ast.filter(x=>x!=='발주 필요'),''],k=>k||'단계 미정')},
-    {key:'ship',title:'퀵 · 설치 · 차량',color:'#E0F7F4',ink:'#00796B',total:ship.length,cards:by(ship,x=>x.nt.dst||'',['',...LISTS.dst],k=>k||'상태 미정')},
+    {key:'adv',title:'선수금',color:'#F1E8FF',ink:'#6B3FB8',total:adv.length,cards:[...by(adv.filter(x=>x.o.ship_status!=='T'),x=>x.nt.ast||'',['발주 필요',...LISTS.ast.filter(x=>x!=='발주 필요'),''],k=>k||'단계 미정'),...by(adv.filter(x=>x.o.ship_status==='T'),()=>'T',['T'],()=>'카페24 배송완료 — 마무리 확인')]},
+    {key:'ship',title:'퀵 · 설치 · 차량',color:'#E0F7F4',ink:'#00796B',total:ship.length,cards:[...by(ship.filter(x=>x.o.ship_status!=='T'),x=>x.nt.dst||'',['',...LISTS.dst],k=>k||'상태 미정'),...by(ship.filter(x=>x.o.ship_status==='T'),()=>'T',['T'],()=>'카페24 배송완료 — 마무리 확인')]},
     {key:'rest',title:'일반 주문',color:'var(--fill)',ink:'var(--ink-2)',total:rest.length,cards:by(rest,x=>x.o.ship_status,['F','M'],k=>k==='F'?'배송 가야 함':k==='M'?'배송 중':k)},
   ];
 }
@@ -515,7 +536,7 @@ function openCard(){
       <td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">${kindPill(x)}${k==='adv'?sel('rvast',LISTS.ast,x.nt.ast,o.order_id,dt,'진행'):k==='ship'?sel('rvdst',LISTS.dst,x.nt.dst,o.order_id,dt,'상태'):''}</div>${later.length?`<div class="ec-sub">${esc(later.join(' · '))}</div>`:''}</td>
       <td class="l" style="min-width:240px;max-width:420px"><a href="#" data-a="oodetail" data-o="${id}" style="color:var(--ink);text-decoration:none;${OO.detail===o.order_id?'font-weight:700':''}">${esc(first?first.product_name:'')}${more>0?` <span class="ec-sub" style="display:inline">외 ${more}건</span>`:''} <span class="ec-sub" style="display:inline">상세 →</span></a></td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${n((o.payment_amount||0)+(o.naver_point||0))}</td>
-      <td><span class="ec-badge ${o.ship_status==='M'?'ec-warn':'ec-info'}">${esc(SS_TXT[o.ship_status]||o.ship_status||'—')}</span></td>
+      <td><span class="ec-badge ${o.ship_status==='M'?'ec-warn':o.ship_status==='T'?'ec-ok':'ec-info'}">${esc(SS_TXT[o.ship_status]||o.ship_status||'—')}</span>${o.hook_at?`<div class="ec-sub" title="웹훅으로 받은 시각">${esc(String(o.hook_at).slice(5,16))}</div>`:''}</td>
       <td><input class="ec-in" data-a="rvmemo" data-o="${id}" data-d="${esc(dt)}" value="${esc(x.nt.memo||'')}" placeholder="메모" maxlength="200" style="width:150px;height:26px"></td>
       <td><input type="checkbox" data-a="rvdone" data-o="${id}" data-d="${esc(dt)}" aria-label="처리완료"></td></tr>`; };
   OO.cardTitle=title;
@@ -525,7 +546,7 @@ function openCard(){
     <div class="ec-scroll"><table class="ec-t" style="min-width:960px"><thead><tr><th>주문일</th><th>주문번호</th><th>구분 · 진행</th><th class="l">상품 (누르면 상세)</th><th style="text-align:right">실결제</th><th>카페24</th><th>메모</th><th>완료</th></tr></thead>
       <tbody>${list.map(row).join('')||`<tr><td colspan="8" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`:'';
   if(list) return `<div class="ec-card">${listHtml}<p class="ec-note">줄을 누르면 주문 상세(수령인·배송지·품목·대조 결과)가 열립니다. 선수금은 '진행', 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다. 완료를 체크하면 목록에서 빠집니다.</p></div>`;   // 2단계: 목록 페이지가 카드를 대신한다
-  return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일 · ${n(L.length)}건${OO.at?` · ${esc(OO.at)} 기준`:''}</span>
+  return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일 · ${n(L.length)}건${OO.at?` · ${esc(OO.at)} 기준`:''}${OO.hookAt?` · 웹훅 마지막 ${esc(String(OO.hookAt).slice(5,16))}`:''}</span>
       <span style="float:right;display:flex;gap:6px">${old?`<button class="ec-dl" data-a="oocard" data-k="old" style="color:var(--down);font-weight:700;${selKey==='old'?'outline:2px solid var(--down)':''}">7일 지남 ${n(old)}</button>`:''}<button class="ec-dl" data-a="ooreload">새로고침</button></span></h2>
     ${OO.truncated?'<div class="ec-stat err">주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${groupsHtml}
@@ -1377,6 +1398,7 @@ window.loadEcountTab=async function(el,page){
     await loadLog();   // 열 때마다 새로 받는다(다른 사람이 만든 파일도 보이게)
     await loadRV();
     if(!OO.list) loadOpen();   // 진행 중 주문은 기다리지 않고 뒤에서 받아 채운다
+    hookTimer();
   }else if(!S.loadedMap){
     el.innerHTML='<div class="state"><div class="spinner"></div>품목코드 맵핑 불러오는 중…</div>';
     try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }

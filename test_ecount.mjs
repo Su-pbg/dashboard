@@ -48,13 +48,14 @@ const fetchStub = async (url, opt = {}) => {
   if (u.includes('/ecsales')) return json({ log: [] });
   if (u.includes('/ecrecon?month')) return json({ idx: { [DATE]: { at: DAY.at, file: DAY.file, summary: DAY.summary } }, notes: {} });   // 대조된 날짜 = DATE 하나
   if (u.includes('/ecrecon?date')) return json({ day: DAY, notes: {} });
+  if (u.includes('tab=openhooks')) return json({ recent: [{ id: O5, ev: 90024, at: '2026-10-14 12:00:00', ship_status: 'T' }], states: { [O5]: { order_id: O5, ship_status: 'T', at: '2026-10-14 12:00:00' } } });
   if (u.includes('tab=openorders')) return json({ from: '2026-08-14', to: DATE, orders: [ { order_id: O1, order_date: DATE, ship_status: 'F', payment_amount: 23000, naver_point: 0 }, { order_id: O5, order_date: DATE, ship_status: 'M', payment_amount: 10000, naver_point: 0 } ], lines: LINES.filter((l) => [O1, O5].includes(l.order_id)), truncated: false });
   if (u.includes('tab=settleprod')) return json({ shipping: { S000000A: { type: 'M', fee: 3000, free_over: 50000 } } });
   if (u.includes('tab=orderitems')) return json({ orders: ORDERS, lines: LINES, truncated: false });
   return json({ error: 'stub: ' + u });
 };
 const ctx = {
-  window: {}, console, setTimeout: () => 0, clearTimeout() {}, Intl, Math, Date, JSON, Promise, Object, Array, String, Number, RegExp, Set, Map, Error, encodeURIComponent, atob: (s) => s,
+  window: {}, console, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, Intl, Math, Date, JSON, Promise, Object, Array, String, Number, RegExp, Set, Map, Error, encodeURIComponent, atob: (s) => s,
   WORKER: 'https://worker.test', authHeaders: () => ({}), setMenu() {}, fetch: fetchStub, confirm: () => true, alert() {},
   localStorage: { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
   CSS: { escape: (s) => s },
@@ -101,11 +102,13 @@ try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.D.sa
 truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__ecount.D.pending && ctx.__ecount.D.pending.run.length >= 1 && ctx.__ecount.D.pending.run[0] === ctx.__ecount.kstDay(-1));
 // 진행 중 주문: O1 은 대조 결과 선수금 표시 → 선수금 묶음, O5 는 퀵 → 배송방식 묶음
 await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'rv'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
-truthy('진행 중 주문 카드 묶음', root.innerHTML.includes('data-a="oocard"') && root.innerHTML.includes('단계 미정') && root.innerHTML.includes('상태 미정'));
+truthy('진행 중 주문 카드 묶음', root.innerHTML.includes('data-a="oocard"') && root.innerHTML.includes('단계 미정') && root.innerHTML.includes('카페24 배송완료 — 마무리 확인'));
 ctx.__ecount.OO.card = 'adv:'; ctx.__ecount.render(); truthy('카드 누르면 목록 페이지(선수금 진행 선택, 카드·대조 현황은 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-a="oocard" data-k="adv:"') && !root.innerHTML.includes('월간요약'));
 ctx.__ecount.OO.detail = O1; ctx.__ecount.render(); truthy('줄 누르면 상세 페이지', root.innerHTML.includes('주문 상세') && root.innerHTML.includes('← 목록으로') && !root.innerHTML.includes('data-a="rvmemo" data-o="' + O5)); ctx.__ecount.OO.detail = '';
-ctx.__ecount.OO.card = 'ship:'; ctx.__ecount.render(); truthy('카드 누르면 목록(배송 상태 선택)', root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
+ctx.__ecount.OO.card = 'ship:T'; ctx.__ecount.render(); truthy('배송완료 카드 누르면 목록(배송 상태 선택)', root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
+eq('웹훅 상태 덮기: O5 배송중 → 배송완료(배송방식이라 남김)', ctx.__ecount.OO.list.find((x) => x.o.order_id === O5).o.ship_status, 'T');
+truthy('배송완료 마무리 카드', (() => { ctx.__ecount.OO.card = ''; ctx.__ecount.render(); return root.innerHTML.includes('카페24 배송완료 — 마무리 확인'); })());
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }

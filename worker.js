@@ -69,6 +69,14 @@ var worker_default = {
       if (request.method === "POST" && url.pathname === "/receipt") {
         return await handleReceipt(request, env);
       }
+      // ===== 카페24 웹훅 수신 (주문 처리 '진행 중 주문' 실시간) =====
+      // [2026-10-15] 카페24 개발자센터 WebHook 에 등록한 이벤트가 오면(90024 배송상태 변경 등) 그 주문의 상태만 KV 에 적는다.
+      //   확인: X-API-Key 헤더가 CAFE24_WEBHOOK_KEY 시크릿과 같아야 하고, 보낸 IP 가 카페24 대역이어야 한다(문서의 IP 목록).
+      //   배치는 없다 — 카페24가 바뀔 때마다 보낸다. 화면은 KV(ecopen:*)를 먼저 읽고, 전체 조회는 처음·1시간마다 보정용.
+      //   payload 에 품목은 없다(실측 샘플) → 주문 단위 상태만 갱신, 품목은 전체 조회가 채운다. 고객 이름·연락처는 저장하지 않는다.
+      if (request.method === "POST" && url.pathname === "/hook/cafe24") {
+        return await handleCafe24Hook(request, env);
+      }
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const keyOk = !!env.DASHBOARD_KEY && safeEqual(q.get("key") || "", env.DASHBOARD_KEY);
       const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
@@ -892,6 +900,15 @@ var worker_default = {
       // [2026-10-15] 주문 처리 첫 화면 — 아직 배송이 끝나지 않은 주문(카페24 배송 상태 F 배송전 · M 배송중), 최근 N일.
       //   주문 단위 + 품목 줄. 수령인 정보는 넣지 않는다(이 화면엔 필요 없음) → 5분 캐시(jsonCached) 가능.
       //   실측(2026-10-15): cafe24 가 shipping_status= 필터를 무시하고 전부 준다(60일 2,964건·25초) → 여기서 거른다.
+      // 웹훅으로 들어온 최근 상태만(가볍고 캐시 없음) — 화면이 1분마다 받아 목록 위에 덮는다
+      if (q.get("tab") === "openhooks") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ recent: [], states: {} });
+        const recent = JSON.parse((await kv0.get("ecopen:recent")) || "[]");
+        const ids = [...new Set(recent.map((x) => x.id))].slice(0, 200), states = {};
+        (await Promise.all(ids.map((id) => kv0.get("ecopen:o:" + id)))).forEach((v, i) => { if (v) states[ids[i]] = JSON.parse(v); });
+        return json({ recent, states, now: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 19).replace("T", " ") });
+      }
       if (q.get("tab") === "openorders") {
         const tok = await getCafe24AccessToken(env);
         if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
@@ -910,18 +927,27 @@ var worker_default = {
           if (arr.length < ORDER_PAGE) break;
           if (p === ORDER_MAX_PAGES * 2 - 1) truncated = true;
         }
+        // 웹훅으로 들어온 최신 상태(ecopen:o:*)를 덮어쓴다 — 전체 조회(최대 5분 캐시)보다 새것
+        const kv0 = env.CAFE24_TOKEN_KV;
+        const hookRecent = kv0 ? JSON.parse((await kv0.get("ecopen:recent")) || "[]") : [];
+        const hookIds = [...new Set(hookRecent.map((x) => x.id))];
+        const hooked = {};
+        if (kv0 && hookIds.length) (await Promise.all(hookIds.map((id) => kv0.get("ecopen:o:" + id)))).forEach((v, i) => { if (v) hooked[hookIds[i]] = JSON.parse(v); });
         const out = [], lines = [];
         for (const o of orders) {
+          const h = hooked[o.order_id];
+          if (h && h.ship_status) o.shipping_status = h.ship_status;
+          if (h && h.deleted) continue;
           if (o.paid !== "T" || o.canceled === "T" || !["F", "M"].includes(o.shipping_status)) continue;
           const its = (o.items || []).filter((it) => !isExcludedPaywin(it.product_name));
           if (!its.length) continue;
           out.push({ order_id: o.order_id, order_date: String(o.order_date || "").slice(0, 10), ship_status: o.shipping_status || "",
-            payment_amount: n(o.payment_amount), naver_point: n(o.naver_point) });
+            payment_amount: n(o.payment_amount), naver_point: n(o.naver_point), hook_at: (hooked[o.order_id] || {}).at || "" });
           for (const it of its) lines.push({ order_id: o.order_id, product_no: it.product_no, product_name: it.product_name || "", option_value: it.option_value || "",
             qty: n(it.quantity), status: it.order_status || "", canceled: isCanceledStatus(it.order_status) ? "Y" : "N",
             supplier_name: it.supplier_name || "", shipped: String(it.shipped_date || "").slice(0, 10), variant_code: it.variant_code || "" });
         }
-        return jsonCached({ from, to, orders: out, lines, truncated, fetchedAt: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " ") }, 200);
+        return jsonCached({ from, to, orders: out, lines, truncated, hookRecentAt: hookRecent[0] ? hookRecent[0].at : "", fetchedAt: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " ") }, 200);
       }
       if (q.get("tab") === "orderitems") {
         const tok = await getCafe24AccessToken(env);
@@ -1416,6 +1442,38 @@ var RECEIPT_SCHEMA = {
   },
   required: ["date", "merchant", "amount", "currency", "fullText"]
 };
+var CAFE24_HOOK_IPS = ["119.205.223.208", "119.205.223.209", "119.205.223.213", "119.205.223.214", "119.205.223.215", "203.245.45.182", "203.245.45.183"];
+async function handleCafe24Hook(request, env) {
+  const kv0 = env.CAFE24_TOKEN_KV;
+  if (!kv0) return json({ error: "no kv" }, 503);
+  const key = request.headers.get("X-API-Key") || "";
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  if (!env.CAFE24_WEBHOOK_KEY || !safeEqual(key, env.CAFE24_WEBHOOK_KEY)) return json({ error: "bad key" }, 401);
+  if (!CAFE24_HOOK_IPS.includes(ip)) return json({ error: "bad ip" }, 403);
+  let b = {};
+  try { b = await request.json(); } catch (e) { return json({ error: "bad json" }, 400); }
+  const r = b.resource || {}, ev = Number(b.event_no) || 0, id = String(r.order_id || "");
+  if (!/^\d{8}-\d{7}$/.test(id)) return json({ ok: true, ignored: "no order_id" });
+  const now = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+  // 주문 단위 상태 — 같은 주문의 이전 값 위에 바뀐 것만 덮는다
+  const k = "ecopen:o:" + id, prev = JSON.parse((await kv0.get(k)) || "null") || {};
+  const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+  const next = { ...prev, order_id: id, order_date: String(r.order_date || prev.order_date || "").slice(0, 10), at: now, ev };
+  if (r.shipping_status) next.ship_status = String(r.shipping_status);
+  if (r.paid) next.paid = String(r.paid);
+  if (r.actual_payment_amount != null) next.payment_amount = n(r.actual_payment_amount);
+  if (ev === 90026 || ev === 90072) next.cancel_event = now;           // 취소상태 변경
+  if (ev === 90027 || ev === 90074) next.return_event = now;           // 반품상태 변경
+  if (ev === 90029 || ev === 90073) next.refund_event = now;           // 환불상태 변경
+  if (ev === 90070) next.deleted = true;
+  await kv0.put(k, JSON.stringify(next), { expirationTtl: 120 * 86400 });
+  // 최근 변경 목록(화면이 "무엇이 바뀌었나"를 빨리 읽게) — 200개까지
+  const lk = "ecopen:recent", recent = JSON.parse((await kv0.get(lk)) || "[]");
+  recent.unshift({ id, ev, at: now, ship_status: next.ship_status || "" });
+  await kv0.put(lk, JSON.stringify(recent.slice(0, 200)));
+  return json({ ok: true, order_id: id, ev });
+}
+__name(handleCafe24Hook, "handleCafe24Hook");
 async function handleReceipt(request, env) {
   const origin = request.headers.get("Origin") || "";
   const cors = { ...CORS, "Access-Control-Allow-Origin": RECEIPT_ORIGINS.includes(origin) ? origin : RECEIPT_ORIGINS[0] };
