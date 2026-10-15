@@ -106,10 +106,10 @@ truthy('진행 중 주문 두 구역(입력 현황 + 진행표)', root.innerHTML
 eq('대조 상태 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.rec]), [[O1, 'ok'], [O5, 'missing']]);
 ctx.__ecount.OO.card = 'adv:접수'; ctx.__ecount.render(); truthy('칸 누르면 목록 페이지(선수금 진행 선택, 표·대조 현황은 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-k="adv:완료"') && !root.innerHTML.includes('월간요약'));
 ctx.__ecount.OO.detail = O1; ctx.__ecount.render(); truthy('줄 누르면 상세 페이지', root.innerHTML.includes('주문 상세') && root.innerHTML.includes('← 목록으로') && !root.innerHTML.includes('data-a="rvmemo" data-o="' + O5)); ctx.__ecount.OO.detail = '';
-ctx.__ecount.OO.card = 'ship:완료'; ctx.__ecount.render(); truthy('배송완료 칸 누르면 목록(배송 상태 선택)', root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
+ctx.__ecount.OO.card = 'rec:missing'; ctx.__ecount.render(); truthy('미입력 칸 누르면 목록(퀵 주문이라 배송 상태 선택 있음)', root.innerHTML.includes(O5) && root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
 eq('웹훅 상태 덮기: O5 배송중 → 배송완료(배송방식이라 남김)', ctx.__ecount.OO.list.find((x) => x.o.order_id === O5).o.ship_status, 'T');
-truthy('웹훅으로 배송완료된 퀵 주문이 배송완료 칸에', (() => { ctx.__ecount.OO.card = ''; ctx.__ecount.render(); const x = ctx.__ecount.OO.list.find((y) => y.o.order_id === O5); return x.o.ship_status === 'T' && root.innerHTML.includes('data-k="ship:완료"'); })());
+truthy('웹훅 배송완료 반영 + 미입력 주문은 진행표에 안 들어감', (() => { ctx.__ecount.OO.card = ''; ctx.__ecount.render(); const x = ctx.__ecount.OO.list.find((y) => y.o.order_id === O5); const m = root.innerHTML.match(/data-k="ship:완료"[^>]*>[\s\S]*?<span[^>]*>(\d+)<\/span>/); return x.o.ship_status === 'T' && m && m[1] === '0'; })());
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }

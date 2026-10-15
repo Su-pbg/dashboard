@@ -521,7 +521,7 @@ function detailCard(){
 function openCard(){
   if(OO.loading&&!OO.list) return `<div class="ec-card"><h2>진행 중 주문</h2><div class="state"><div class="spinner"></div>카페24에서 배송이 안 끝난 주문 받는 중…</div></div>`;
   if(OO.err) return `<div class="ec-card"><h2>진행 중 주문</h2><div class="ec-stat err">${esc(OO.err.message)}</div></div>`;
-  const L=OO.list||[], G=ooGroups(L), old=L.filter(x=>ooAge(x.o.order_date)>=7).length;
+  const L=OO.list||[], G=ooGroups(L.filter(x=>x.rec==='ok')), old=L.filter(x=>ooAge(x.o.order_date)>=7).length;   // 진행표는 이카운트 입력이 확인된 주문만
   const selKey=OO.card||'';
   const recN={none:L.filter(x=>x.rec==='none').length,missing:L.filter(x=>x.rec==='missing').length,ok:L.filter(x=>x.rec==='ok').length};
   const tile=(k,label,nn,sub,bad)=>`<button data-a="oocard" data-k="${esc(k)}" style="flex:1 1 0;min-width:150px;text-align:left;border:2px solid ${selKey===k?'var(--accent)':'var(--hair)'};background:var(--surface);border-radius:12px;padding:12px 14px;cursor:pointer;font-family:var(--sans)">
