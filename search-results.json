@@ -1,13 +1,13 @@
 {
- "updatedAt": "2026-10-15T23:44:07.697Z",
+ "updatedAt": "2026-10-16T23:39:51.314Z",
  "window": {
-  "from": "2026-09-17",
-  "to": "2026-10-16"
+  "from": "2026-09-18",
+  "to": "2026-10-17"
  },
  "_설명": "results = api.printbakery.com/v1/search/products 의 total (사용자가 쓰는 그 검색). brands = 상위 결과의 브랜드. noSpace = 공백을 뺐을 때 결과 수(띄어쓰기 버그). organic = 광고 외 세션.",
  "counted": 100,
  "zero": 9,
- "thin": 9,
+ "thin": 8,
  "spaceBug": 0,
  "ranking": [
   {
@@ -18,35 +18,35 @@
    "changes": 0
   },
   {
-   "keyword": "kim tschangyeul",
+   "keyword": "yoo youngkuk",
    "new_rank": 2,
    "old_rank": null,
    "is_new": 1,
    "changes": null
   },
   {
-   "keyword": "유영국",
+   "keyword": "kim tschangyeul",
    "new_rank": 3,
    "old_rank": null,
    "is_new": 1,
    "changes": null
   },
   {
-   "keyword": "김환기",
+   "keyword": "유영국",
    "new_rank": 4,
-   "old_rank": 8,
-   "is_new": 0,
-   "changes": 4
+   "old_rank": null,
+   "is_new": 1,
+   "changes": null
   },
   {
-   "keyword": "허명욱",
+   "keyword": "윤형택",
    "new_rank": 5,
-   "old_rank": 7,
-   "is_new": 0,
-   "changes": 2
+   "old_rank": null,
+   "is_new": 1,
+   "changes": null
   },
   {
-   "keyword": "이배",
+   "keyword": "김환기",
    "new_rank": 6,
    "old_rank": 6,
    "is_new": 0,
@@ -60,353 +60,375 @@
    "changes": -5
   },
   {
-   "keyword": "yoo youngkuk",
+   "keyword": "이배",
    "new_rank": 8,
-   "old_rank": null,
-   "is_new": 1,
-   "changes": null
-  },
-  {
-   "keyword": "윤형택",
-   "new_rank": 9,
-   "old_rank": null,
-   "is_new": 1,
-   "changes": null
-  },
-  {
-   "keyword": "데이비드 호크니",
-   "new_rank": 10,
-   "old_rank": 3,
+   "old_rank": 7,
    "is_new": 0,
-   "changes": -7
+   "changes": -1
+  },
+  {
+   "keyword": "허명욱",
+   "new_rank": 9,
+   "old_rank": 5,
+   "is_new": 0,
+   "changes": -4
+  },
+  {
+   "keyword": "달항아리",
+   "new_rank": 10,
+   "old_rank": 10,
+   "is_new": 0,
+   "changes": 0
   }
  ],
  "terms": [
   {
    "term": "lee bae",
-   "organic": 409,
-   "paid": 1641,
-   "total": 2050,
+   "organic": 428,
+   "paid": 1666,
+   "total": 2094,
    "results": 6,
    "brands": [
     "이배 Lee Bae"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "윤병락",
    "organic": 333,
-   "paid": 39,
-   "total": 372,
+   "paid": 38,
+   "total": 371,
    "results": 10,
    "brands": [
     "윤병락 Yoon Byungrock"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "허명욱",
-   "organic": 213,
-   "paid": 101,
-   "total": 314,
-   "results": 103,
-   "brands": [
-    "허명욱 Huh Myoungwook"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "정희진",
-   "organic": 212,
+   "organic": 213,
    "paid": 51,
-   "total": 263,
+   "total": 264,
    "results": 44,
    "brands": [
     "정희진도자기 Jung Hee Jin Ceramic"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "달항아리",
-   "organic": 207,
-   "paid": 108,
-   "total": 315,
-   "results": 81,
-   "brands": [
-    "플레잇트 Playt Studio",
-    "류종대 Ryu JongDae",
-    "마버글라스 Marverglass"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "이배",
-   "organic": 206,
-   "paid": 136,
-   "total": 342,
+   "organic": 209,
+   "paid": 138,
+   "total": 347,
    "results": 7,
    "brands": [
     "이배 Lee Bae"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "달항아리",
+   "organic": 204,
+   "paid": 109,
+   "total": 313,
+   "results": 81,
+   "brands": [
+    "플레잇트 Playt Studio",
+    "류종대 Ryu JongDae",
+    "윤정혜 Yoon Junghye"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "허명욱",
+   "organic": 203,
+   "paid": 100,
+   "total": 303,
+   "results": 103,
+   "brands": [
+    "허명욱 Huh Myoungwook"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "유영국",
-   "organic": 192,
+   "organic": 186,
    "paid": 91,
-   "total": 283,
+   "total": 277,
    "results": 9,
    "brands": [
     "유영국 Yoo Youngkuk"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "예예",
    "organic": 181,
-   "paid": 42,
-   "total": 223,
+   "paid": 43,
+   "total": 224,
    "results": 16,
    "brands": [
     "예예 Yeye"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "김환기",
-   "organic": 166,
-   "paid": 100,
-   "total": 266,
+   "organic": 169,
+   "paid": 98,
+   "total": 267,
    "results": 16,
    "brands": [
     "김환기 Kim Whanki"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "영리",
-   "organic": 164,
-   "paid": 30,
-   "total": 194,
+   "organic": 167,
+   "paid": 29,
+   "total": 196,
    "results": 0,
    "brands": [],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "일상이상",
-   "organic": 145,
-   "paid": 647,
-   "total": 792,
-   "results": 6,
-   "brands": [
-    "일상이상 ilsangisang"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "데이비드 호크니",
    "organic": 140,
-   "paid": 278,
-   "total": 418,
+   "paid": 279,
+   "total": 419,
    "results": 37,
    "brands": [
     "데이비드 호크니 David Hockney"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "김선우",
-   "organic": 134,
-   "paid": 33,
-   "total": 167,
-   "results": 60,
-   "brands": [
-    "김선우 Kim Sunwoo"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "윤형택",
-   "organic": 134,
-   "paid": 21,
-   "total": 155,
+   "organic": 136,
+   "paid": 24,
+   "total": 160,
    "results": 79,
    "brands": [
     "윤형택 Yoon Hyungtaek"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "김선우",
+   "organic": 132,
+   "paid": 37,
+   "total": 169,
+   "results": 60,
+   "brands": [
+    "김선우 Kim Sunwoo"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "일상이상",
+   "organic": 130,
+   "paid": 515,
+   "total": 645,
+   "results": 6,
+   "brands": [
+    "일상이상 ilsangisang"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "박서보",
-   "organic": 130,
-   "paid": 122,
-   "total": 252,
+   "organic": 129,
+   "paid": 97,
+   "total": 226,
    "results": 16,
    "brands": [
     "박서보 Park Seobo"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "하품",
-   "organic": 123,
+   "organic": 125,
    "paid": 3,
-   "total": 126,
+   "total": 128,
    "results": 4,
    "brands": [
     "예예 Yeye"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "김창열",
-   "organic": 120,
-   "paid": 64,
-   "total": 184,
+   "organic": 122,
+   "paid": 59,
+   "total": 181,
    "results": 9,
    "brands": [
     "김창열 Kim Tschangyeul"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "최영욱",
    "organic": 109,
-   "paid": 54,
-   "total": 163,
+   "paid": 48,
+   "total": 157,
    "results": 9,
    "brands": [
     "최영욱 Choi Youngwook"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "최종태",
-   "organic": 106,
+   "organic": 104,
    "paid": 6,
-   "total": 112,
+   "total": 110,
    "results": 2,
    "brands": [
     "최종태 Choi Jongtae"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "김현성",
-   "organic": 106,
-   "paid": 36,
-   "total": 142,
+   "organic": 98,
+   "paid": 34,
+   "total": 132,
    "results": 17,
    "brands": [
     "김현성 Kim Hyeon Seong"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "문형태",
-   "organic": 97,
-   "paid": 13,
-   "total": 110,
-   "results": 41,
-   "brands": [
-    "문형태 Moon Hyeongtae"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "민수연",
-   "organic": 89,
-   "paid": 25,
-   "total": 114,
-   "results": 34,
-   "brands": [
-    "민수연 Min Suyeon"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "이내",
-   "organic": 87,
-   "paid": 16,
-   "total": 103,
+   "organic": 91,
+   "paid": 17,
+   "total": 108,
    "results": 16,
    "brands": [
     "이내 INAE"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "문형태",
+   "organic": 87,
+   "paid": 13,
+   "total": 100,
+   "results": 41,
+   "brands": [
+    "문형태 Moon Hyeongtae"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "집들이",
-   "organic": 84,
+   "organic": 85,
    "paid": 13,
-   "total": 97,
+   "total": 98,
    "results": 0,
    "brands": [],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "yoo youngkuk",
+   "organic": 77,
+   "paid": 122,
+   "total": 199,
+   "results": 9,
+   "brands": [
+    "유영국 Yoo Youngkuk"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "김정수",
-   "organic": 76,
-   "paid": 12,
-   "total": 88,
+   "organic": 77,
+   "paid": 9,
+   "total": 86,
    "results": 8,
    "brands": [
     "김정수 Kim JungSoo"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "파시호시",
-   "organic": 74,
-   "paid": 0,
-   "total": 74,
-   "results": 8,
-   "brands": [
-    "파시호시 Facyhosi"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "장욱진",
-   "organic": 68,
+   "organic": 69,
    "paid": 7,
-   "total": 75,
+   "total": 76,
    "results": 16,
    "brands": [
     "장욱진 Chang Ucchin"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "파시호시",
+   "organic": 69,
+   "paid": 0,
+   "total": 69,
+   "results": 8,
+   "brands": [
+    "파시호시 Facyhosi"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "방진태",
-   "organic": 64,
+   "organic": 63,
    "paid": 14,
-   "total": 78,
+   "total": 77,
    "results": 0,
    "brands": [],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "이왈종",
-   "organic": 63,
-   "paid": 20,
-   "total": 83,
-   "results": 20,
-   "brands": [
-    "이왈종 Lee Walchong"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "태우",
-   "organic": 62,
+   "organic": 63,
    "paid": 14,
-   "total": 76,
+   "total": 77,
    "results": 10,
    "brands": [
     "태우 Tae Woo"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "민수연",
+   "organic": 62,
+   "paid": 17,
+   "total": 79,
+   "results": 34,
+   "brands": [
+    "민수연 Min Suyeon"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "choi youngwook",
+   "organic": 60,
+   "paid": 76,
+   "total": 136,
+   "results": 9,
+   "brands": [
+    "최영욱 Choi Youngwook"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "이왈종",
+   "organic": 60,
+   "paid": 19,
+   "total": 79,
+   "results": 20,
+   "brands": [
+    "이왈종 Lee Walchong"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "전상근",
@@ -417,7 +439,7 @@
    "brands": [
     "전상근 Jeon Sanggeun"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "연호경",
@@ -426,7 +448,7 @@
    "total": 77,
    "results": 0,
    "brands": [],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "flos",
@@ -437,54 +459,43 @@
    "brands": [
     "플로스 FLOS"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "neuhyo",
-   "organic": 53,
-   "paid": 0,
-   "total": 53,
-   "results": 3,
-   "brands": [
-    "느효 Neuhyo"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "조명",
-   "organic": 50,
+   "organic": 51,
    "paid": 24,
-   "total": 74,
+   "total": 75,
    "results": 66,
    "brands": [
     "아르테미데 Artemide",
     "플로스 FLOS"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "트레이",
-   "organic": 50,
-   "paid": 25,
-   "total": 75,
-   "results": 259,
-   "brands": [
-    "노은님 Ro Eunnim",
-    "키민느 KIMINNE",
-    "스튜디오 윤여동 Studio YeodongYun"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "청신",
-   "organic": 50,
+   "organic": 51,
    "paid": 16,
-   "total": 66,
+   "total": 67,
    "results": 43,
    "brands": [
     "청신 Chung Shin"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "트레이",
+   "organic": 50,
+   "paid": 23,
+   "total": 73,
+   "results": 259,
+   "brands": [
+    "스튜디오 윤여동 Studio YeodongYun",
+    "키민느 KIMINNE",
+    "노은님 Ro Eunnim"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "하태임",
@@ -495,53 +506,53 @@
    "brands": [
     "하태임 Ha Taeim"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "이혜미",
+   "organic": 49,
+   "paid": 22,
+   "total": 71,
+   "results": 25,
+   "brands": [
+    "이혜미 Lee Heami"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "화병",
    "organic": 48,
-   "paid": 28,
-   "total": 76,
+   "paid": 29,
+   "total": 77,
    "results": 78,
    "brands": [
     "조연예 Jo Yeonye",
     "이구비원 2299B1",
     "미브래 Mivrae"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "이우환",
-   "organic": 48,
-   "paid": 24,
-   "total": 72,
-   "results": 20,
+   "term": "neuhyo",
+   "organic": 46,
+   "paid": 0,
+   "total": 46,
+   "results": 3,
    "brands": [
-    "이우환 Lee Ufan"
+    "느효 Neuhyo"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "이슬로",
-   "organic": 47,
-   "paid": 9,
-   "total": 56,
+   "organic": 46,
+   "paid": 8,
+   "total": 54,
    "results": 30,
    "brands": [
     "이슬로 Yislow"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "이혜미",
-   "organic": 47,
-   "paid": 20,
-   "total": 67,
-   "results": 25,
-   "brands": [
-    "이혜미 Lee Heami"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "고영훈",
@@ -552,86 +563,97 @@
    "brands": [
     "고영훈 Ko Younghoon"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "우인영",
+   "organic": 45,
+   "paid": 7,
+   "total": 52,
+   "results": 55,
+   "brands": [
+    "우인영 Woo Inyoung"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "윤여동",
    "organic": 45,
-   "paid": 25,
-   "total": 70,
+   "paid": 23,
+   "total": 68,
    "results": 37,
    "brands": [
     "스튜디오 윤여동 Studio YeodongYun"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "세트",
    "organic": 44,
-   "paid": 7,
-   "total": 51,
-   "results": 342,
+   "paid": 8,
+   "total": 52,
+   "results": 341,
    "brands": [
+    "김현성 Kim Hyeon Seong",
     "김보희 Kim Bohie",
-    "블랭크 소일 Blank Soil",
-    "김현성 Kim Hyeon Seong"
+    "블랭크 소일 Blank Soil"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "이우환",
+   "organic": 44,
+   "paid": 23,
+   "total": 67,
+   "results": 20,
+   "brands": [
+    "이우환 Lee Ufan"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "정소혜",
+   "organic": 41,
+   "paid": 9,
+   "total": 50,
+   "results": 10,
+   "brands": [
+    "정소혜 Jeong Sohye"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "김보희",
-   "organic": 42,
-   "paid": 24,
+   "organic": 40,
+   "paid": 26,
    "total": 66,
    "results": 3,
    "brands": [
     "김보희 Kim Bohie"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "우인영",
-   "organic": 42,
-   "paid": 9,
-   "total": 51,
-   "results": 55,
-   "brands": [
-    "우인영 Woo Inyoung"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "파라킷",
-   "organic": 41,
-   "paid": 23,
-   "total": 64,
-   "results": 40,
-   "brands": [
-    "파라킷 PARAKEET"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "이희조",
-   "organic": 37,
+   "organic": 39,
    "paid": 8,
-   "total": 45,
+   "total": 47,
    "results": 40,
    "brands": [
     "이희조 Lee Heejoh"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "데이비드 걸스타인",
-   "organic": 36,
-   "paid": 1,
-   "total": 37,
-   "results": 16,
+   "term": "파라킷",
+   "organic": 39,
+   "paid": 22,
+   "total": 61,
+   "results": 41,
    "brands": [
-    "데이비드 걸스타인 David Gerstein "
+    "파라킷 PARAKEET"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "정희진도자기",
@@ -642,7 +664,7 @@
    "brands": [
     "정희진도자기 Jung Hee Jin Ceramic"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "펠트로 스튜디오",
@@ -653,42 +675,29 @@
    "brands": [
     "펠트로 스튜디오 PELTRO STUDIO"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "컵",
-   "organic": 36,
-   "paid": 16,
-   "total": 52,
-   "results": 110,
+   "term": "데이비드 걸스타인",
+   "organic": 35,
+   "paid": 1,
+   "total": 36,
+   "results": 16,
    "brands": [
-    "에드가 플랜스 Edgar Plans",
-    "메이우드 Maywood",
-    "물터 Multeo"
+    "데이비드 걸스타인 David Gerstein "
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "아톰",
-   "organic": 36,
+   "organic": 35,
    "paid": 17,
-   "total": 53,
+   "total": 52,
    "results": 6,
    "brands": [
     "허명욱 Huh Myoungwook"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "최혜지",
-   "organic": 35,
-   "paid": 4,
-   "total": 39,
-   "results": 7,
-   "brands": [
-    "최혜지 Choi Hyeji"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "그레타프리든",
@@ -699,7 +708,7 @@
    "brands": [
     "그레타프리든 Greta Frieden"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "키민느",
@@ -710,18 +719,20 @@
    "brands": [
     "키민느 KIMINNE"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "양유완",
+   "term": "컵",
    "organic": 34,
-   "paid": 9,
-   "total": 43,
-   "results": 12,
+   "paid": 16,
+   "total": 50,
+   "results": 110,
    "brands": [
-    "양유완 Yang Yoowan"
+    "에드가 플랜스 Edgar Plans",
+    "메이우드 Maywood",
+    "물터 Multeo"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "헤르시",
@@ -732,53 +743,40 @@
    "brands": [
     "헤르시 Hernc"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "park seobo",
+   "organic": 32,
+   "paid": 21,
+   "total": 53,
+   "results": 16,
+   "brands": [
+    "박서보 Park Seobo"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "박스걸",
-   "organic": 32,
+   "organic": 31,
    "paid": 8,
-   "total": 40,
+   "total": 39,
    "results": 3,
    "brands": [
     "박스걸 스튜디오 BOXGIRL STUDIO"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "시계",
-   "organic": 32,
-   "paid": 13,
-   "total": 45,
-   "results": 30,
-   "brands": [
-    "비믹스 BMIX",
-    "더 닷 The dot",
-    "알레시 ALESSI"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "수공당",
-   "organic": 31,
-   "paid": 9,
-   "total": 40,
-   "results": 1,
-   "brands": [
-    "수공당 Sugongdang"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "물터",
+   "term": "최혜지",
    "organic": 31,
    "paid": 4,
    "total": 35,
-   "results": 12,
+   "results": 7,
    "brands": [
-    "물터 Multeo"
+    "최혜지 Choi Hyeji"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "studio yeodongyun",
@@ -789,7 +787,7 @@
    "brands": [
     "스튜디오 윤여동 Studio YeodongYun"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "Shin Morae",
@@ -800,49 +798,83 @@
    "brands": [
     "신모래 Shin Morae"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "강준영",
    "organic": 30,
-   "paid": 14,
-   "total": 44,
+   "paid": 15,
+   "total": 45,
    "results": 0,
    "brands": [],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "작품선물",
+   "term": "시계",
    "organic": 30,
-   "paid": 3,
-   "total": 33,
-   "results": 29,
+   "paid": 13,
+   "total": 43,
+   "results": 30,
    "brands": [
-    "허명욱 Huh Myoungwook"
+    "비믹스 BMIX",
+    "더 닷 The dot"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "나슬릭",
+   "term": "물터",
+   "organic": 30,
+   "paid": 4,
+   "total": 34,
+   "results": 12,
+   "brands": [
+    "물터 Multeo"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "신보라",
    "organic": 30,
    "paid": 1,
    "total": 31,
+   "results": 51,
+   "brands": [
+    "신보라 Shin Bora"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "양유완",
+   "organic": 30,
+   "paid": 9,
+   "total": 39,
    "results": 12,
    "brands": [
-    "나슬릭 gnaslik"
+    "양유완 Yang Yoowan"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "artemide",
    "organic": 29,
-   "paid": 224,
-   "total": 253,
+   "paid": 225,
+   "total": 254,
    "results": 23,
    "brands": [
     "아르테미데 Artemide"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "kim tschangyeul",
+   "organic": 29,
+   "paid": 106,
+   "total": 135,
+   "results": 9,
+   "brands": [
+    "김창열 Kim Tschangyeul"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "르디쉬",
@@ -853,18 +885,29 @@
    "brands": [
     "르디쉬 세라믹스튜디오 Le dish ceramic studio"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "신보라",
-   "organic": 28,
-   "paid": 0,
-   "total": 28,
-   "results": 51,
+   "term": "조연예",
+   "organic": 29,
+   "paid": 12,
+   "total": 41,
+   "results": 24,
    "brands": [
-    "신보라 Shin Bora"
+    "조연예 Jo Yeonye"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "수공당",
+   "organic": 28,
+   "paid": 9,
+   "total": 37,
+   "results": 1,
+   "brands": [
+    "수공당 Sugongdang"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "이재민",
@@ -875,51 +918,7 @@
    "brands": [
     "이재민 Lee Jaemin"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "정소혜",
-   "organic": 28,
-   "paid": 6,
-   "total": 34,
-   "results": 10,
-   "brands": [
-    "정소혜 Jeong Sohye"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "조연예",
-   "organic": 28,
-   "paid": 12,
-   "total": 40,
-   "results": 24,
-   "brands": [
-    "조연예 Jo Yeonye"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "kim tschangyeul",
-   "organic": 27,
-   "paid": 104,
-   "total": 131,
-   "results": 9,
-   "brands": [
-    "김창열 Kim Tschangyeul"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "방연당",
-   "organic": 27,
-   "paid": 4,
-   "total": 31,
-   "results": 10,
-   "brands": [
-    "방연당 Bang Yeon Dang"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "Young lee",
@@ -930,51 +929,18 @@
    "brands": [
     "이영림 Lee Young Rim "
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "와인",
-   "organic": 27,
-   "paid": 24,
-   "total": 51,
-   "results": 88,
-   "brands": [
-    "김현성 Kim Hyeon Seong",
-    "류종대 Ryu JongDae",
-    "플레잇트 Playt Studio"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "문영서",
-   "organic": 27,
-   "paid": 3,
-   "total": 30,
-   "results": 5,
-   "brands": [
-    "문영서 Moon Youngseo"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "김하윤",
-   "organic": 27,
-   "paid": 5,
-   "total": 32,
-   "results": 19,
-   "brands": [
-    "김하윤 Kim Hayoon"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "아트인테리어",
+   "term": "방연당",
    "organic": 26,
-   "paid": 11,
-   "total": 37,
-   "results": 0,
-   "brands": [],
-   "checkedAt": "2026-10-16"
+   "paid": 4,
+   "total": 30,
+   "results": 10,
+   "brands": [
+    "방연당 Bang Yeon Dang"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "호크니",
@@ -985,83 +951,152 @@
    "brands": [
     "데이비드 호크니 David Hockney"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "서보",
-   "organic": 25,
-   "paid": 0,
-   "total": 25,
-   "results": 0,
-   "brands": [],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "선물추천",
-   "organic": 25,
-   "paid": 9,
-   "total": 34,
-   "results": 0,
-   "brands": [],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "장마리아",
-   "organic": 24,
-   "paid": 12,
-   "total": 36,
+   "organic": 26,
+   "paid": 13,
+   "total": 39,
    "results": 26,
    "brands": [
     "장마리아 Maria Chang"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "승지원",
-   "organic": 24,
-   "paid": 13,
-   "total": 37,
-   "results": 38,
+   "term": "와인",
+   "organic": 26,
+   "paid": 24,
+   "total": 50,
+   "results": 88,
    "brands": [
-    "승지원 Seung Jiwon"
+    "김현성 Kim Hyeon Seong",
+    "류종대 Ryu JongDae",
+    "플레잇트 Playt Studio"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "김하윤",
+   "organic": 26,
+   "paid": 5,
+   "total": 31,
+   "results": 19,
+   "brands": [
+    "김하윤 Kim Hayoon"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "아트인테리어",
+   "organic": 24,
+   "paid": 10,
+   "total": 34,
+   "results": 0,
+   "brands": [],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "작품선물",
+   "organic": 24,
+   "paid": 3,
+   "total": 27,
+   "results": 29,
+   "brands": [
+    "허명욱 Huh Myoungwook"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "나슬릭",
+   "organic": 24,
+   "paid": 1,
+   "total": 25,
+   "results": 8,
+   "brands": [
+    "나슬릭 gnaslik"
+   ],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "문영서",
+   "organic": 24,
+   "paid": 3,
+   "total": 27,
+   "results": 5,
+   "brands": [
+    "문영서 Moon Youngseo"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "사과",
    "organic": 24,
-   "paid": 8,
-   "total": 32,
+   "paid": 7,
+   "total": 31,
    "results": 11,
    "brands": [
     "온마르스 Onmars",
     "정소혜 Jeong Sohye",
     "플로미 FLOWME"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "아르테미데",
+   "term": "서보",
    "organic": 23,
-   "paid": 144,
-   "total": 167,
-   "results": 23,
+   "paid": 0,
+   "total": 23,
+   "results": 0,
+   "brands": [],
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "러그",
+   "organic": 23,
+   "paid": 19,
+   "total": 42,
+   "results": 33,
    "brands": [
-    "아르테미데 Artemide"
+    "럭럭 LUGLUG",
+    "윤형택 Yoon Hyungtaek"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "승지원",
+   "organic": 23,
+   "paid": 13,
+   "total": 36,
+   "results": 38,
+   "brands": [
+    "승지원 Seung Jiwon"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "포스터",
    "organic": 23,
    "paid": 7,
    "total": 30,
-   "results": 53,
+   "results": 52,
    "brands": [
     "더 포스터 클럽 The poster club",
     "슈퍼마켓플라워 Supermarket Flower"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "Kim Tschangyeul",
+   "organic": 22,
+   "paid": 98,
+   "total": 120,
+   "results": 9,
+   "brands": [
+    "김창열 Kim Tschangyeul"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "박성극",
@@ -1072,55 +1107,27 @@
    "brands": [
     "박성극 Park Songkuk"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "이지연",
+   "term": "선물추천",
    "organic": 22,
-   "paid": 4,
-   "total": 26,
-   "results": 8,
-   "brands": [
-    "이지연 Lee Jiyeon"
-   ],
-   "checkedAt": "2026-10-16"
+   "paid": 10,
+   "total": 32,
+   "results": 0,
+   "brands": [],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "누보피에스타",
    "organic": 22,
-   "paid": 4,
-   "total": 26,
+   "paid": 3,
+   "total": 25,
    "results": 29,
    "brands": [
     "누보피에스타 Nouveau Fiesta"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "러그",
-   "organic": 22,
-   "paid": 19,
-   "total": 41,
-   "results": 33,
-   "brands": [
-    "윤형택 Yoon Hyungtaek",
-    "럭럭 LUGLUG",
-    "스튜디오 아록 Studio Aaroc"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "접시",
-   "organic": 22,
-   "paid": 14,
-   "total": 36,
-   "results": 109,
-   "brands": [
-    "포터리씨 Potteryc_studio",
-    "심사영 Shim Sayoung",
-    "삼작소 Samjakso"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "파라킷 카펫",
@@ -1131,7 +1138,18 @@
    "brands": [
     "유앤어스 YOU AND US"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
+  },
+  {
+   "term": "이지연",
+   "organic": 21,
+   "paid": 4,
+   "total": 25,
+   "results": 8,
+   "brands": [
+    "이지연 Lee Jiyeon"
+   ],
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "Jenp",
@@ -1140,7 +1158,7 @@
    "total": 21,
    "results": 0,
    "brands": [],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
    "term": "무라카미",
@@ -1151,40 +1169,18 @@
    "brands": [
     "무라카미 다카시 Takashi Murakami"
    ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   },
   {
-   "term": "심문섭",
-   "organic": 21,
-   "paid": 11,
-   "total": 32,
-   "results": 3,
-   "brands": [
-    "심문섭 Shim Moonseup"
-   ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "마니푸리",
+   "term": "쿠사마",
    "organic": 20,
-   "paid": 100,
-   "total": 120,
-   "results": 6,
+   "paid": 15,
+   "total": 35,
+   "results": 14,
    "brands": [
-    "마니푸리 manipuri"
+    "쿠사마 야요이 Kusama Yayoi"
    ],
-   "checkedAt": "2026-10-16"
-  },
-  {
-   "term": "nuhegue",
-   "organic": 20,
-   "paid": 0,
-   "total": 20,
-   "results": 11,
-   "brands": [
-    "누헤그 Nuhegue"
-   ],
-   "checkedAt": "2026-10-16"
+   "checkedAt": "2026-10-17"
   }
  ]
 }
