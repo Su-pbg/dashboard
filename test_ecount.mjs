@@ -171,7 +171,7 @@ eq('연말연초 기간', [E.covered('2026-12-26'), E.covered('2026-12-25'), E.c
 let posted = null; const prevFetch = ctx.fetch; ctx.fetch = async (u, opt) => { if (String(u).includes('/ecmap') && opt && opt.method === 'POST') posted = JSON.parse(opt.body); return prevFetch(u, opt); };
 D.ec = [{ order: O3, code: 'EC009', name: '가 / 상품3', qty: 1, price: 10000, total: 10000, vday: '20261013', adv: false }, { order: O2, code: 'EC001', name: '가 / 상품1', qty: 1, price: 10000, total: 10000, vday: '20261013', adv: false }];
 await E.learnFromRecon(); ctx.fetch = prevFetch;
-truthy('대조 파일로 맵핑 학습 → 새 짝 저장 요청', posted && posted.entries && posted.entries.some((x) => x.code === 'EC009') && D.mapLearned && !D.mapLearned.err);
+truthy('대조 파일로 맵핑 학습 → 바로 저장하지 않고 예비 목록에 올림', posted && !posted.entries && posted.cand && posted.cand.some((x) => x.cands && x.cands.EC009) && D.mapLearned && !D.mapLearned.err);
 
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);

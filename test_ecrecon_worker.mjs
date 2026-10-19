@@ -70,5 +70,15 @@ await call('/ecrecon', { remove: { date: '2026-10-02' } });
 idx = (await call('/ecrecon?month=2026-10')).idx;
 eq('지우기', Object.keys(idx).sort(), ['2026-10-01', '2026-10-03']);
 
+// ⑥ 품목코드 예비 목록: 쌓임(근거 합산) → 확정하면 대응표에 담당자 값으로 들어가고 예비에서 빠짐 → 담당자 값 있는 옵션은 다시 안 쌓임
+await call('/ecmap', { cand: [{ key: 'P1', label: '상품1', price: 100, cands: { EC1: 2 }, names: { EC1: '품1' } }, { key: 'P2', label: '상품2', cands: { EC2: 1, EC3: 1 } }] });
+let m = await call('/ecmap', { cand: [{ key: 'P1', cands: { EC1: 3 } }] });
+eq('예비 목록 쌓임·근거 합산', [Object.keys(m.cand).sort(), m.cand.P1.cands.EC1, m.cand.P1.label], [['P1', 'P2'], 5, '상품1']);
+m = await call('/ecmap', { entries: [{ key: 'P1', code: 'EC1', name: '품1', label: '상품1', src: 'manual' }], candremove: ['P1'] });
+m = await call('/ecmap');
+eq('확정 → 대응표 담당자 값 · 예비에서 빠짐', [m.map.P1.code, m.map.P1.src, Object.keys(m.cand)], ['EC1', 'manual', ['P2']]);
+m = await call('/ecmap', { cand: [{ key: 'P1', cands: { EC9: 1 } }], candremove: ['P2'] });
+eq('담당자 값 있으면 다시 안 쌓임 · 버리기', Object.keys(m.cand), []);
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);

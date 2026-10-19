@@ -55,7 +55,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={logView:'oo', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:'', qs:''};
+const S={logView:'oo', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:'', qs:'', qc:'', cand:{}};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -240,10 +240,31 @@ async function learnFromSaved(months){
     S.ecRows=rows; S.files=[{name:`지난 대조 결과 (${months.join(', ')})`,rows:rows.length}]; S.months=months.slice();
     S.loading='짝 찾는 중…'; render();
     learn(); S.view='new';
+    const added=await postCands(S.result); flash(`지난 대조 결과에서 짝 ${n(added)}건을 예비 목록에 올렸습니다. 위 '확정 대기'에서 확정해 주세요.`);
   }catch(e){ S.err=e; }
   S.loading=''; render();
 }
-async function reloadMap(){ const d=await getJSON(`${WORKER}/ecmap`); S.map=d.map||{}; S.sign=d.sign||{}; }
+async function reloadMap(){ const d=await getJSON(`${WORKER}/ecmap`); S.map=d.map||{}; S.sign=d.sign||{}; S.cand=d.cand||{}; }
+// 예비 목록(Su, 2026-10-19): 매일 올리는 대조 파일·지난 대조 결과에서 나온 짝은 바로 대응표에 넣지 않고 워커의 예비 목록에 쌓는다.
+//   맵핑 화면 맨 위 '확정 대기'에서 담당자가 보고 확정(담당자 값으로 저장)하거나 버린다. 담당자가 이미 확정한 옵션은 워커가 걸러 낸다.
+function candsFromResult(R){
+  const out=[];
+  for(const r of R.rows){ if(!(r.st==='새로 연결'||r.st==='저장됨과 다름'||r.st==='확인 필요')) continue;
+    out.push({key:r.key,label:`${r.name}${r.opt?' / '+r.opt:''}`,price:r.price||0,cands:Object.fromEntries(r.cands.map(c=>[c.code,c.n])),names:Object.fromEntries(r.cands.map(c=>[c.code,ecProd(c.name)]))}); }
+  for(const u of R.unmatched){ if(u.st!=='미연결'||!u.cands.length) continue;
+    out.push({key:u.key,label:`${u.name}${u.opt?' / '+u.opt:''}`,price:u.price||0,cands:Object.fromEntries(u.cands.map(c=>[c.code,c.n])),names:Object.fromEntries(u.cands.map(c=>[c.code,ecProd(c.name)]))}); }
+  return out;
+}
+async function postCands(R){
+  const cand=candsFromResult(R); if(!cand.length) return 0;
+  const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cand})});
+  S.cand=d.cand||S.cand; return d.added||0;
+}
+async function candAct(keys,code){   // code 있으면 확정(담당자 값으로 저장), 없으면 버리기
+  const entries=code?keys.map(k=>{ const c=S.cand[k]||{}; return {key:k,code,name:(c.names||{})[code]||'',label:c.label||'',src:'manual'}; }):[];
+  const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries,candremove:keys})});
+  await reloadMap(); if(S.result) learn(); return d;
+}
 // 사인지 — 일부 에디션은 이카운트에 사인지 품목(에디션코드+SI, 수량 같게, 0원)을 같이 넣는다. 카페24 주문엔 표시가 없다.
 //   이카운트 파일에서 한 주문에 X 와 X사인지(이름에 [사인지], 보통 XSI)가 같이 있으면 'X 엔 사인지가 붙는다'로 배워 워커에 둔다.
 const isSignRow=r=>/\[사인지\]/.test(r.name);
@@ -865,16 +886,10 @@ async function learnFromRecon(){
     const ids=[...new Set(rows.map(r=>r.order))];
     await loadC24Orders(ids);
     S.ecRows=rows; learn();
-    const R=S.result, newRows=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름');
-    let saved=0;
-    if(newRows.length){
-      const entries=newRows.map(r=>({key:r.key,code:r.code,name:r.ecname,label:`${r.name}${r.opt?' / '+r.opt:''}`,src:'auto',n:r.n}));
-      const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries})});
-      saved=d.saved||0; await reloadMap();
-    }
-    const check=R.rows.filter(r=>r.st==='확인 필요').length, un=R.unmatched.filter(u=>u.st==='미연결').length;
-    D.mapLearned={saved,check,un,total:Object.keys(S.map).length};
-    compute();   // 새로 저장된 코드로 품목 대조를 다시
+    const R=S.result;
+    const added=await postCands(R);   // 바로 저장하지 않고 예비 목록에 쌓는다(맵핑 화면에서 확정)
+    const un=R.unmatched.filter(u=>u.st==='미연결').length;
+    D.mapLearned={added,wait:Object.keys(S.cand).length,un,total:Object.keys(S.map).length};
   }catch(e){ D.mapLearned={err:e.message}; }
   render();
 }
@@ -1128,7 +1143,7 @@ function dateRow(withFile){
     ${D.err?`<div class="ec-stat err">${esc(D.err.message||D.err)}</div>`:''}
     ${D.signLearned&&withFile?`<div class="ec-stat">이카운트 파일에서 사인지가 붙는 에디션 ${n(D.signLearned)}개를 새로 배웠습니다.</div>`:''}
     ${withFile&&D.mapLearned?(D.mapLearned.busy?`<div class="ec-stat">이 파일로 품목코드 맵핑 배우는 중…</div>`:D.mapLearned.err?`<div class="ec-stat err">맵핑 학습 실패: ${esc(D.mapLearned.err)}</div>`
-      :`<div class="ec-stat">품목코드 맵핑: 이 파일에서 <b>${n(D.mapLearned.saved)}건</b> 새로 저장${D.mapLearned.check?` · 확인 필요 ${n(D.mapLearned.check)}건`:''}${D.mapLearned.un?` · 미연결 ${n(D.mapLearned.un)}건`:''} (전체 ${n(D.mapLearned.total)}건)${D.mapLearned.check||D.mapLearned.un?` — <a href="#" data-a="gomap" style="color:var(--accent)">품목코드 맵핑에서 고르기</a>`:''}</div>`):''}
+      :`<div class="ec-stat">품목코드 맵핑: 이 파일에서 짝 <b>${n(D.mapLearned.added)}건</b>을 예비 목록에 올렸습니다 · 확정 대기 ${n(D.mapLearned.wait)}건${D.mapLearned.un?` · 미연결 ${n(D.mapLearned.un)}건`:''} (대응표 ${n(D.mapLearned.total)}건) — <a href="#" data-a="gomap" style="color:var(--accent)">품목코드 맵핑에서 확정하기</a></div>`):''}
     ${D.truncated?'<div class="ec-stat err">카페24 주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${D.flash?`<div class="ec-stat" style="position:sticky;top:8px;z-index:5;background:${D.flash.bad?'var(--down-soft)':'var(--up-soft)'};color:${D.flash.bad?'var(--down)':'var(--up)'};border-radius:8px;padding:8px 12px;font-weight:600">${esc(D.flash.msg)}</div>`:''}`;
 }
@@ -1350,9 +1365,28 @@ function render(){
     ${S.err?`<div class="ec-stat err">${esc(S.err.message||S.err)}</div>`:''}
     ${S.truncated&&S.truncated.length?`<div class="ec-stat err">${S.truncated.join(', ')} 카페24 주문이 너무 많아 일부만 받았습니다.</div>`:''}
   </div>`;
+  h+=candCard();
   if(S.result) h+=resultCard();
   h+=savedCard();   // 저장된 대응표는 파일을 올리든 말든 늘 보인다
   S.root.innerHTML=h;
+}
+function candCard(){
+  const q=S.qc.trim().toLowerCase();
+  const all=Object.entries(S.cand).map(([key,v])=>{ const cs=Object.entries(v.cands||{}).sort((a,b)=>b[1]-a[1]); return {key,...v,cs,top:cs[0]?cs[0][0]:'',single:cs.length===1}; });
+  const list=all.filter(x=>!q||[x.label,x.key,...x.cs.map(c=>c[0]+' '+((x.names||{})[c[0]]||''))].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))||a.key.localeCompare(b.key));
+  const singles=all.filter(x=>x.single).length;
+  const chip=(x,c)=>`<a href="#" data-a="cpick" data-k="${esc(x.key)}" data-c="${esc(c[0])}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${c[0]===x.top?'var(--up-soft)':'var(--fill)'};border-radius:8px;padding:4px 8px;font-size:12px"><b>${esc(c[0])}</b><span style="flex:1">${esc((x.names||{})[c[0]]||'')}</span><span class="ec-sub" style="margin:0;white-space:nowrap">${n(c[1])}건</span>${S.map[x.key]&&S.map[x.key].code===c[0]?'<span class="ec-badge ec-info">저장된 값</span>':''}</a>`;
+  return `<div class="ec-card"><h2>확정 대기 <span class="ec-sub" style="display:inline;margin-left:6px">예비 목록 ${n(all.length)}건</span></h2>
+    <p class="ec-lead">매일 판매 입력 대조에 올린 이카운트 파일(품목별)에서 찾은 짝이 여기 쌓입니다. 아직 대응표에 들어가지 않았으니 보고 <b>확정</b>하거나 <b>버리기</b>로 지워 주세요. 확정한 값은 담당자 값으로 저장되고 자동 학습이 덮어쓰지 않습니다.</p>
+    <div class="ec-row"><input class="ec-in" id="ecCandQ" value="${esc(S.qc)}" placeholder="상품명·옵션코드·품목코드 검색" style="width:260px"><span style="flex:1"></span>
+      ${singles?`<button class="go" data-a="cconfirmall" style="height:36px">후보가 하나뿐인 ${n(singles)}건 모두 확정</button>`:''}</div>
+    <div class="ec-scroll"><table class="ec-t"><thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>카페24 판매가</th><th class="l">이카운트 품목코드 후보 (누르면 채워짐)</th><th>본 날짜</th><th>확정 · 버리기</th></tr></thead><tbody>
+      ${list.length?list.slice(0,300).map(x=>`<tr><td class="l">${esc(x.label||'')}</td><td>${esc(x.key)}</td><td>${x.price?n(x.price)+'원':'—'}</td>
+        <td class="l" style="min-width:360px"><div style="display:flex;flex-direction:column;gap:4px">${x.cs.slice(0,5).map(c=>chip(x,c)).join('')}</div></td>
+        <td class="ec-sub" style="white-space:nowrap">${esc(x.first||'')}${x.at&&x.at!==x.first?`<br>~ ${esc(x.at)}`:''}</td>
+        <td style="white-space:nowrap"><input class="ec-in" data-a="ccode" data-k="${esc(x.key)}" value="${esc(x.top)}" placeholder="품목코드" style="width:150px"> <button class="go" data-a="cconfirm" data-k="${esc(x.key)}" style="height:34px">확정</button> <button class="ec-dl" data-a="cdrop" data-k="${esc(x.key)}">버리기</button></td></tr>`).join('')
+      :`<tr><td colspan="6" class="ec-sub">${q?'찾은 것이 없습니다':'확정 기다리는 짝이 없습니다 — 판매 입력 대조에 품목별 파일을 올리면 여기 쌓입니다'}</td></tr>`}</tbody></table></div>
+    ${list.length>300?`<div class="ec-sub">300건까지만 보입니다 — 검색으로 좁혀 주세요</div>`:''}</div>`;
 }
 function savedCard(){
   const q=S.qs.trim().toLowerCase();
@@ -1448,7 +1482,7 @@ function wire(root){
   });
   root.addEventListener('input',e=>{ if((S.page==='daily'||S.page==='recon')&&onDailyInput(e.target)) return; if(e.target.dataset.a==='rvmemo'){ noteMemo(e.target.dataset.d,e.target.dataset.o,e.target.value); return; }
     // 검색: 한 글자마다 표 전체를 다시 그리지 않고 입력이 멈추면(0.2초) 한 번
-    if(e.target.id==='ecRvQ'||e.target.id==='ecQ'||e.target.id==='ecOoQ'||e.target.id==='ecMapQ'){ const id=e.target.id; if(id==='ecRvQ') RV.q=e.target.value; else if(id==='ecOoQ') OO.q=e.target.value; else if(id==='ecMapQ') S.qs=e.target.value; else S.q=e.target.value;
+    if(e.target.id==='ecRvQ'||e.target.id==='ecQ'||e.target.id==='ecOoQ'||e.target.id==='ecMapQ'||e.target.id==='ecCandQ'){ const id=e.target.id; if(id==='ecRvQ') RV.q=e.target.value; else if(id==='ecOoQ') OO.q=e.target.value; else if(id==='ecMapQ') S.qs=e.target.value; else if(id==='ecCandQ') S.qc=e.target.value; else S.q=e.target.value;
       clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ const el=$(id), pos=el?el.selectionStart:0; render(); const q=$(id); if(q){ q.focus(); q.setSelectionRange(pos,pos); } },200); } });
   root.addEventListener('click',async e=>{
     const t=e.target.closest('[data-a]'); if(!t) return;
@@ -1496,6 +1530,13 @@ function wire(root){
       return;
     }
     if(a==='learnsaved'){ const now=kstDay(0), ms=[0,1,2].map(i=>{ const d=new Date(now+'T00:00:00'); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); }); await learnFromSaved(ms); return; }
+    if(a==='cpick'){ e.preventDefault(); const inp=root.querySelector(`input[data-a="ccode"][data-k="${CSS.escape(t.dataset.k)}"]`); if(inp) inp.value=t.dataset.c; t.parentElement.querySelectorAll('a[data-a="cpick"]').forEach(x=>{ x.style.outline=x===t?'2px solid var(--accent)':''; }); return; }
+    if(a==='cconfirm'){ const inp=root.querySelector(`input[data-a="ccode"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim(); if(!code) return flash('품목코드를 넣거나 후보를 눌러 주세요.',true);
+      t.disabled=true; try{ const d=await candAct([t.dataset.k],code); flash(d.saved?`확정: ${(S.map[t.dataset.k]||{}).label||t.dataset.k} → ${code}`:`저장되지 않았습니다: ${code} — 코드 형식을 확인해 주세요.`,!d.saved); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } return; }
+    if(a==='cdrop'){ t.disabled=true; try{ await candAct([t.dataset.k],''); render(); }catch(err){ flash('지우지 못했습니다: '+err.message,true); } return; }
+    if(a==='cconfirmall'){ const ks=Object.entries(S.cand).filter(([k,v])=>Object.keys(v.cands||{}).length===1); if(!ks.length) return;
+      if(!confirm(`후보가 하나뿐인 ${ks.length}건을 모두 담당자 값으로 저장할까요?`)) return; t.disabled=true;
+      try{ let saved=0; for(const [k,v] of ks){ const d=await candAct([k],Object.keys(v.cands)[0]); saved+=d.saved||0; } flash(`${n(saved)}건 확정했습니다. 대응표 ${n(Object.keys(S.map).length)}건`); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } return; }
     if(a==='saveauto'){ t.disabled=true; try{ await saveAuto(); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } t.disabled=false; return; }
     if(a==='savecode'){
       const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim();

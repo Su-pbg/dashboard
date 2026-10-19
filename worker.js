@@ -322,10 +322,35 @@ var worker_default = {
         const SIGN_KEY = "ecsign:v1";
         const signRaw = await kv0.get(SIGN_KEY);
         const sign = signRaw ? JSON.parse(signRaw) : {};
-        if (request.method === "GET") return json({ map, sign, count: Object.keys(map).length });
+        // [2026-10-19] 예비 목록(Su): 매일 올리는 대조 파일에서 나온 짝은 바로 대응표에 넣지 않고 여기 쌓는다.
+        //   담당자가 맵핑 화면에서 보고 확정(entries 로 저장 + candremove)하거나 버린다. {옵션코드: {label, name, price, cands:{코드:근거수}, at, first}}
+        const CAND_KEY = "ecmapcand:v1";
+        const candRaw = await kv0.get(CAND_KEY);
+        const cand = candRaw ? JSON.parse(candRaw) : {};
+        if (request.method === "GET") return json({ map, sign, cand, count: Object.keys(map).length });
         if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
         let b = {};
         try { b = await request.json(); } catch (e) { }
+        const okCode = (c) => /^[^\s\u0000-\u001f]{1,40}$/.test(String(c));
+        if (Array.isArray(b.cand) || Array.isArray(b.candremove)) {
+          const today = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
+          let added = 0, removed = 0;
+          for (const k of (Array.isArray(b.candremove) ? b.candremove : [])) { if (cand[k]) { delete cand[k]; removed++; } }
+          for (const c of (Array.isArray(b.cand) ? b.cand : []).slice(0, 5000)) {
+            const key = String(c.key || "").trim(); if (!okCode(key)) continue;
+            // 담당자가 확정한 값이 있거나, 저장된 값과 같은 코드뿐이면 예비 목록에 둘 필요가 없다
+            const cs = {}; for (const [cc, nn] of Object.entries(c.cands || {})) if (okCode(cc) && Number(nn) > 0) cs[cc] = Number(nn);
+            if (!Object.keys(cs).length) continue;
+            if (map[key] && (map[key].src === "manual" || (Object.keys(cs).length === 1 && cs[map[key].code]))) continue;
+            const cur = cand[key] || { first: today, cands: {} };
+            for (const [cc, nn] of Object.entries(cs)) cur.cands[cc] = (cur.cands[cc] || 0) + nn;
+            cur.label = String(c.label || cur.label || "").slice(0, 160); cur.price = Number(c.price) || cur.price || 0;
+            cur.names = Object.assign(cur.names || {}, Object.fromEntries(Object.entries(c.names || {}).filter(([cc]) => okCode(cc)).map(([cc, nm]) => [cc, String(nm || "").slice(0, 120)])));
+            cur.at = today; cand[key] = cur; added++;
+          }
+          await kv0.put(CAND_KEY, JSON.stringify(cand));
+          if (!Array.isArray(b.entries) && !Array.isArray(b.remove) && !b.sign) return json({ ok: true, added, removed, cand });
+        }
         if (b.sign && typeof b.sign === "object") {
           let ch = 0;
           for (const [c, v] of Object.entries(b.sign).slice(0, 2000)) {
@@ -350,7 +375,7 @@ var worker_default = {
           saved++;
         }
         await kv0.put(KEY, JSON.stringify(map));
-        return json({ ok: true, saved, skipped, removed, count: Object.keys(map).length });
+        return json({ ok: true, saved, skipped, removed, count: Object.keys(map).length, cand });
       }
       // ===== 위탁 정산 ('위탁 정산' 탭) =====
       // [2026-10-12] 요율·정산서류·배송비는 [이커머스] 거래처 LIST 구글시트에만 있다.
