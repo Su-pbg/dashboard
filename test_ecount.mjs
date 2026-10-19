@@ -58,7 +58,8 @@ const ctx = {
   window: {}, console, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, Intl, Math, Date, JSON, Promise, Object, Array, String, Number, RegExp, Set, Map, Error, encodeURIComponent, atob: (s) => s,
   WORKER: 'https://worker.test', authHeaders: () => ({}), setMenu() {}, fetch: fetchStub, confirm: () => true, alert() {},
   localStorage: { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
-  CSS: { escape: (s) => s },
+  CSS: { escape: (s) => s }, history: { pushState() {}, replaceState() {} }, location: { search: '', pathname: '/' }, CustomEvent: class { constructor(t, o) { this.type = t; this.detail = o && o.detail; } }, URLSearchParams,
+  addEventListener() {}, dispatchEvent() {}, scrollTo() {},
   document: { getElementById: () => null, createElement: el, head: el(), body: el() },
   XLSX: { utils: { sheet_to_json: (ws) => ws.rows } },
 };

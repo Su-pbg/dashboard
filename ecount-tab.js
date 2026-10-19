@@ -417,6 +417,7 @@ async function loadOpen(){
         for(const o of (e.orders||[])){ if(o.paid!=='Y'||o.canceled==='Y') continue; list.push(mk({order_id:o.order_id,order_date:o.order_date||o.date,ship_status:o.ship_status||'T',payment_amount:o.payment_amount,naver_point:o.naver_point},tags[o.order_id],notes[o.order_id]||{})); } }catch(e){} }
     OO.list=list.filter(x=>!x.nt.done).sort((a,b)=>a.o.order_date.localeCompare(b.o.order_date));
     OO.truncated=!!d.truncated;
+    if(OO.detail&&!OO.info) openDetail(OO.detail);   // 주소로 바로 연 상세는 목록이 온 뒤 채운다
     await applyHooks();   // 웹훅으로 들어온 최신 상태 덮기
   }catch(e){ OO.err=e; OO.list=[]; }
   OO.loading=false; render();
@@ -1351,7 +1352,7 @@ function wire(root){
     if((S.page==='daily'||S.page==='recon')&&onDailyChange(t)) return;
     if(t.dataset.a==='fsel'){ D.fsel[t.dataset.d]=t.checked; render(); return; }
     if(t.id==='ecTfSort'){ TF.sort=t.value; render(); return; }
-    if(t.id==='ecRvDate'){ if(t.value) loadRVDay(t.value); return; }
+    if(t.id==='ecRvDate'){ if(t.value){ RV.date=t.value; syncSub(); loadRVDay(t.value); } return; }
     if(t.id==='ecRvMonth'){ RV.month=t.value||RV.month; RV.date=''; RV.idx=null; render(); loadRV().then(render); return; }
     if(t.dataset.a==='rvdone'){ saveNote(t.dataset.d,t.dataset.o,{done:t.checked}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
     if(t.dataset.a==='rvast'){ saveNote(t.dataset.d,t.dataset.o,{ast:t.value}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
@@ -1371,11 +1372,11 @@ function wire(root){
     if(a==='dview'){ D.view=t.dataset.v; render(); return; }
     if(a==='logview'){ S.logView=t.dataset.v; render(); return; }
     if(a==='ooreload'){ OO.list=null; OO.force=true; await loadOpen(); return; }
-    if(a==='oocard'){ OO.card=t.dataset.k||''; OO.detail=''; OO.q=''; window.scrollTo(0,0); render(); return; }
-    if(a==='oodetail'){ e.preventDefault(); window.scrollTo(0,0); if(!t.dataset.o){ OO.detail=''; render(); } else await openDetail(t.dataset.o); return; }
+    if(a==='oocard'){ OO.card=t.dataset.k||''; OO.detail=''; OO.q=''; window.scrollTo(0,0); pushSub(); render(); return; }
+    if(a==='oodetail'){ e.preventDefault(); window.scrollTo(0,0); if(!t.dataset.o){ OO.detail=''; pushSub(); render(); } else { OO.detail=t.dataset.o; pushSub(); await openDetail(t.dataset.o); } return; }
     if(a==='godate'){ e.preventDefault(); D.date=t.dataset.d; D.loadedDate=false; setMenu('ecrecon'); return; }
-    if(a==='rvday'){ if(!t.dataset.d) return; RV.q=''; await loadRVDay(t.dataset.d); return; }
-    if(a==='rvback'){ RV.date=''; RV.day=null; render(); return; }
+    if(a==='rvday'){ if(!t.dataset.d) return; RV.q=''; RV.date=t.dataset.d; pushSub(); await loadRVDay(t.dataset.d); return; }
+    if(a==='rvback'){ RV.date=''; RV.day=null; pushSub(); render(); return; }
     if(a==='gorecon2'){ setMenu('ecrecon'); return; }
     if(a==='rvxlsx'){ try{ await exportRV(t); }catch(err){ alert('엑셀을 만들지 못했습니다: '+err.message); t.disabled=false; t.textContent='엑셀로 받기 (이 달)'; } return; }
     if(a==='fillname'){ D.names[t.dataset.o]=t.dataset.v; render(); return; }
@@ -1418,6 +1419,23 @@ function wire(root){
 }
 
 let WIRED=false, searchTimer=0;
+// [2026-10-19] 화면 안 이동(주문 처리: 카드 → 목록 → 상세, 대조 현황 날짜 상세)도 브라우저 기록에 쌓아 뒤로가기로 되돌린다.
+//   주소: ?m=eclog&c=<칸>&o=<주문번호>&d=<날짜>. setMenu 가 pushState 한 뒤 여기서 같은 칸을 replaceState 로 채운다.
+function subUrl(){ const q=new URLSearchParams(location.search); for(const k of ['c','o','d']) q.delete(k);
+  if(S.page==='log'){ if(OO.card) q.set('c',OO.card); if(OO.detail) q.set('o',OO.detail); if(RV.date) q.set('d',RV.date); }
+  return location.pathname+'?'+q.toString(); }
+function pushSub(){ try{ history.pushState({m:'eclog',c:OO.card,o:OO.detail,d:RV.date},'',subUrl()); }catch(e){} }
+function syncSub(){ try{ history.replaceState({m:'eclog',c:OO.card,o:OO.detail,d:RV.date},'',subUrl()); }catch(e){} }
+async function applySub(q){   // 뒤로가기로 돌아온 주소를 화면에 반영
+  const c=q.get('c')||'', o=q.get('o')||'', d=q.get('d')||'';
+  if(S.page!=='log') return;
+  let ch=false;
+  if(c!==OO.card){ OO.card=c; OO.q=''; ch=true; }
+  if(o!==OO.detail){ if(o){ await openDetail(o); } else { OO.detail=''; } ch=true; }
+  if(d!==RV.date){ if(d){ await loadRVDay(d); } else { RV.date=''; RV.day=null; } ch=true; }
+  if(ch) render();
+}
+window.addEventListener('pbg:popstate',e=>{ applySub(e.detail.q); });
 window.loadEcountTab=async function(el,page){
   if(!$('ecCss')){ const s=document.createElement('style'); s.id='ecCss'; s.textContent=STYLE; document.head.appendChild(s); }
   S.root=el; S.page=page||'map';
@@ -1428,6 +1446,9 @@ window.loadEcountTab=async function(el,page){
     await loadRV();
     if(!OO.list) loadOpen();   // 진행 중 주문은 기다리지 않고 뒤에서 받아 채운다
     hookTimer();
+    const q0=new URLSearchParams(location.search);   // 주소에 칸·주문·날짜가 있으면(새로고침·뒤로가기) 그 화면으로
+    if(q0.get('c')||q0.get('o')||q0.get('d')){ OO.card=q0.get('c')||''; if(q0.get('d')) await loadRVDay(q0.get('d')); if(q0.get('o')){ OO.detail=q0.get('o'); if(OO.list) openDetail(OO.detail); } }
+    else syncSub();
   }else if(!S.loadedMap){
     el.innerHTML='<div class="state"><div class="spinner"></div>품목코드 맵핑 불러오는 중…</div>';
     try{ await reloadMap(); S.loadedMap=true; }catch(e){ S.err=e; }

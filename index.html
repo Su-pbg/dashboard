@@ -3741,7 +3741,10 @@ function ensureExpenseFrame(){
   const f=$('expenseFrame');
   if(!f.getAttribute('src')) f.setAttribute('src','expense.html?embed=1');
 }
-function setMenu(m){
+// [2026-10-19] 메뉴를 바꿀 때 브라우저 기록을 한 칸 쌓는다(pushState). 전엔 replaceState 만 써서 뒤로가기가 대시보드 밖(이전 사이트)으로 나갔다.
+//   뒤로가기(popstate)로 돌아올 땐 fromHistory=true 로 불러 기록을 또 쌓지 않는다.
+function setMenu(m,fromHistory){
+  if(!fromHistory&&m!==MENU){ try{ history.pushState({m},'',location.pathname+'?m='+m); }catch(e){} }
   MENU=m;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.menu===m));
   const ex=(m==='expense'), st=(m==='settle'), ec=(m==='eclog'||m==='ecdaily'||m==='ecrecon'||m==='ecmap');
@@ -3796,6 +3799,11 @@ document.getElementById('authBtn').addEventListener('click', tryUnlock);
 document.getElementById('authPw').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryUnlock(); });
 
 // 왼쪽 메뉴
+window.addEventListener('popstate',(e)=>{
+  const q=new URLSearchParams(location.search), m=q.get('m')==='ecount'?'ecmap':(MENUS.includes(q.get('m'))?q.get('m'):'dashboard');
+  if(m!==MENU) setMenu(m,true);
+  window.dispatchEvent(new CustomEvent('pbg:popstate',{detail:{q}}));   // 화면 안 이동(주문 처리 카드·상세 등)은 각 탭이 받아 되돌린다
+});
 document.getElementById('nav').addEventListener('click',(e)=>{
   const b=e.target.closest('.nav-item'); if(!b) return;
   setMenu(b.dataset.menu);
