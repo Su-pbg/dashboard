@@ -263,11 +263,15 @@ function renderRising(){
   const sel=document.getElementById('trBand');
   if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
 }
-// ── 브랜드·작가 후보 ────────────────────────────────────────────────
-// [2026-10-13] 연관검색어 풀에서 카테고리 단어를 떼고 남는 말. 추가 API 호출이 없다.
-//   브랜드는 혼자 안 온다 — FLOS조명 · 루이스폴센조명 · 웨지우드접시 · 나그참파인센스.
-//   블로그 제목에서 뽑는 방식은 폐기했다(129개 중 브랜드 4개, 나머지는 '있는'·'함께'·'맛집').
-//   소재·대상·용도가 섞이는 건 알고 있다. 판정이 아니라 훑어보는 목록이다.
+// ── 카테고리에 붙는 말 ──────────────────────────────────────────────
+// [2026-10-19] **이건 브랜드 목록이 아니다.** 연관검색어에서 카테고리 단어를 떼고 남는 말이고,
+//   그 대부분은 수식어다 — 소재(페르시안·아로마·우드) · 대상(장모님·어르신) · 주제(달마도·모나리자) ·
+//   용도(도시락·케이스) · 지명(이천·남대문). 브랜드는 소수다.
+//   처음엔 '브랜드·작가 후보'로 띄웠는데 Su 가 바로 짚었다 — 페르시안이 브랜드로 보이냐고. 맞는 말이다.
+//   고유명사/일반명사를 가를 수단이 없다. 길이·로마자·'○○ 브랜드' 문서비중 전부 약한 대리지표고
+//   실제로 '하기'가 브랜드성 1위(42%)로 올라온다.
+//   → 제대로 하려면 brand 필드가 있는 **쇼핑 카탈로그**가 있어야 한다. 그러면 추측이 조회가 된다.
+//   그 전까지는 '우리 카테고리에 사람들이 뭘 붙여 찾나'로 읽는다 — 워셔블러그·단모러그·대용량디퓨저.
 function renderBrands(){
   const el=document.getElementById('trBrands'); if(!el) return;
   const run=S.data.runs[S.data.runs.length-1];
@@ -298,14 +302,14 @@ function renderBrands(){
               .sort((a,b)=>ns(b)-ns(a)||(b.brandish||0)-(a.brandish||0)||tier(b)-tier(a)||b.search-a.search).slice(0,24);
   const have=B.filter(x=>x.ours&&tier(x)>0).slice(0,12);
   el.innerHTML=`<div class="tr-two">
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리에게 없는 이름 (${out.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px"><b>소스 2개가 맨 위</b> — 검색어와 유튜브 태그는 서로 독립적인 재료다. 그다음 로마자·긴 이름 순(고유명사는 길고 2글자는 거의 일반명사다). 링크로 바로 확인할 것.</div>
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리 상품명에 없는 말 (${out.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">대부분 브랜드가 아니다. <b>소스 2개가 맨 위</b> — 검색어와 유튜브 태그는 서로 독립적인 재료다. 그다음 로마자·긴 이름 순(고유명사는 길고 2글자는 거의 일반명사다). 링크로 바로 확인할 것.</div>
       <ul class="tr-list">${out.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리가 이미 가진 이름 (${have.length})</h4>
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리 상품명에 있는 말 (${have.length})</h4>
       <div class="tr-sub" style="margin:0 0 6px">상품명에 그 말이 들어 있는 것. 2글자 한글은 오탐이 섞인다.</div>
       <ul class="tr-list">${have.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div></div>
    <div class="tr-sub" style="margin-top:8px">후보 ${B.length}종 중 씨앗에 이미 넣은 것은 뺐다.
-     진짜 브랜드다 싶으면 <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> 의
+     이 중 진짜 브랜드다 싶은 게 있으면 <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> 의
      <b>그 브랜드가 속한 테마</b>에 넣는다 — 다음 날 연관검색어가 그 브랜드의 제품군·경쟁 브랜드를 물어온다(추가 호출 없음).
      화장품·바디 브랜드는 이름만 넣으면 핸드크림·샴푸가 딸려 오니 '○○디퓨저' 꼴로 넣을 것.</div>`;
 }
@@ -429,7 +433,7 @@ window.loadTrendTab=async function(){
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
-   <div class="tr-card"><h2>브랜드·작가 후보</h2><p class="tr-lead">두 군데서 모은다. <b>검색어</b> — 연관검색어 풀에서 카테고리 단어를 떼고 남는 말(<code>루이스폴센조명</code>→<code>루이스폴센</code>). <b>YT</b> — 유튜브 영상 태그에도 같은 이름이 나왔다는 <b>보강 표시</b>다(태그만 나온 이름은 안 넣는다 — 한국 유튜브 태그는 브랜드가 아니라 SEO 검색어라 실측에서 브랜드가 0개였다). <b>브랜드성</b> — '○○ 브랜드' 문서 비중. 아르떼미데 36% vs 상견례 5% 로 갈리지만 오탐이 있어 <b>순위 보조로만</b> 쓴다. <b>추가 API 호출은 없다</b> — 이미 받아둔 응답을 다시 보는 것뿐. 소재·대상·용도가 섞이니 <b>판정이 아니라 훑어보는 목록</b>으로 쓸 것.</p><div id="trBrands"></div></div>
+   <div class="tr-card"><h2>카테고리에 붙는 말</h2><p class="tr-lead"><b>브랜드 목록이 아니다.</b> 연관검색어에서 카테고리 단어를 떼고 <b>남는 말</b>일 뿐이라 소재(페르시안·아로마·우드)·대상(장모님·어르신)·주제(달마도·모나리자)·용도(도시락·케이스)·지명(이천·남대문)이 다 섞인다. 브랜드는 그중 소수다 — <code>루이스폴센조명</code>→<code>루이스폴센</code> 처럼 걸릴 때만 보인다. 고유명사와 일반명사를 가를 방법이 없어서(길이·로마자·'○○ 브랜드' 문서비중 전부 약한 대리지표다) <b>제대로 하려면 brand 필드가 있는 쇼핑 카탈로그가 필요하다.</b> 그 전까지는 <b>우리 카테고리에 사람들이 뭘 붙여 찾는지</b> 보는 용도로 읽을 것 — 그건 그대로 쓸모가 있다(워셔블러그·단모러그·대용량디퓨저).</p><div id="trBrands"></div></div>
    <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">시장이 뭘 하고 있나를 보는 목록이다. <b>우리 브랜드는 넣지 않는다</b> — 그건 우리 반응 확인이지 트렌드 발견이 아니다. 해시태그 검색이 30개/7일 제한이라 주 1회 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
