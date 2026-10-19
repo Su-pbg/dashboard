@@ -1152,29 +1152,24 @@ function renderRecon(){
   }).join('');
   const miss=R.filter(r=>r.st==='미입력').length;
   S.root.innerHTML=`<div class="ec-card"><h2>판매 입력 대조</h2>
-    <p class="ec-lead">고른 날짜의 카페24 주문이 먼저 나옵니다. 이카운트에서 받은 판매현황(품목별) 또는 판매조회(전표 단위) 엑셀을 올리면 주문번호로 맞춰 금액 · 결제유형 · 품목·수량이 맞는지 채워집니다.
-      여러 날짜가 든 파일이면 아래 '파일 속 주문 날짜'에서 골라 한 번에 대조합니다. 이카운트 파일은 브라우저에서만 읽습니다.</p>
+    <p class="ec-lead">이카운트 판매현황(품목별) 또는 판매조회 엑셀을 올리면 그 날짜 카페24 주문과 맞춰 봅니다. 파일은 브라우저에서만 읽습니다.</p>
     ${dateRow(true)}
-    ${D.fdates&&D.fdates.length>1?`<div style="background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);margin-top:var(--s3)">
-      <div class="ec-row"><b style="font-size:13px">파일 속 주문 날짜 ${n(D.fdates.length)}개</b><span class="ec-sub" style="margin:0">체크한 날짜를 한 번에 대조해 대조 현황에 남깁니다. 전표 기간보다 옛 주문(반품·정산 전표만 있는 날짜)은 빼 두었습니다 — 그 전표는 이전 결과에 자동으로 붙습니다.</span></div>
+    ${D.fdates&&D.fdates.length>1?`<details ${D.batch||Object.keys(D.fres||{}).length||Object.values(D.fsel||{}).filter(Boolean).length>1?'open':''} style="background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);margin-top:var(--s3)"><summary style="cursor:pointer;font-size:14px;font-weight:700">파일에 날짜가 ${n(D.fdates.length)}개 있습니다 — 여러 날짜 한 번에 대조</summary>
+      <div class="ec-row" style="margin-top:6px"><span class="ec-sub" style="margin:0">체크한 날짜를 한 번에 대조해 대조 현황에 남깁니다. 전표 기간보다 옛 주문(반품·정산 전표만 있는 날짜)은 빼 두었습니다 — 그 전표는 이전 결과에 자동으로 붙습니다.</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px">${D.fdates.map(x=>{ const r=D.fres&&D.fres[x.d];
         return `<label style="font-size:12px;display:flex;gap:4px;align-items:center;${x.inR?'':'color:var(--muted)'}"><input type="checkbox" data-a="fsel" data-d="${x.d}" ${D.fsel[x.d]?'checked':''} ${D.batch?'disabled':''}>${esc(x.d.slice(5).replace('-','/'))} <span class="ec-sub" style="display:inline;margin:0">${n(x.n)}건</span>
           ${r?`<span class="ec-badge ${r.saved==='skip-old'?'ec-info':r.saved&&!String(r.saved).startsWith('fail')&&r.saved!=='nodate'?'ec-ok':'ec-bad'}">${r.saved==='skip-old'?'기간 밖 · 저장 안 함':r.saved==='nodate'?'파일에 없음':String(r.saved).startsWith('fail')?'저장 실패':ST_ORDER.filter(k=>r.st[k]&&k!=='정상'&&k!=='파일 기간 밖').map(k=>k+' '+r.st[k]).join(' · ')||'모두 정상'}</span>`:''}</label>`; }).join('')}</div>
       <div class="ec-row" style="margin-top:8px"><button class="ec-dl" data-a="fall" ${D.batch?'disabled':''}>전체 날짜 체크</button><button class="ec-dl" data-a="frange" ${D.batch?'disabled':''}>전표 기간만</button><button class="ec-dl" data-a="fnone" ${D.batch?'disabled':''}>모두 해제</button>
         <button class="go" data-a="runbatch" style="height:34px" ${D.batch?'disabled':''}>${D.batch?esc(D.batchMsg||'대조 중…'):`체크한 날짜 ${n(Object.values(D.fsel||{}).filter(Boolean).length)}개 모두 대조`}</button>
-        ${Object.keys(D.fres||{}).length&&!D.batch?'<button class="ec-dl" data-a="gorv">대조 현황에서 보기</button>':''}</div></div>`:''}
+        ${Object.keys(D.fres||{}).length&&!D.batch?'<button class="ec-dl" data-a="gorv">대조 현황에서 보기</button>':''}</div></details>`:''}
     ${D.reconSaved==='nodate'?`<div class="ec-stat err">올린 이카운트 파일에 ${esc(D.date)} 주문이 없습니다 — 그 날짜가 든 판매현황을 올려 주세요(대조 현황에 남기지 않았습니다).</div>`
       :D.reconSaved&&D.reconSaved.startsWith('fail:')?`<div class="ec-stat err">대조 결과를 남기지 못했습니다: ${esc(D.reconSaved.slice(5))}</div>`
       :D.reconSaved==='skip-old'?`<div class="ec-stat">${esc(D.date)}은(는) 파일 전표 기간 밖이고 저장된 대조 결과가 없어 남기지 않았습니다. 파일에 없는 주문은 '파일 기간 밖'으로 보입니다.</div>`
       :D.reconSaved?`<div class="ec-stat">대조 결과를 대조 현황에 남겼습니다 (${esc(D.reconSaved)}).</div>`:''}
     ${D.attached&&D.attached.length?`<div class="ec-stat">이 파일에서 이전 날짜 주문의 반품·선수금 정산 전표 ${n(D.attached.length)}건을 그 날짜 대조 결과에 붙였습니다: ${D.attached.slice(0,6).map(a=>`${esc(a.date.slice(5))} ${esc(a.order)} (${esc(a.tag)})`).join(', ')}${D.attached.length>6?' …':''}</div>`:''}
     ${!D.ec&&D.savedDay?`<div class="ec-stat">이 날짜는 <b>${esc(D.savedDay.at)}</b>에 <b>${esc(D.savedDay.file||'')}</b>(으)로 대조한 결과입니다(대조 현황과 같음). 다시 대조하려면 이카운트 파일을 올리세요.</div>`:''}
-    ${has?`<div class="ec-kpis" style="grid-template-columns:repeat(6,1fr)">
-      ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('정상',n(cnt['정상']||0)+'건','ok')}${kpi('미입력',n(miss)+'건',miss?'warn':'')}
-      ${kpi('금액불일치',n(cnt['금액불일치']||0)+'건',cnt['금액불일치']?'warn':'')}${kpi('결제유형 확인',n(cnt['결제유형 확인']||0)+'건',cnt['결제유형 확인']?'warn':'')}${kpi('품목·수량 불일치',n(cnt['품목·수량 불일치']||0)+'건',cnt['품목·수량 불일치']?'warn':'')}
-    </div>`:`<div class="ec-kpis" style="grid-template-columns:repeat(4,1fr)">
-      ${kpi('카페24 주문',n(D.orders.length)+'건')}${kpi('선수금',n(R.filter(r=>hasAdv(r.tags)).length)+'건')}${kpi('배송방식(퀵·설치 등)',n(R.filter(r=>kinds(r.tags).has('ship')).length)+'건')}${kpi('취소·입금대기',n((cnt['취소']||0)+(cnt['입금대기']||0))+'건')}
-    </div>
+    ${has?`<div class="ec-stat" style="font-size:15px;color:var(--ink)"><b>카페24 ${n(D.orders.length)}건</b> · <span style="color:var(--up)">정상 ${n(cnt['정상']||0)}</span>${miss?` · <span style="color:var(--down);font-weight:700">미입력 ${n(miss)}</span>`:''}${cnt['금액불일치']?` · <span style="color:var(--down);font-weight:700">금액불일치 ${n(cnt['금액불일치'])}</span>`:''}${cnt['환불 대기 확인']?` · <span style="color:var(--down)">환불 대기 확인 ${n(cnt['환불 대기 확인'])}</span>`:''}${cnt['결제유형 확인']?` · <span style="color:var(--down)">결제유형 확인 ${n(cnt['결제유형 확인'])}</span>`:''}${cnt['품목·수량 불일치']?` · <span style="color:var(--down)">품목·수량 불일치 ${n(cnt['품목·수량 불일치'])}</span>`:''}${(cnt['취소']||0)+(cnt['입금대기']||0)?` · <span class="ec-sub" style="display:inline;margin:0">취소·입금대기 ${n((cnt['취소']||0)+(cnt['입금대기']||0))}</span>`:''}</div>`
+    :`<div class="ec-stat" style="font-size:15px;color:var(--ink)"><b>카페24 ${n(D.orders.length)}건</b> · 선수금 ${n(R.filter(r=>hasAdv(r.tags)).length)} · 퀵·설치 등 ${n(R.filter(r=>kinds(r.tags).has('ship')).length)} · 취소·입금대기 ${n((cnt['취소']||0)+(cnt['입금대기']||0))}</div>
     <div class="ec-stat">이 날짜는 아직 대조하지 않았습니다 — 위 '이카운트 판매현황 올리기'로 판매현황(품목별) 또는 판매조회 엑셀을 올리면 이 표에 이카운트 합계·차액·상태가 채워집니다.</div>`}
     ${`
     <div class="ec-row"><div class="ec-seg">${views.map(([v,l,c])=>`<button data-a="dview" data-v="${esc(v)}" class="${D.view===v?'on':''}">${l} ${n(c)}</button>`).join('')}</div>
