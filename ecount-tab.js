@@ -824,7 +824,32 @@ async function onDailyFile(f){
   try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name;
     try{ const k=await learnSign(D.ec); if(k) D.signLearned=k; }catch(e){} }
   catch(e){ D.err=e; }
-  D.loading=''; fileDates(); compute(); render(); saveRecon(); attachLater();
+  D.loading=''; fileDates(); compute(); render(); saveRecon(); attachLater(); learnFromRecon();
+}
+// 매일 올리는 대조 파일로 품목코드 맵핑을 자동 학습한다(Su, 2026-10-19: 맵핑 파일을 따로 올릴 필요 없이).
+//   판매현황(품목별)만 가능(판매조회는 품목코드가 없다). 맵핑 화면과 같은 학습(1:1 → 소거 → 이름)을 돌려 '새로 연결'은 바로 저장,
+//   '확인 필요'·'미연결'은 건수만 알려 준다(맵핑 화면에서 고른다). 담당자가 넣은 값은 덮어쓰지 않는다. 카페24 주문은 파일의 주문번호만 받는다.
+async function learnFromRecon(){
+  const rows=(D.ec||[]).filter(r=>r.code&&!r.voucher&&!r.adv);
+  if(!rows.length){ D.mapLearned=null; return; }
+  D.mapLearned={busy:true}; render();
+  try{
+    if(!S.loadedMap){ await reloadMap(); S.loadedMap=true; }
+    const ids=[...new Set(rows.map(r=>r.order))];
+    await loadC24Orders(ids);
+    S.ecRows=rows; learn();
+    const R=S.result, newRows=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름');
+    let saved=0;
+    if(newRows.length){
+      const entries=newRows.map(r=>({key:r.key,code:r.code,name:r.ecname,label:`${r.name}${r.opt?' / '+r.opt:''}`,src:'auto',n:r.n}));
+      const d=await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entries})});
+      saved=d.saved||0; await reloadMap();
+    }
+    const check=R.rows.filter(r=>r.st==='확인 필요').length, un=R.unmatched.filter(u=>u.st==='미연결').length;
+    D.mapLearned={saved,check,un,total:Object.keys(S.map).length};
+    compute();   // 새로 저장된 코드로 품목 대조를 다시
+  }catch(e){ D.mapLearned={err:e.message}; }
+  render();
 }
 // 파일 하나에 여러 날짜 — 파일 속 주문 날짜를 모아 고르게 하고 한 번에 대조·저장한다.
 // 판매조회는 전표 날짜로 뽑기 때문에, 그 기간보다 옛 주문(반품·선수금 정산 전표만 든 것)은 기본으로 고르지 않는다(대조하면 전부 미입력으로 잘못 나온다).
@@ -1075,6 +1100,8 @@ function dateRow(withFile){
     ${D.loading?`<div class="ec-stat">${esc(D.loading)}</div>`:''}
     ${D.err?`<div class="ec-stat err">${esc(D.err.message||D.err)}</div>`:''}
     ${D.signLearned&&withFile?`<div class="ec-stat">이카운트 파일에서 사인지가 붙는 에디션 ${n(D.signLearned)}개를 새로 배웠습니다.</div>`:''}
+    ${withFile&&D.mapLearned?(D.mapLearned.busy?`<div class="ec-stat">이 파일로 품목코드 맵핑 배우는 중…</div>`:D.mapLearned.err?`<div class="ec-stat err">맵핑 학습 실패: ${esc(D.mapLearned.err)}</div>`
+      :`<div class="ec-stat">품목코드 맵핑: 이 파일에서 <b>${n(D.mapLearned.saved)}건</b> 새로 저장${D.mapLearned.check?` · 확인 필요 ${n(D.mapLearned.check)}건`:''}${D.mapLearned.un?` · 미연결 ${n(D.mapLearned.un)}건`:''} (전체 ${n(D.mapLearned.total)}건)${D.mapLearned.check||D.mapLearned.un?` — <a href="#" data-a="gomap" style="color:var(--accent)">품목코드 맵핑에서 고르기</a>`:''}</div>`):''}
     ${D.truncated?'<div class="ec-stat err">카페24 주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${D.flash?`<div class="ec-stat" style="position:sticky;top:8px;z-index:5;background:${D.flash.bad?'var(--down-soft)':'var(--up-soft)'};color:${D.flash.bad?'var(--down)':'var(--up)'};border-radius:8px;padding:8px 12px;font-weight:600">${esc(D.flash.msg)}</div>`:''}`;
 }
@@ -1418,6 +1445,7 @@ function wire(root){
     if(a==='tftype'){ TF.type=t.dataset.v; render(); return; }
     if(a==='gview'){ D.gview=t.dataset.v; render(); return; }
     if(a==='gorecon'){ e.preventDefault(); setMenu('ecrecon'); return; }
+    if(a==='gomap'){ e.preventDefault(); if(S.result){ S.view='check'; } setMenu('ecmap'); return; }
     if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='wait'&&r.gst==='환불 대기')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }
     if(a==='togen'){ D.sel={}; for(const r of (D.rows||[])) if(r.st==='미입력'&&r.live.length) D.sel[r.o.order_id]=true; D.selInit=true; D.gview='all'; setMenu('ecdaily'); return; }
     if(a==='dreload'){ await loadDailyC24(); return; }
@@ -1487,5 +1515,5 @@ window.loadEcountTab=async function(el,page){
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,loadOpen,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,loadOpen,learnFromRecon,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();

@@ -165,5 +165,11 @@ D.date = DATE;
 D.ec = [{ order: '20261229-0000001', vday: '20261228', total: 1 }, { order: '20261231-0000001', vday: '20270103', total: 1 }];
 eq('연말연초 기간', [E.covered('2026-12-26'), E.covered('2026-12-25'), E.covered('2027-01-03'), E.covered('2026-07-01')], [true, false, true, false]);
 
+// 대조 파일로 맵핑 자동 학습: O2 의 품목 EC002 는 저장돼 있고, 가짜 품목 EC009 ↔ 상품3(O3) 은 새로 연결돼 저장 요청
+let posted = null; const prevFetch = ctx.fetch; ctx.fetch = async (u, opt) => { if (String(u).includes('/ecmap') && opt && opt.method === 'POST') posted = JSON.parse(opt.body); return prevFetch(u, opt); };
+D.ec = [{ order: O3, code: 'EC009', name: '가 / 상품3', qty: 1, price: 10000, total: 10000, vday: '20261013', adv: false }, { order: O2, code: 'EC001', name: '가 / 상품1', qty: 1, price: 10000, total: 10000, vday: '20261013', adv: false }];
+await E.learnFromRecon(); ctx.fetch = prevFetch;
+truthy('대조 파일로 맵핑 학습 → 새 짝 저장 요청', posted && posted.entries && posted.entries.some((x) => x.code === 'EC009') && D.mapLearned && !D.mapLearned.err);
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);
