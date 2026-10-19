@@ -276,18 +276,30 @@ function renderBrands(){
   const seeded=new Set(); const sd=(S.cfg||{}).seeds||{};
   for(const ws of Object.values(sd)) for(const w of ws) seeded.add(String(w).replace(/\s+/g,''));
   const isSeed=x=>seeded.has(x.name)||[...seeded].some(w=>w.includes(x.name)&&w!==x.name);
+  // [2026-10-19] 소스 뱃지. 연관검색어(rel)와 유튜브 태그(yt)는 서로 독립적인 재료라
+  //   둘 다 나오면 훨씬 믿을 만하다. brandish = '<이름> 브랜드' 문서 비중(일반명사일수록 0 에 가깝다).
+  const src=x=>(x.sources||['rel']).map(k=>k==='yt'
+    ?'<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)" title="유튜브 영상 태그에 나온 이름">YT</span>'
+    :'<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)" title="연관검색어에서 카테고리어를 떼고 남은 말">검색어</span>').join(' ');
+  const bd=x=>x.brandish==null?'':`<span class="t" title="'${esc(x.name)} 브랜드' 문서 비중 — 낮으면 일반명사">· 브랜드성 ${(x.brandish*100).toFixed(1)}%</span>`;
   const li=x=>`<li><span>${esc(x.name)} ${x.latin?'<span class="t">EN</span> ':''}${links(x.name)}`
-    +`<div class="tr-sub">${esc(x.keywords.slice(0,3).join(' · '))}</div></span>`
-    +`<span>${n(x.search)}<span class="t"> 검색</span></span></li>`;
+    +`<div class="tr-sub">${src(x)} ${esc(x.keywords.slice(0,3).join(' · '))} ${bd(x)}</div></span>`
+    +`<span>${x.search?n(x.search):'<span class="t">검색어 없음</span>'}${x.search?'<span class="t"> 검색</span>':''}</span></li>`;
   // 검색량 순으로 두면 일반명사가 위를 먹는다 — 그 말들이 검색량 큰 카테고리어에 붙어 오기 때문.
   // 고유명사는 길다: 루이스폴센5 웨지우드4 나그참파4 허먼밀러4 호텔도슨4. 2글자는 거의 다 일반명사다.
   const tier=x=>x.latin?3:(x.name.length>=4?2:(x.name.length===3?1:0));
-  const out=B.filter(x=>!x.ours&&!isSeed(x)&&tier(x)>0)
-              .sort((a,b)=>tier(b)-tier(a)||b.search-a.search).slice(0,24);
+  const ns=x=>(x.sources||['rel']).length;
+  // [2026-10-19 실측] 유튜브 태그만 나온 이름은 안 넣는다. 한국 유튜브 태그는 브랜드가 아니라
+  //   SEO 검색어 덩어리다 — 실제로 나온 8개가 전부 '집들이선물추천'·'거실인테리어'·'인테리어조명'
+  //   같은 카테고리어였고 브랜드는 0개였다. 재료가 없던 게 아니라(영상 20개에 태그가 붙어 있었다)
+  //   그 안에 브랜드가 없다. 그래서 yt 는 **발굴이 아니라 보강**으로만 쓴다.
+  const relOK=x=>(x.sources||['rel']).includes('rel');
+  const out=B.filter(x=>!x.ours&&!isSeed(x)&&tier(x)>0&&relOK(x))
+              .sort((a,b)=>ns(b)-ns(a)||(b.brandish||0)-(a.brandish||0)||tier(b)-tier(a)||b.search-a.search).slice(0,24);
   const have=B.filter(x=>x.ours&&tier(x)>0).slice(0,12);
   el.innerHTML=`<div class="tr-two">
     <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리에게 없는 이름 (${out.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">소싱 후보. 로마자·긴 이름 순 — 고유명사는 길고 2글자는 거의 일반명사다. 링크로 바로 확인할 것.</div>
+      <div class="tr-sub" style="margin:0 0 6px"><b>소스 2개가 맨 위</b> — 검색어와 유튜브 태그는 서로 독립적인 재료다. 그다음 로마자·긴 이름 순(고유명사는 길고 2글자는 거의 일반명사다). 링크로 바로 확인할 것.</div>
       <ul class="tr-list">${out.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
     <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리가 이미 가진 이름 (${have.length})</h4>
       <div class="tr-sub" style="margin:0 0 6px">상품명에 그 말이 들어 있는 것. 2글자 한글은 오탐이 섞인다.</div>
@@ -417,7 +429,7 @@ window.loadTrendTab=async function(){
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
-   <div class="tr-card"><h2>브랜드·작가 후보</h2><p class="tr-lead">연관검색어 풀에서 카테고리 단어를 떼고 <b>남는 말</b>이다. 브랜드는 혼자 오지 않고 <code>루이스폴센조명</code>·<code>웨지우드접시</code>처럼 붙어서 들어온다. <b>추가 API 호출이 없다</b> — 이미 받아둔 풀을 다시 보는 것뿐. 소재·대상·용도가 섞이니 <b>판정이 아니라 훑어보는 목록</b>으로 쓸 것.</p><div id="trBrands"></div></div>
+   <div class="tr-card"><h2>브랜드·작가 후보</h2><p class="tr-lead">두 군데서 모은다. <b>검색어</b> — 연관검색어 풀에서 카테고리 단어를 떼고 남는 말(<code>루이스폴센조명</code>→<code>루이스폴센</code>). <b>YT</b> — 유튜브 영상 태그에도 같은 이름이 나왔다는 <b>보강 표시</b>다(태그만 나온 이름은 안 넣는다 — 한국 유튜브 태그는 브랜드가 아니라 SEO 검색어라 실측에서 브랜드가 0개였다). <b>브랜드성</b> — '○○ 브랜드' 문서 비중. 아르떼미데 36% vs 상견례 5% 로 갈리지만 오탐이 있어 <b>순위 보조로만</b> 쓴다. <b>추가 API 호출은 없다</b> — 이미 받아둔 응답을 다시 보는 것뿐. 소재·대상·용도가 섞이니 <b>판정이 아니라 훑어보는 목록</b>으로 쓸 것.</p><div id="trBrands"></div></div>
    <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">시장이 뭘 하고 있나를 보는 목록이다. <b>우리 브랜드는 넣지 않는다</b> — 그건 우리 반응 확인이지 트렌드 발견이 아니다. 해시태그 검색이 30개/7일 제한이라 주 1회 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
