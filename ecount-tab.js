@@ -55,7 +55,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={logView:'oo', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:''};
+const S={logView:'oo', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:'', qs:''};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -1350,19 +1350,29 @@ function render(){
     ${S.truncated&&S.truncated.length?`<div class="ec-stat err">${S.truncated.join(', ')} 카페24 주문이 너무 많아 일부만 받았습니다.</div>`:''}
   </div>`;
   if(S.result) h+=resultCard();
+  h+=savedCard();   // 저장된 대응표는 파일을 올리든 말든 늘 보인다
   S.root.innerHTML=h;
+}
+function savedCard(){
+  const q=S.qs.trim().toLowerCase();
+  const list=Object.entries(S.map).map(([key,v])=>({key,...v})).filter(x=>!q||[x.label,x.key,x.code,x.name].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+  return `<div class="ec-card"><h2>저장된 대응표 <span class="ec-sub" style="display:inline;margin-left:6px">${n(Object.keys(S.map).length)}건 · 최근 저장 순</span></h2>
+    <div class="ec-row"><input class="ec-in" id="ecMapQ" value="${esc(S.qs)}" placeholder="상품명·옵션코드·품목코드 검색" style="width:260px"><span class="ec-sub" style="margin:0">${q?`${n(list.length)}건 찾음`:''}</span></div>
+    <div class="ec-scroll"><table class="ec-t"><thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>이카운트 품목코드</th><th>이카운트 품명</th><th>출처</th><th>근거</th><th>저장일</th></tr></thead><tbody>
+      ${list.length?list.slice(0,500).map(x=>`<tr><td class="l">${esc(x.label||'')}</td><td>${esc(x.key)}</td><td><b>${esc(x.code)}</b></td><td class="l">${esc(x.name||'')}</td>
+        <td><span class="ec-badge ${x.src==='manual'?'ec-ok':'ec-info'}">${x.src==='manual'?'담당자':'자동'}</span></td><td>${x.n?n(x.n)+'건':''}</td><td>${esc(x.at||'')}</td></tr>`).join(''):`<tr><td colspan="7" class="ec-sub">${q?'찾은 것이 없습니다':'아직 저장된 대응이 없습니다'}</td></tr>`}</tbody></table></div>
+    ${list.length>500?`<div class="ec-sub">500건까지만 보입니다 — 검색으로 좁혀 주세요</div>`:''}</div>`;
 }
 function resultCard(){
   const R=S.result, cnt={}; for(const r of R.rows) cnt[r.st]=(cnt[r.st]||0)+1;
   const un=R.unmatched.filter(u=>u.st==='미연결');
-  const views=[['new','새로 연결',(cnt['새로 연결']||0)+(cnt['저장됨과 다름']||0)],['check','확인 필요',(cnt['확인 필요']||0)+(cnt['담당자 값과 다름']||0)],['un','미연결',un.length],['same','저장됨·확정',(cnt['저장됨과 같음']||0)+(cnt['담당자 확정']||0)],['saved','저장된 전체',Object.keys(S.map).length]];
+  const views=[['new','새로 연결',(cnt['새로 연결']||0)+(cnt['저장됨과 다름']||0)],['check','확인 필요',(cnt['확인 필요']||0)+(cnt['담당자 값과 다름']||0)],['un','미연결',un.length],['same','저장됨·확정',(cnt['저장됨과 같음']||0)+(cnt['담당자 확정']||0)]];
   const q=S.q.trim().toLowerCase(), hit=x=>!q||[x.name,x.opt,x.key,x.code,x.ecname,x.label].join(' ').toLowerCase().includes(q);
   let list, body='';
   if(S.view==='new') list=R.rows.filter(r=>r.st==='새로 연결'||r.st==='저장됨과 다름');
   else if(S.view==='check') list=R.rows.filter(r=>r.st==='확인 필요'||r.st==='담당자 값과 다름');
   else if(S.view==='same') list=R.rows.filter(r=>r.st==='저장됨과 같음'||r.st==='담당자 확정');
-  else if(S.view==='un') list=un;
-  else list=Object.entries(S.map).map(([key,v])=>({key,...v,saved:v}));
+  else list=un;
   list=list.filter(hit);
   const codes=Object.keys(R.ecName).sort();
   const picker=(x,cands)=>`<input class="ec-in" list="ecCodes" data-a="code" data-k="${esc(x.key)}" data-label="${esc(`${x.name||x.label||''}${x.opt?' / '+x.opt:''}`)}" placeholder="품목코드 입력·선택" style="width:170px">
@@ -1371,11 +1381,7 @@ function resultCard(){
        return `<a href="#" data-a="pick" data-k="${esc(x.key)}" data-c="${esc(c.code)}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${same?'var(--up-soft)':'var(--fill)'};border-radius:8px;padding:4px 8px;font-size:12px">
          <b>${esc(c.code)}</b><span style="flex:1">${esc(ecProd(c.name))}</span><span style="white-space:nowrap">정가 ${c.price?n(c.price)+'원':'—'}</span>
          ${same?'<span class="ec-badge ec-ok">✓ 금액 일치</span>':''}<span class="ec-sub" style="margin:0">${c.n}주문</span></a>`;}).join('')}</div>`:''}`;
-  if(S.view==='saved'){
-    body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>이카운트 품목코드</th><th>이카운트 품명</th><th>출처</th><th>근거</th><th>저장일</th></tr></thead><tbody>
-      ${list.slice(0,500).map(x=>`<tr><td class="l">${esc(x.label)}</td><td>${esc(x.key)}</td><td><b>${esc(x.code)}</b></td><td class="l">${esc(x.name)}</td>
-        <td><span class="ec-badge ${x.src==='manual'?'ec-ok':'ec-info'}">${x.src==='manual'?'담당자':'자동'}</span></td><td>${x.n?n(x.n)+'건':''}</td><td>${esc(x.at||'')}</td></tr>`).join('')}</tbody>`;
-  }else if(S.view==='un'){
+  if(S.view==='un'){
     body=`<thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>카페24 판매가</th><th>나온 주문</th><th>이카운트 품목코드 넣기 (후보를 누르면 채워짐)</th></tr></thead><tbody>
       ${list.map(x=>`<tr><td class="l">${esc(x.name)}${x.opt?`<div class="ec-sub">${esc(x.opt)}</div>`:''}</td><td>${esc(x.key)}</td><td><b>${x.price?n(x.price)+'원':'—'}</b></td><td>${n(x.orders)}</td><td class="l" style="min-width:420px">${picker(x,x.cands)}</td></tr>`).join('')}</tbody>`;
   }else{
@@ -1441,7 +1447,7 @@ function wire(root){
   });
   root.addEventListener('input',e=>{ if((S.page==='daily'||S.page==='recon')&&onDailyInput(e.target)) return; if(e.target.dataset.a==='rvmemo'){ noteMemo(e.target.dataset.d,e.target.dataset.o,e.target.value); return; }
     // 검색: 한 글자마다 표 전체를 다시 그리지 않고 입력이 멈추면(0.2초) 한 번
-    if(e.target.id==='ecRvQ'||e.target.id==='ecQ'||e.target.id==='ecOoQ'){ const id=e.target.id; if(id==='ecRvQ') RV.q=e.target.value; else if(id==='ecOoQ') OO.q=e.target.value; else S.q=e.target.value;
+    if(e.target.id==='ecRvQ'||e.target.id==='ecQ'||e.target.id==='ecOoQ'||e.target.id==='ecMapQ'){ const id=e.target.id; if(id==='ecRvQ') RV.q=e.target.value; else if(id==='ecOoQ') OO.q=e.target.value; else if(id==='ecMapQ') S.qs=e.target.value; else S.q=e.target.value;
       clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ const el=$(id), pos=el?el.selectionStart:0; render(); const q=$(id); if(q){ q.focus(); q.setSelectionRange(pos,pos); } },200); } });
   root.addEventListener('click',async e=>{
     const t=e.target.closest('[data-a]'); if(!t) return;
