@@ -14,35 +14,40 @@
 (function(){
 const STYLE=`
 .ec-card{background:var(--surface);border-radius:var(--r-card);padding:var(--s5);margin-bottom:var(--s5);}
-.ec-card h2{font-size:18px;font-weight:700;margin:0;letter-spacing:-.02em;}
-.ec-lead{font-size:13px;color:var(--muted);margin:var(--s1) 0 var(--s4);line-height:1.6;}
+.ec-card h2{font-size:19px;font-weight:700;margin:0;letter-spacing:-.02em;}
+.ec-lead{font-size:14px;color:var(--muted);margin:var(--s1) 0 var(--s4);line-height:1.6;}
 .ec-row{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;}
-.ec-row label{font-size:12px;color:var(--muted);font-weight:600;display:flex;gap:6px;align-items:center;}
-.ec-in{font-family:var(--sans);font-size:13px;border:0;border-radius:8px;background:var(--fill);color:var(--ink);height:32px;padding:0 var(--s2);}
+.ec-row label{font-size:13px;color:var(--muted);font-weight:600;display:flex;gap:6px;align-items:center;}
+.ec-in{font-family:var(--sans);font-size:14px;border:0;border-radius:8px;background:var(--fill);color:var(--ink);height:34px;padding:0 var(--s2);}
 .ec-file{position:relative;overflow:hidden;}
 .ec-file input{position:absolute;inset:0;opacity:0;cursor:pointer;}
-.ec-stat{font-size:13px;color:var(--ink-2);margin-top:var(--s3);line-height:1.6;}
+.ec-stat{font-size:14px;color:var(--ink-2);margin-top:var(--s3);line-height:1.6;}
 .ec-stat.err{color:var(--down);}
 .ec-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s3);margin:var(--s4) 0;}
 @media (max-width:860px){.ec-kpis{grid-template-columns:repeat(2,1fr);}}
 .ec-kpi{background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);}
-.ec-kpi .l{font-size:12px;color:var(--muted);font-weight:600;}
-.ec-kpi .n{font-size:20px;font-weight:700;margin-top:2px;}
+.ec-kpi .l{font-size:13px;color:var(--muted);font-weight:600;}
+.ec-kpi .n{font-size:22px;font-weight:700;margin-top:2px;}
 .ec-kpi .n.warn{color:var(--down);} .ec-kpi .n.ok{color:var(--up);}
 .ec-seg{display:inline-flex;background:var(--fill);border-radius:var(--r-ctrl);padding:3px;gap:2px;flex-wrap:wrap;}
-.ec-seg button{border:0;background:none;border-radius:9px;height:30px;padding:0 12px;font:600 12px var(--sans);color:var(--ink-2);cursor:pointer;}
+.ec-seg button{border:0;background:none;border-radius:9px;height:32px;padding:0 12px;font:600 13px var(--sans);color:var(--ink-2);cursor:pointer;}
 .ec-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06);}
 .ec-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:var(--s3);}
-table.ec-t{width:100%;border-collapse:collapse;font-size:13px;min-width:900px;}
-.ec-t th{font-weight:600;color:var(--muted);font-size:12px;padding:var(--s2);border-bottom:1px solid var(--hair);text-align:center;white-space:nowrap;}
-.ec-t td{padding:var(--s2);border-bottom:1px solid var(--hair);text-align:center;vertical-align:middle;}
+table.ec-t{width:100%;border-collapse:collapse;font-size:14px;min-width:900px;}
+.ec-t th{font-weight:600;color:var(--muted);font-size:13px;padding:var(--s3) var(--s2);border-bottom:1px solid var(--hair);text-align:center;white-space:nowrap;}
+.ec-t td{padding:var(--s3) var(--s2);border-bottom:1px solid var(--hair);text-align:center;vertical-align:middle;}
 .ec-t td.l{text-align:left;}
-.ec-sub{font-size:11px;color:var(--muted);margin-top:2px;}
-.ec-badge{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;white-space:nowrap;}
+.ec-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.ec-badge{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:2px 7px;white-space:nowrap;}
 .ec-ok{background:var(--up-soft);color:var(--up);} .ec-bad{background:var(--down-soft);color:var(--down);}
 .ec-warn{background:#FFF3E0;color:#C25E00;} .ec-info{background:var(--fill);color:var(--ink-2);}
-.ec-dl{background:var(--fill);border:0;border-radius:8px;height:30px;padding:0 10px;font:600 12px var(--sans);color:var(--ink-2);cursor:pointer;}
-.ec-note{font-size:12px;color:var(--muted);line-height:1.6;margin:var(--s3) 0 0;}
+.ec-dl{background:var(--fill);border:0;border-radius:8px;height:32px;padding:0 12px;font:600 13px var(--sans);color:var(--ink-2);cursor:pointer;}
+.ec-note{font-size:13px;color:var(--muted);line-height:1.6;margin:var(--s3) 0 0;}
+details.ec-note>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);}
+details.ec-note>summary::-webkit-details-marker{display:none;}
+details.ec-note>summary::before{content:'ⓘ';font-size:14px;}
+details.ec-note[open]>summary{margin-bottom:6px;}
+details.ec-note>div{font-size:13px;line-height:1.7;color:var(--muted);background:var(--fill);border-radius:8px;padding:10px 12px;}
 `;
 const nf=new Intl.NumberFormat('ko-KR');
 const n=v=>nf.format(Math.round(v||0));
@@ -381,8 +386,8 @@ function rvHtml(){
         <td><span class="ec-sub" style="margin:0">${esc(v.at)}</span></td><td><button class="ec-dl" data-a="rvday" data-d="${esc(dt)}">보기</button></td></tr>`; }).join('')
       ||'<tr><td colspan="12" style="color:var(--muted)">이 달에는 아직 대조한 날짜가 없습니다. 판매 입력 대조에서 이카운트 파일을 올리면 여기에 쌓입니다.</td></tr>'}</tbody></table></div>
     <h3 style="font-size:15px;margin:var(--s5) 0 0">전표입력공유 <span class="ec-sub" style="display:inline">처리 안 된 것 ${n(share.length)}건 (문제 ${n(share.filter(x=>BAD_ST.includes(String(x.st).split(' · ')[0])).length)} · 선수금·배송방식 ${n(share.filter(x=>tracked(x.tags)).length)})</span></h3>
-    <p class="ec-note" style="margin-top:4px">대조에서 나온 문제 주문(미입력·금액불일치·결제유형·수량 등)과 진행을 따라가야 하는 선수금·배송방식(퀵·설치·차량 등) 주문이 모입니다.
-      선수금은 '선수금 진행'(발주 필요 → 발주 완료 → 입고 완료 → 출고 완료), 배송방식은 '배송 상태'를 바꿔 가며 따라가고, 이카운트 전표까지 바꾸면 처리완료로 승인하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> 주문은 행이 옅은 빨간색, <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span>은 뱃지로 표시합니다. 위 유형·정렬로 골라 보세요.</p>
+    <details class="ec-note" style="margin-top:4px"><summary>설명 보기</summary><div>대조에서 나온 문제 주문(미입력·금액불일치·결제유형·수량 등)과 진행을 따라가야 하는 선수금·배송방식(퀵·설치·차량 등) 주문이 모입니다.
+      선수금은 '선수금 진행'(발주 필요 → 발주 완료 → 입고 완료 → 출고 완료), 배송방식은 '배송 상태'를 바꿔 가며 따라가고, 이카운트 전표까지 바꾸면 처리완료로 승인하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> 주문은 행이 옅은 빨간색, <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span>은 뱃지로 표시합니다. 위 유형·정렬로 골라 보세요.</div></details>
     ${tfBar(share,r=>({tags:r.tags,st:r.st,id:r.o}))}${rvTable(tfApply(share,r=>({tags:r.tags,st:r.st,id:r.o})),true)}`;
 }
 // ---------- 진행 중 주문 (주문 처리 첫 화면 맨 위) ----------
@@ -560,7 +565,7 @@ function openCard(){
     return `<span class="ec-badge ec-info">일반</span>`; };
   const row=x=>{ const o=x.o, id=esc(o.order_id), dt=o.order_date, age=ooAge(dt), k=ooKind(x);
     const first=x.ls[0], more=x.ls.length-1, later=String(x.tags).split(' · ').filter(isLater);
-    return `<tr style="${k==='adv'?'background:#FDEDED':''}${OO.detail===o.order_id?';outline:2px solid var(--accent)':''}">
+    return `<tr style="${k==='adv'?ADV_BAR:''}${OO.detail===o.order_id?';outline:2px solid var(--accent)':''}">
       <td style="white-space:nowrap">${esc(dt.slice(5).replace('-','/'))}<div class="ec-sub" style="${age>=7?'color:var(--down);font-weight:700':''}">${age}일</div></td>
       <td><b style="font-family:ui-monospace,Menlo,monospace;font-size:12px">${id}</b></td>
       <td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">${kindPill(x)}${k==='adv'?sel('rvast',LISTS.ast,x.nt.ast,o.order_id,dt,'진행'):k==='ship'?sel('rvdst',LISTS.dst,x.nt.dst,o.order_id,dt,'상태'):''}</div>${later.length?`<div class="ec-sub">${esc(later.join(' · '))}</div>`:''}</td>
@@ -575,12 +580,12 @@ function openCard(){
       <input class="ec-in" id="ecOoQ" value="${esc(OO.q||'')}" placeholder="주문번호·상품·공급사 검색" style="width:200px"></div>
     <div class="ec-scroll"><table class="ec-t" style="min-width:960px"><thead><tr><th>주문일</th><th>주문번호</th><th>구분 · 진행</th><th class="l">상품 (누르면 상세)</th><th style="text-align:right">실결제</th><th>카페24</th><th>메모</th><th>완료</th></tr></thead>
       <tbody>${list.map(row).join('')||`<tr><td colspan="8" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`:'';
-  if(list) return `<div class="ec-card">${listHtml}<p class="ec-note">줄을 누르면 주문 상세(수령인·배송지·품목·대조 결과)가 열립니다. 선수금은 '진행', 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다. 완료를 체크하면 목록에서 빠집니다.</p></div>`;   // 2단계: 목록 페이지가 카드를 대신한다
+  if(list) return `<div class="ec-card">${listHtml}<details class="ec-note"><summary>설명 보기</summary><div>줄을 누르면 주문 상세(수령인·배송지·품목·대조 결과)가 열립니다. 선수금은 '진행', 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다. 완료를 체크하면 목록에서 빠집니다.</div></details></div>`;   // 2단계: 목록 페이지가 카드를 대신한다
   return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일 · ${n(L.length)}건${OO.at?` · ${esc(OO.at)} 기준`:''}${OO.hookAt?` · 웹훅 마지막 ${esc(String(OO.hookAt).slice(5,16))}`:''}</span>
       <span style="float:right;display:flex;gap:6px">${old?`<button class="ec-dl" data-a="oocard" data-k="old" style="color:var(--down);font-weight:700;${selKey==='old'?'outline:2px solid var(--down)':''}">7일 지남 ${n(old)}</button>`:''}<button class="ec-dl" data-a="ooreload">새로고침</button></span></h2>
     ${OO.truncated?'<div class="ec-stat err">주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${groupsHtml}
-    <p class="ec-note">① 대조 안 된 주문은 판매 입력 대조를 돌리면 ②로 내려옵니다(미입력이면 데일리 전표 생성에서 판매입력 파일을 만드세요). ② 칸을 누르면 그 주문 목록, 줄을 누르면 상세. '주문 접수'는 아직 진행 단계를 고르지 않은 주문, '배송완료'는 카페24 배송완료인데 처리완료를 안 한 주문입니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</p></div>`;
+    <details class="ec-note"><summary>설명 보기</summary><div>① 대조 안 된 주문은 판매 입력 대조를 돌리면 ②로 내려옵니다(미입력이면 데일리 전표 생성에서 판매입력 파일을 만드세요). ② 칸을 누르면 그 주문 목록, 줄을 누르면 상세. '주문 접수'는 아직 진행 단계를 고르지 않은 주문, '배송완료'는 카페24 배송완료인데 처리완료를 안 한 주문입니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</div></details></div>`;
 }
 function renderLog(){
   if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }
@@ -937,7 +942,8 @@ const tagHtml=t=>t?String(t).split(' · ').map(x=>`<span class="ec-badge" style=
 const tracked=t=>String(t||'').split(' · ').some(x=>x&&!isLater(x));   // 선수금·배송방식이 있는 주문
 // 행 색: 선수금만 옅은 빨강(배송방식은 뱃지로만) — Su, 2026-10-14
 const hasAdv=t=>String(t||'').split(' · ').some(x=>/^선수금(?! 정산)/.test(x));
-const rowBg=(t,done)=>done?'opacity:.55':hasAdv(t)?'background:#FDEDED':'';
+const ADV_BAR='box-shadow:inset 4px 0 0 #9B6BD6';   // 선수금 행 표시 — 행 전체 색 대신 왼쪽 보라 띠(빨강은 '문제'로 읽혀서)
+const rowBg=(t,done)=>done?'opacity:.55':hasAdv(t)?ADV_BAR:'';
 // 유형 필터·정렬 (판매 입력 대조 · 대조 현황 표 공통)
 const TF={type:'all',sort:'type'};
 const kinds=t=>{ const k=new Set(); for(const x of String(t||'').split(' · ').filter(Boolean)){ if(isLater(x)) k.add(/^반품/.test(x)?'ret':'later'); else if(/^선수금/.test(x)) k.add('adv'); else k.add('ship'); } return k; };
@@ -1091,7 +1097,7 @@ function renderDaily(){
       <span style="flex:1"></span><button class="ec-dl" data-a="selall">이 목록 모두 고르기</button><button class="ec-dl" data-a="selnone">모두 빼기</button></div>
     <div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>판매입력</th><th>주문번호</th><th>상품 · 품목코드</th><th>실결제</th><th>결제유형</th><th>상태</th></tr></thead>
       <tbody>${rowsHtml||`<tr><td colspan="6" style="color:var(--muted)">${D.loading?'':'해당하는 주문이 없습니다.'}</td></tr>`}</tbody></table></div>
-    <p class="ec-note">실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 · 결제유형은 결제업체(토스페이먼츠·토스페이·카카오페이·페이코·네이버페이)와 결제수단으로 정합니다 · 품목코드는 품목코드 맵핑 기준.</p></div>`
+    <details class="ec-note"><summary>설명 보기</summary><div>실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 · 결제유형은 결제업체(토스페이먼츠·토스페이·카카오페이·페이코·네이버페이)와 결제수단으로 정합니다 · 품목코드는 품목코드 맵핑 기준.</div></details></div>`
     +formCard()+confCard();
 }
 
@@ -1161,10 +1167,10 @@ function renderRecon(){
     ${tfBar(stList,rg)}
     <div class="ec-scroll"><table class="ec-t" style="min-width:1050px"><thead><tr><th>주문번호</th><th style="min-width:150px">선수금 · 배송방식</th><th>상품 · 품목코드</th><th>카페24 실결제</th><th>이카운트 합계</th><th>차액</th><th>결제유형</th><th>상태</th><th>메모</th><th>처리완료</th></tr></thead>
       <tbody>${rowsHtml||`<tr><td colspan="10" style="color:var(--muted)">${D.loading?'':'해당하는 주문이 없습니다.'}</td></tr>`}</tbody></table></div>`}
-    <p class="ec-note">카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
+    <details class="ec-note"><summary>설명 보기</summary><div>카페24 실결제 = PG 결제금액(적립금 제외) + 네이버페이 포인트 ↔ 이카운트 합계(선수금 포함) · 결제유형은 결제업체와 결제수단으로 정한 값과 비교 ·
       환불이 끝나지 않은 부분취소 주문은 '환불 전 예상' 금액과 비교해 '환불 대기 확인'으로 둡니다(환불이 끝나면 다시 대조) ·
       품목·수량은 품목코드 맵핑 기준(선수금 주문은 건너뜀, 사인지 줄은 빼고 비교) · 선수금·배송방식 = 선수금 품목과 이카운트 고객명의 퀵)·택배)·설치)·차량) 표기(선수금은 옅은 빨간 행 · 선수금 진행·배송 상태를 바꿔 가며 따라가세요) ·
-      반품·선수금 정산·추가 전표 MM/DD = 같은 주문번호로 나중 날짜에 들어간 이카운트 전표(금액은 모두 합쳐 비교) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</p></div>`
+      반품·선수금 정산·추가 전표 MM/DD = 같은 주문번호로 나중 날짜에 들어간 이카운트 전표(금액은 모두 합쳐 비교) · 대조 결과와 메모·처리완료는 이카운트 판매 입력 › 대조 현황에 쌓이고 팀이 같이 봅니다.</div></details></div>`
     +confCard();
 }
 // 판매입력 양식 각 주문 아래: 카페24 주문 정보 — 위 칸(고객명·앞말·출고처)을 보고 채우거나 버튼으로 바로 채운다
@@ -1222,12 +1228,12 @@ function formCard(){
     <datalist id="ecdSellers">${sellers.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
     ${sel.length?`<div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>주문</th><th>고객명 앞말</th><th>고객명</th><th>출고처</th><th>상품 · 품목코드</th></tr></thead><tbody>${body}</tbody></table></div>`
       :'<div class="ec-stat">위 표의 \'판매입력\' 칸을 체크하면 여기에 나옵니다. 아직 파일에 안 넣은 주문은 처음부터 체크돼 있습니다.</div>'}
-    <p class="ec-note">주문마다 아래 회색 칸에 카페24 주문 정보(주문자·수령인·연락처·배송지·배송메시지·결제·금액)가 나옵니다 — 보고 위 칸을 채우거나 버튼으로 바로 채우세요.
+    <details class="ec-note"><summary>설명 보기</summary><div>주문마다 아래 회색 칸에 카페24 주문 정보(주문자·수령인·연락처·배송지·배송메시지·결제·금액)가 나옵니다 — 보고 위 칸을 채우거나 버튼으로 바로 채우세요.
       고객명은 수령인 이름이고, 주문자와 수령인이 다르면 '수령인(주문자)'로 채웁니다(이카운트 8월 입력 방식) — <b>주문자≠수령인</b> 표시가 붙은 주문은 한 번 더 확인하세요. 연락처·주소는 수령인 것입니다.
       고객명 앞말은 퀵·택배·설치 등 배송 방법이 다를 때만 넣습니다(예: 퀵) 홍길동). 출고처는 위에서 한 번에 고르고, 주문마다 바꿀 수 있습니다.
       직접 넣은 품목코드는 파일을 만들 때 품목코드 맵핑에도 저장됩니다.
       <b>사인지</b>: 에디션에 사인지가 같이 나가면 체크하세요 — 바로 아래 줄에 사인지 품목(에디션코드+SI · 같은 수량 · 0원)이 들어가고, 그 품목은 다음부터 자동으로 체크됩니다.
-      이카운트 판매현황에 사인지가 같이 입력된 주문이 있으면 그것도 배워 둡니다(카페24 주문에는 사인지 표시가 없음). 만든 파일은 판매입력 파일 이력에서 다시 받을 수 있습니다.</p></div>`;
+      이카운트 판매현황에 사인지가 같이 입력된 주문이 있으면 그것도 배워 둡니다(카페24 주문에는 사인지 표시가 없음). 만든 파일은 판매입력 파일 이력에서 다시 받을 수 있습니다.</div></details></div>`;
 }
 function onDailyInput(t){
   const a=t.dataset.a, o=t.dataset.o;
@@ -1321,9 +1327,9 @@ function resultCard(){
       <span style="flex:1"></span>
       <button class="go" data-a="saveauto" style="height:36px">새로 연결 ${n((cnt['새로 연결']||0)+(cnt['저장됨과 다름']||0))}개 대응표에 저장</button></div>
     <div class="ec-scroll"><table class="ec-t">${body}</table></div><datalist id="ecCodes">${codes.map(c=>`<option value="${esc(c)}">${esc(ecProd(R.ecName[c]))}</option>`).join('')}</datalist>
-    <p class="ec-note">카페24 판매가 = 그 옵션의 판매 단가(할인 전) · 이카운트 정가 = 판매현황의 정가 · 후보는 금액이 같은 것이 먼저 나옵니다(✓ 금액 일치) · 근거 = 그 짝이 확인된 주문 수 · 1:1 = 한 주문에 남은 카페24 옵션 1개와 이카운트 품목 1개 · 이름 = 같은 주문 안에서 상품명이 가장 비슷한 짝 ·
+    <details class="ec-note"><summary>설명 보기</summary><div>카페24 판매가 = 그 옵션의 판매 단가(할인 전) · 이카운트 정가 = 판매현황의 정가 · 후보는 금액이 같은 것이 먼저 나옵니다(✓ 금액 일치) · 근거 = 그 짝이 확인된 주문 수 · 1:1 = 한 주문에 남은 카페24 옵션 1개와 이카운트 품목 1개 · 이름 = 같은 주문 안에서 상품명이 가장 비슷한 짝 ·
       확인 필요 = 한 옵션에 서로 다른 코드가 나옴(담당자가 골라야 함) · 미연결 = 같은 주문에 이카운트 품목이 남았는데 짝을 못 찾음.
-      재고2(위탁)만 뽑은 파일이면 위탁이 아닌 상품은 애초에 이카운트 파일에 없어 학습되지 않습니다 — 전체 품목으로 뽑으면 더 많이 채워집니다.</p></div>`;
+      재고2(위탁)만 뽑은 파일이면 위탁이 아닌 상품은 애초에 이카운트 파일에 없어 학습되지 않습니다 — 전체 품목으로 뽑으면 더 많이 채워집니다.</div></details></div>`;
 }
 
 async function onFiles(files){
