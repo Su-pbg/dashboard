@@ -24,7 +24,7 @@
 자체 검사:  python3 scripts/market_brands.py
 """
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 # 떼어낼 말 — 카테고리·수식어·대상·용도. 씨앗/사전/제외어는 config 에서 받아 여기에 더한다.
 GENERIC = set("""
@@ -74,14 +74,72 @@ def _vol(entry):
     return max(h.values()) if h else 0
 
 
-def brand_candidates(pool, config, products=None, top=120, min_len=2):
+# 유튜브 태그에만 나오는 상용구. 태그는 조사·용언이 없어서 제목(산문)보다 훨씬 깨끗하지만
+# 채널 홍보용 범용 태그가 섞인다.
+TAG_STOP = set("""
+브이로그 vlog 일상 데일리 daily 하울 haul 언박싱 unboxing 리뷰 review 추천 shorts 쇼츠 구독 좋아요
+살림 집꾸미기 홈스타그램 인테리어스타그램 집스타그램 소품샵 인기 신상 꿀템 득템 내돈내산 협찬 광고
+korea korean seoul 한국 서울 diy 만들기 튜토리얼 tutorial asmr 룸투어 roomtour 자취 자취방 원룸 신혼집
+인테리어 홈인테리어 셀프인테리어 리빙 living home decor 데코 집들이 이사 정리 수납 청소 요리 cooking
+""".split())
+
+
+def from_tags(tag_lists, keyword, config, top=8, min_docs=2):
+    """유튜브 snippet.tags 처럼 **이미 토큰인** 재료에서 이름을 센다.
+
+    제목(산문)과 다른 물건이다 — 조사도 용언 활용도 없어서 '있는'·'함께'·'안녕하세요' 가 안 나온다.
+    블로그 제목 추출이 실패했다고 태그까지 같이 버렸던 게 틀렸다(2026-10-19 되돌림).
+
+    tag_lists: 영상 하나당 태그 리스트. 문서빈도로 센다(한 영상에서 여러 번 나와도 1)."""
+    strip = _strip_set(config)
+    kw = re.sub(r'\s+', '', keyword or '')
+    df = Counter()
+    for tags in tag_lists or []:
+        seen = set()
+        for t in tags or []:
+            t = re.sub(r'\s+', '', str(t or ''))
+            if not (2 <= len(t) <= 20) or t.isdigit():
+                continue
+            if t.lower() in TAG_STOP or t in GENERIC or t.lower() in GENERIC:
+                continue
+            if kw and (kw in t or t in kw):
+                continue
+            if any(g == t for g in strip):          # 카테고리어 자체는 뺀다(부분일치는 안 쓴다 —
+                continue                            #   '웨지우드접시' 같은 태그를 통째로 날린다)
+            seen.add(t)
+        df.update(seen)
+    return [{'name': t, 'docs': c} for t, c in df.most_common(top) if c >= min_docs]
+
+
+def validate(names, doc_count):
+    """일반명사를 떨군다. doc_count(query) -> 문서 수(네이버 블로그 total 등).
+
+    브랜드는 '<이름> 브랜드' 문서 비중이 의미 있게 나오고, '상견례'·'일회용' 같은 일반명사는 안 나온다.
+    이름당 2회 호출. 블로그 쿼터는 당월 0.4% 쓰고 있어 여유가 많다.
+    doc_count 가 None 을 주면(호출 실패) 그 이름은 **거르지 않는다** — 모르는 것과 나쁜 것은 다르다."""
+    out = {}
+    for nm in names:
+        base = doc_count(nm)
+        if not base:
+            out[nm] = None
+            continue
+        brandish = doc_count(nm + ' 브랜드')
+        out[nm] = None if brandish is None else round(brandish / base, 4)
+    return out
+
+
+def brand_candidates(pool, config, products=None, top=120, min_len=2, tag_names=None):
     """pool: keyword-pool.json 의 keywords. config: radar-config.json.
     products: product-snapshot.json 의 products (우리가 이미 가진 이름인지 표시용).
-    반환: [{name, search, keywordCount, keywords, latin, ours}] — 검색량 내림차순."""
+    tag_names: {키워드: [{name, docs}]} — 유튜브 태그에서 뽑은 이름(from_tags 결과).
+      연관검색어 잔여만으로는 **카테고리어와 붙어 검색된 브랜드만** 보인다. 맨이름으로 검색되는
+      브랜드는 풀에 아예 못 들어온다(relevant() 가 안 받으므로). 태그는 그 구멍을 메운다.
+    반환: [{name, search, keywordCount, keywords, latin, ours, sources, tagDocs}] —
+      **소스 2개 이상인 것이 먼저**, 그다음 검색량."""
     strip = _strip_set(config)
     ours_text = ' '.join((p.get('name') or '') for p in (products or [])).lower()
 
-    agg = defaultdict(lambda: {'search': 0, 'keywords': []})
+    agg = defaultdict(lambda: {'search': 0, 'keywords': [], 'src': set(), 'tagDocs': 0})
     for k, e in (pool or {}).items():
         s = re.sub(r'\s+', '', k)
         for g in strip:
@@ -93,15 +151,30 @@ def brand_candidates(pool, config, products=None, top=120, min_len=2):
             a = agg[part]
             a['search'] = max(a['search'], _vol(e))
             a['keywords'].append(k)
+            a['src'].add('rel')
+
+    for k, names in (tag_names or {}).items():
+        for b in names or []:
+            nm = b.get('name') if isinstance(b, dict) else b
+            if not nm or len(nm) < min_len or nm.lower() in GENERIC:
+                continue
+            a = agg[nm]
+            a['src'].add('yt')
+            a['tagDocs'] += (b.get('docs', 1) if isinstance(b, dict) else 1)
+            if k not in a['keywords']:
+                a['keywords'].append(k)
+            a['search'] = max(a['search'], _vol((pool or {}).get(nm)))
 
     out = [{'name': n, 'search': v['search'], 'keywordCount': len(v['keywords']),
             'keywords': sorted(v['keywords'])[:8],
             'latin': bool(RE_LATIN.search(n)),
+            'sources': sorted(v['src']), 'tagDocs': v['tagDocs'],
             # ponytail: 상품명 부분일치. 2자 한글은 9,317개 중 아무데나 걸려 전부 True 가 되므로
             #   3자 이상 또는 로마자일 때만 본다. 정확히 하려면 상품 브랜드 필드가 필요하다.
             'ours': (len(n) >= 3 or RE_LATIN.fullmatch(n) is not None) and n.lower() in ours_text}
            for n, v in agg.items()]
-    out.sort(key=lambda x: -x['search'])
+    # 소스가 둘이면 훨씬 믿을 만하다 — 연관검색어와 유튜브 태그는 서로 독립적인 재료다.
+    out.sort(key=lambda x: (-len(x['sources']), -x['search']))
     return out[:top]
 
 
@@ -127,6 +200,29 @@ def demo():
     # 우리가 가진 브랜드는 표시된다
     got2 = {b['name']: b for b in brand_candidates(pool, cfg, products=[{'name': 'FLOS IC Lights T'}])}
     assert got2['FLOS']['ours'] and not got2['웨지우드']['ours']
+
+    # 태그는 이미 토큰이라 제목(산문)과 달리 '있는'·'함께' 가 안 나온다.
+    tags = [['루이스폴센', '구비', '브이로그', '조명', '인테리어'],
+            ['구비', 'GUBI', '스탠드조명', '하울'],
+            ['구비', '의자']]
+    got3 = {b['name']: b for b in from_tags(tags, '조명', cfg)}
+    assert '구비' in got3 and got3['구비']['docs'] == 3, got3
+    for junk in ('브이로그', '하울', '인테리어', '조명', '스탠드조명'):
+        assert junk not in got3, (junk, sorted(got3))
+    assert '루이스폴센' not in got3                  # 1개 영상뿐 — min_docs=2
+
+    # 맨이름 브랜드는 풀에 못 들어온다. 태그가 그 구멍을 메우고, 소스 2개가 맨 위로 온다.
+    merged = brand_candidates(pool, cfg, tag_names={'조명': got3, '접시': [{'name': '웨지우드', 'docs': 4}]})
+    by = {b['name']: b for b in merged}
+    assert by['구비']['sources'] == ['yt'] and by['구비']['search'] == 0
+    assert by['웨지우드']['sources'] == ['rel', 'yt'], by['웨지우드']
+    assert merged[0]['name'] == '웨지우드'            # 소스 2개가 1순위
+
+    # 검증기: 문서 수를 못 받으면(None) 거르지 않는다 — 모르는 것과 나쁜 것은 다르다
+    fake = {'루이스폴센': 1200, '루이스폴센 브랜드': 180, '상견례': 90000, '상견례 브랜드': 30, '구비': None}
+    v = validate(['루이스폴센', '상견례', '구비'], lambda q: fake.get(q))
+    assert v['루이스폴센'] > v['상견례'] * 10, v
+    assert v['구비'] is None, v
     print('market_brands 자체검사 통과')
 
 
