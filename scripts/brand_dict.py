@@ -31,7 +31,9 @@ SUFFIXES = ['브랜드', '브랜드추천', '브랜드순위']
 # 씨앗 말고도 넣어두는 상위 질의 — 카테고리를 안 좁혀도 리빙 브랜드가 통으로 온다.
 EXTRA = ['리빙브랜드', '인테리어브랜드', '북유럽브랜드', '해외리빙브랜드', '디자인브랜드',
          '수입그릇브랜드', '명품그릇브랜드', '조명브랜드순위', '가구브랜드']
-ROTATE = 15                                  # 하루에 돌릴 질의 수 (5개씩 묶여 3회 호출)
+# [2026-10-19] 처음엔 하루 15질의로 돌려썼는데 그럴 이유가 없었다 — 호출당 0.4초라
+#   59개 전부 + 접미사 3종 = 177질의를 매일 돌려도 런이 2분 는다. 적게 뽑히던 주범이다.
+ROTATE = 0                                   # 0 = 전부 (돌려쓰기 안 함)
 
 
 # 질의 뼈대는 **카테고리어**여야 한다. 씨앗 값에는 브랜드가 섞여 있어서(되먹임으로 넣었다)
@@ -50,7 +52,7 @@ def queries(config, day_index=0, rotate=ROTATE, known=()):
         w = re.sub(r'\s+', '', w)
         if len(w) < 2 or w in known:
             continue
-        qs.append(w + SUFFIXES[0])
+        qs += [w + suf for suf in SUFFIXES]   # 접미사마다 연관검색어가 다르게 온다
     qs += EXTRA
     seen, uniq = set(), []
     for q in qs:                             # 순서 유지 중복 제거
@@ -103,10 +105,13 @@ def harvest(rel_by_query, config=None):
             base = base.replace(t, '')
         for kw in rels or []:
             for name in _residue(kw, base):
-                e = out.setdefault(name, {'hits': 0, 'queries': set()})
+                e = out.setdefault(name, {'hits': 0, 'queries': set(), 'cats': set()})
                 e['hits'] += 1
                 e['queries'].add(q)
-    return {k: {'hits': v['hits'], 'queries': sorted(v['queries'])} for k, v in out.items()}
+                e['cats'].add(base or q)      # 필터는 **카테고리** 단위로 센다 —
+                                              #   그릇브랜드/그릇브랜드추천/그릇브랜드순위는 한 카테고리다
+    return {k: {'hits': v['hits'], 'queries': sorted(v['queries']), 'cats': sorted(v['cats'])}
+            for k, v in out.items()}
 
 
 def merge(doc, found, date):
@@ -114,17 +119,18 @@ def merge(doc, found, date):
     doc = doc or {'brands': {}}
     br = doc.setdefault('brands', {})
     for name, e in (found or {}).items():
-        cur = br.setdefault(name, {'firstSeen': date, 'hits': 0, 'queries': [], 'days': 0})
+        cur = br.setdefault(name, {'firstSeen': date, 'hits': 0, 'queries': [], 'cats': [], 'days': 0})
         cur['lastSeen'] = date
         cur['hits'] += e['hits']
         cur['days'] += 1
         cur['queries'] = sorted(set(cur['queries']) | set(e['queries']))[:12]
+        cur['cats'] = sorted(set(cur.get('cats') or []) | set(e.get('cats') or []))[:12]
     doc['updatedAt'] = date
     doc['count'] = len(br)
     return doc
 
 
-def sourcing(doc, pool=None, products=None, top=120, min_days=1, max_queries=2):
+def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=2):
     """사전 × 검색 수요 × 우리 보유 → 소싱 목록.
 
     쇼핑몰 카탈로그를 못 구해서 사전을 직접 만든 것이므로, 여기가 '브랜드 목록'이다.
@@ -137,7 +143,7 @@ def sourcing(doc, pool=None, products=None, top=120, min_days=1, max_queries=2):
         # [2026-10-19] 일반어는 여러 카테고리 질의에 공통으로 뜨고 브랜드는 한두 곳에만 뜬다.
         #   실측: 용기·사이트·호텔·판매·수제·핸드메이드는 그릇·캔들·디퓨저에 전부 나오고
         #   셀레티·시라쿠스·네스티단테는 한 곳에만 나온다. 불용어 목록보다 정확하고 안 늙는다.
-        if len(e.get('queries') or []) > max_queries:
+        if len(e.get('cats') or e.get('queries') or []) > max_queries:
             continue
         n = re.sub(r'\s+', '', name).lower()
         hits = [k for k in (pool or {}) if n in re.sub(r'\s+', '', k).lower()]
@@ -146,13 +152,13 @@ def sourcing(doc, pool=None, products=None, top=120, min_days=1, max_queries=2):
             h = (pool[k].get('hist') or {})
             search = max(search, max(h.values()) if h else 0)
         out.append({'name': name, 'hits': e['hits'], 'days': e.get('days', 1),
-                    'queries': e.get('queries', [])[:4],
+                    'queries': e.get('queries', [])[:4], 'cats': e.get('cats', [])[:4],
                     'firstSeen': e.get('firstSeen'), 'lastSeen': e.get('lastSeen'),
                     'search': search, 'keywords': sorted(hits)[:5],
                     'ours': len(name) >= 3 and name.lower() in ours_text})
     # 브랜드는 대개 우리 풀에 없다(풀은 카테고리 키워드로 만들어졌다). 검색량 순으로만 세우면
     #   풀에 우연히 걸린 일반어가 위를 먹는다. 질의 수가 적은 쪽(= 더 고유한 쪽)을 먼저 본다.
-    out.sort(key=lambda x: (len(x['queries']), -x['search'], -x['hits']))
+    out.sort(key=lambda x: (len(x.get('cats') or x['queries']), -x['search'], -x['hits']))
     return out[:top]
 
 
