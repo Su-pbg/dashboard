@@ -66,27 +66,43 @@ def queries(config, day_index=0, rotate=ROTATE, known=()):
     return out
 
 
-def _residue(kw, strip):
-    """연관검색어에서 카테고리어·'브랜드'·숫자를 떼고 남는 말. 브랜드 후보다."""
-    s = re.sub(r'\s+', '', kw or '')
-    for g in strip:
-        s = s.replace(g, '|')
-    for g in ('브랜드', '추천', '순위', '인기', '비교', '종류', '정리', '모음', '리스트', '탑', 'top'):
-        s = s.replace(g, '|')
-    parts = [p.strip() for p in re.split(r'[|\d]+', s)]
-    return [p for p in parts if len(p) >= 2 and p.lower() not in GENERIC]
+# 질의에 붙는 꼬리. 이것만 뗀다.
+TAILS = ('브랜드', '추천', '순위', '인기', '비교', '종류', '정리', '모음', '리스트', 'top', '탑')
 
 
-def harvest(rel_by_query, config):
-    """rel_by_query: {질의: [연관검색어…]}. 반환 {브랜드: {hits, queries:[…]}}.
+def _residue(kw, base):
+    """연관검색어에서 꼬리를 떼고, 카테고리어를 뗀 형태도 **같이** 낸다.
 
-    질의 자체가 '○○브랜드' 라서 여기 걸리는 이름은 브랜드일 가능성이 훨씬 높다.
-    그래도 판정이 아니라 사전이다 — 사람이 훑어 지울 수 있게 근거(어느 질의에서 왔나)를 남긴다."""
-    strip = _strip_set(config)
+    사전 전체를 떼면 멀쩡한 이름이 부서진다 — 실측: 도자기→자기, 무드등→무드, 룸스프레이→스프.
+    그렇다고 카테고리어를 안 떼면 루이스폴센조명이 그대로 남는다. 반대로 떼면 양키캔들이 양키가 된다.
+    그래서 두 형태를 다 낸다. 일반어는 여기서 안 거른다 — 교차 질의 빈도가 거른다(더 정확하고 안 늙는다)."""
+    full = re.sub(r'\s+', '', kw or '')
+    for t in TAILS:
+        full = full.replace(t, '')
+    full = re.sub(r'\d+', '', full).strip()
+    out = []
+    for cand in (full, full.replace(base, '') if base else ''):
+        # 둘 다 낸다. 카테고리어를 떼야 잡히는 것(루이스폴센조명→루이스폴센)과
+        # 떼면 부서지는 것(양키캔들→양키)이 섞여 있어서 한쪽만 쓸 수 없다.
+        cand = cand.strip()
+        if len(cand) >= 2 and cand.lower() not in GENERIC and cand not in out:
+            out.append(cand)
+    return out
+
+
+def harvest(rel_by_query, config=None):
+    """rel_by_query: {질의: [연관검색어…]}. 반환 {이름: {hits, queries:[…]}}.
+
+    **질의는 하나씩 보내야 한다.** 검색광고는 hintKeywords 5개를 묶어 keywordList 하나를
+    돌려주므로, 배치로 보내면 그 전체가 5개 질의에 똑같이 붙는다(실측: 그릇/접시/머그브랜드가
+    전부 같은 459개였다). 질의별 귀속이 깨지면 아래 교차 빈도 필터가 무의미해진다."""
     out = {}
     for q, rels in (rel_by_query or {}).items():
+        base = re.sub(r'\s+', '', q or '')
+        for t in TAILS:
+            base = base.replace(t, '')
         for kw in rels or []:
-            for name in _residue(kw, strip):
+            for name in _residue(kw, base):
                 e = out.setdefault(name, {'hits': 0, 'queries': set()})
                 e['hits'] += 1
                 e['queries'].add(q)
@@ -108,7 +124,7 @@ def merge(doc, found, date):
     return doc
 
 
-def sourcing(doc, pool=None, products=None, top=120, min_days=1):
+def sourcing(doc, pool=None, products=None, top=120, min_days=1, max_queries=2):
     """사전 × 검색 수요 × 우리 보유 → 소싱 목록.
 
     쇼핑몰 카탈로그를 못 구해서 사전을 직접 만든 것이므로, 여기가 '브랜드 목록'이다.
@@ -117,6 +133,11 @@ def sourcing(doc, pool=None, products=None, top=120, min_days=1):
     out = []
     for name, e in ((doc or {}).get('brands') or {}).items():
         if e.get('days', 1) < min_days:
+            continue
+        # [2026-10-19] 일반어는 여러 카테고리 질의에 공통으로 뜨고 브랜드는 한두 곳에만 뜬다.
+        #   실측: 용기·사이트·호텔·판매·수제·핸드메이드는 그릇·캔들·디퓨저에 전부 나오고
+        #   셀레티·시라쿠스·네스티단테는 한 곳에만 나온다. 불용어 목록보다 정확하고 안 늙는다.
+        if len(e.get('queries') or []) > max_queries:
             continue
         n = re.sub(r'\s+', '', name).lower()
         hits = [k for k in (pool or {}) if n in re.sub(r'\s+', '', k).lower()]
@@ -129,7 +150,9 @@ def sourcing(doc, pool=None, products=None, top=120, min_days=1):
                     'firstSeen': e.get('firstSeen'), 'lastSeen': e.get('lastSeen'),
                     'search': search, 'keywords': sorted(hits)[:5],
                     'ours': len(name) >= 3 and name.lower() in ours_text})
-    out.sort(key=lambda x: (-x['search'], -x['hits']))
+    # 브랜드는 대개 우리 풀에 없다(풀은 카테고리 키워드로 만들어졌다). 검색량 순으로만 세우면
+    #   풀에 우연히 걸린 일반어가 위를 먹는다. 질의 수가 적은 쪽(= 더 고유한 쪽)을 먼저 본다.
+    out.sort(key=lambda x: (len(x['queries']), -x['search'], -x['hits']))
     return out[:top]
 
 
