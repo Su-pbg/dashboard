@@ -263,6 +263,55 @@ function renderRising(){
   const sel=document.getElementById('trBand');
   if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
 }
+// ── 이번 주 할 일 ──────────────────────────────────────────────────
+// [2026-10-19] 데이터만 쌓고 판단을 안 만들어놨다는 지적을 받고 붙였다.
+//   키워드 판정 · 브랜드 사전 · 몰 검색 0건이 따로 놀고 있었다. 한 줄에 묶는다:
+//   무엇을 / 왜 지금 / 우리 상태 / 어느 브랜드로.
+function renderAction(){
+  const el=document.getElementById('trAct'); if(!el) return;
+  const run=S.data.runs[S.data.runs.length-1];
+  const rows=run.rows||[], bd=run.brandDict||[];
+  const byCat={};
+  for(const b of bd){ if(b.ours) continue; for(const c of (b.cats||[])) (byCat[c]=byCat[c]||[]).push(b); }
+  const brandsFor=kw=>{
+    const k=String(kw).replace(/\s+/g,''); const seen={}, out=[];
+    for(const c in byCat){ if(c.includes(k)||k.includes(c)) for(const b of byCat[c]) if(!seen[b.name]){seen[b.name]=1;out.push(b);} }
+    return out.sort((a,b)=>b.search-a.search).slice(0,6);
+  };
+  const bchips=bs=>bs.length?bs.map(b=>`<a href="https://search.naver.com/search.naver?query=${encodeURIComponent(b.name)}" target="_blank" rel="noopener" class="tr-pill" style="background:var(--fill);color:var(--ink-2);text-decoration:none" title="${b.search?n(b.search)+' 검색':'검색 수요 미포착'} · ${esc((b.cats||[]).join(' · '))}">${esc(b.name)}</a>`).join(' ')
+    :'<span class="t">후보 없음 — 사전이 더 쌓여야 한다</span>';
+
+  // 1) 광고로 데려왔는데 보여줄 게 없다. 가장 급하다.
+  const T=(S.sres||{}).terms||[];
+  // 광고든 자연이든 '수요는 왔는데 물건이 없다'가 핵심이다. 광고비만 보면 작가 이름들이 빠진다.
+  const burn=T.filter(x=>x.results===0&&(x.organic+x.paid)>=20).sort((a,b)=>(b.organic+b.paid)-(a.organic+a.paid)).slice(0,10);
+  const burnHTML=burn.length?`<table class="tr-t"><thead><tr><th>검색어</th><th>광고 세션</th><th>자연 유입</th><th>할 일</th></tr></thead><tbody>`
+    +burn.map(x=>`<tr><td><b>${esc(x.term)}</b> ${links(x.term)}</td><td>${n(x.paid)}</td><td>${n(x.organic)}</td>`
+      +`<td>0건 — 소싱하거나, 이미 있으면 검색어를 연결한다</td></tr>`).join('')+'</tbody></table>':'';
+
+  const pick=(acts,why,what)=>rows.filter(r=>acts.includes(r.action)).sort((a,b)=>b.score-a.score).slice(0,8)
+    .map(r=>({r, why:why(r), what:what(r), bs:brandsFor(r.keyword)}));
+  const MON=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const grp=(title,items,note)=>items.length?`<div style="margin-top:14px"><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">${title} (${items.length})</h4>`
+    +`<div class="tr-sub" style="margin:0 0 6px">${note}</div>`
+    +`<table class="tr-t"><thead><tr><th>품목</th><th>왜 지금</th><th>우리 상태</th><th>소싱 후보</th></tr></thead><tbody>`
+    +items.map(({r,why,what,bs})=>`<tr><td><b>${esc(r.keyword)}</b> ${links(r.keyword)}</td><td>${why}</td><td>${what}</td><td>${bchips(bs)}</td></tr>`).join('')
+    +'</tbody></table></div>':'';
+
+  const vol=r=>`검색 ${n(r.monthlySearch)}`;
+  const peak=r=>r.peakMonth?` · ${MON[r.peakMonth-1]} 정점`:'';
+  const have=r=>`보유 ${n(r.ourCount||0)}종 · 30일 ${n(r.ourSales30||0)}개`;
+
+  el.innerHTML=(burnHTML?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">찾아왔는데 물건이 없다 (${burn.length})</h4>`
+      +`<div class="tr-sub" style="margin:0 0 6px">몰에서 이름을 쳤는데 결과 0건. 이미 온 수요라 제일 급하다.</div>${burnHTML}</div>`:'')
+    + grp('지금 들여야 시즌에 맞는다', pick(['시즌 소싱'],r=>vol(r)+peak(r),r=>'우리 몰에 없음'), '정점이 2개월 안이다.')
+    + grp('소싱 검토', pick(['소싱 검토'],vol,r=>'우리 몰에 없음'), '수요는 있고 우리에겐 없다.')
+    + grp('품절 — 재고 확보', pick(['재고확보'],vol,have), '수요가 있는데 전부 품절이다.')
+    + grp('있는데 안 팔린다', pick(['안 팔림 점검'],vol,have), '상품·가격·노출 중 하나가 문제다. 같은 카테고리에서 뭐가 도는지 같이 본다.')
+    + grp('시즌 준비', pick(['시즌 준비'],r=>vol(r)+peak(r),have), '보유 중 — 재고·기획전·광고를 당긴다.')
+    || '<div class="tr-sub">할 일 없음</div>';
+}
+
 // ── 브랜드 사전 ────────────────────────────────────────────────────
 // [2026-10-19] 앞선 세 경로(블로그 제목·유튜브 태그·연관검색어 잔여)가 전부 '브랜드 사전이
 //   없다'는 같은 이유로 실패했다. 사전을 **사오려** 했더니 공짜 카탈로그가 안 남아 있었다
@@ -457,6 +506,7 @@ window.loadTrendTab=async function(){
        <label><input type="checkbox" id="trNew" ${S.onlyNew?'checked':''}>신규만</label>
        <label title="백테스트에서 모멘텀 적중률 46% — 동전던지기보다 낮다. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
      <div id="trTable"></div></div>
+   <div class="tr-card"><h2>이번 주 할 일</h2><p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 키워드 판정과 브랜드 사전을 카테고리로 붙인 것이다.</p><div id="trAct"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
    <div class="tr-card"><h2>브랜드 사전</h2><p class="tr-lead">'조명브랜드'·'그릇브랜드'로 물어 연관검색어로 오는 이름을 모은다. 매일 160질의, 사전은 쌓인다.</p><div id="trShop"></div></div>
@@ -476,13 +526,13 @@ window.loadTrendTab=async function(){
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
-  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch(); renderBrands(); renderShop();
+  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch(); renderBrands(); renderShop(); renderAction();
   document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
   document.getElementById('trRise').onchange=e=>{S.onlyRising=e.target.checked;renderTable();};
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
-  fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();}}).catch(()=>{});
+  fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();renderAction();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();renderBrands();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
