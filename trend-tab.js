@@ -317,29 +317,6 @@ function renderAction(){
 //   없다'는 같은 이유로 실패했다. 사전을 **사오려** 했더니 공짜 카탈로그가 안 남아 있었다
 //   (네이버 쇼핑 종료·구글 CSE 신규 불가·Bing 종료·Brave 무료 폐지·오늘의집 robots 금지).
 //   → 사오지 말고 만든다. 이미 쓰는 검색광고 API 에 '조명브랜드' 로 물으면 브랜드가 온다.
-function renderShop(){
-  const el=document.getElementById('trShop'); if(!el) return;
-  const run=S.data.runs[S.data.runs.length-1];
-  const B=run.brandDict;
-  if(!Array.isArray(B)){ el.innerHTML='<div class="tr-sub">아직 없습니다 — 다음 실행부터 들어옵니다.</div>'; return; }
-  if(!B.length){ el.innerHTML='<div class="tr-sub">이번 실행에서 브랜드를 못 받았습니다(검색광고 키 확인).</div>'; return; }
-  const li=x=>`<li><span>${esc(x.name)} ${links(x.name)}`
-    +`<div class="tr-sub">${esc((x.queries||[]).join(' · '))} · ${x.days}일 관측${x.keywords&&x.keywords.length?' · '+esc(x.keywords.slice(0,2).join(' · ')):''}</div></span>`
-    +`<span>${x.search?n(x.search)+'<span class="t"> 검색</span>':'<span class="t">검색어 없음</span>'}</span></li>`;
-  const src=B.filter(x=>!x.ours&&x.search>0).slice(0,20);
-  const nosearch=B.filter(x=>!x.ours&&!x.search).slice(0,20);
-  const have=B.filter(x=>x.ours).slice(0,12);
-  el.innerHTML=`<div class="tr-two">
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">소싱 후보 (${src.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">검색 수요 있고 우리에겐 없는 것.</div>
-      <ul class="tr-list">${src.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리가 이미 가진 브랜드 (${have.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">상품명 대조(오탐 섞임).</div>
-      <ul class="tr-list">${have.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div></div>
-   ${nosearch.length?`<div style="margin-top:12px"><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">검색 수요가 아직 안 잡힌 것 (${nosearch.length})</h4>
-     <div class="tr-sub" style="margin:0 0 6px">풀에 안 걸림 — 신규이거나 아직 작다.</div>
-     <ul class="tr-list">${nosearch.map(li).join('')}</ul></div>`:''}`;
-}
 
 // ── 카테고리에 붙는 말 ──────────────────────────────────────────────
 // [2026-10-19] **이건 브랜드 목록이 아니다.** 연관검색어에서 카테고리 단어를 떼고 남는 말이고,
@@ -350,55 +327,6 @@ function renderShop(){
 //   실제로 '하기'가 브랜드성 1위(42%)로 올라온다.
 //   → 제대로 하려면 brand 필드가 있는 **쇼핑 카탈로그**가 있어야 한다. 그러면 추측이 조회가 된다.
 //   그 전까지는 '우리 카테고리에 사람들이 뭘 붙여 찾나'로 읽는다 — 워셔블러그·단모러그·대용량디퓨저.
-function renderBrands(){
-  const el=document.getElementById('trBrands'); if(!el) return;
-  const run=S.data.runs[S.data.runs.length-1];
-  const B=run.brands;
-  if(!Array.isArray(B)){ el.innerHTML='<div class="tr-sub">brands 가 아직 없습니다 — 다음 아침 실행부터 들어옵니다.</div>'; return; }
-  const seeded=new Set(); const sd=(S.cfg||{}).seeds||{};
-  for(const ws of Object.values(sd)) for(const w of ws) seeded.add(String(w).replace(/\s+/g,''));
-  const isSeed=x=>seeded.has(x.name)||[...seeded].some(w=>w.includes(x.name)&&w!==x.name);
-  // [2026-10-19] 소스 뱃지. 연관검색어(rel)와 유튜브 태그(yt)는 서로 독립적인 재료라
-  //   둘 다 나오면 훨씬 믿을 만하다. brandish = '<이름> 브랜드' 문서 비중(일반명사일수록 0 에 가깝다).
-  const src=x=>(x.sources||['rel']).map(k=>k==='yt'
-    ?'<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)" title="유튜브 영상 태그에 나온 이름">YT</span>'
-    :'<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)" title="연관검색어에서 카테고리어를 떼고 남은 말">검색어</span>').join(' ');
-  const bd=x=>x.brandish==null?'':`<span class="t" title="'${esc(x.name)} 브랜드' 문서 비중 — 낮으면 일반명사">· 브랜드성 ${(x.brandish*100).toFixed(1)}%</span>`;
-  const li=x=>`<li><span>${esc(x.name)} ${x.latin?'<span class="t">EN</span> ':''}${links(x.name)}`
-    +`<div class="tr-sub">${src(x)} ${esc(x.keywords.slice(0,3).join(' · '))} ${bd(x)}</div></span>`
-    +`<span>${x.search?n(x.search):'<span class="t">검색어 없음</span>'}${x.search?'<span class="t"> 검색</span>':''}</span></li>`;
-  // 검색량 순으로 두면 일반명사가 위를 먹는다 — 그 말들이 검색량 큰 카테고리어에 붙어 오기 때문.
-  // 고유명사는 길다: 루이스폴센5 웨지우드4 나그참파4 허먼밀러4 호텔도슨4. 2글자는 거의 다 일반명사다.
-  const tier=x=>x.latin?3:(x.name.length>=4?2:(x.name.length===3?1:0));
-  const ns=x=>(x.sources||['rel']).length;
-  // [2026-10-19 실측] 유튜브 태그만 나온 이름은 안 넣는다. 한국 유튜브 태그는 브랜드가 아니라
-  //   SEO 검색어 덩어리다 — 실제로 나온 8개가 전부 '집들이선물추천'·'거실인테리어'·'인테리어조명'
-  //   같은 카테고리어였고 브랜드는 0개였다. 재료가 없던 게 아니라(영상 20개에 태그가 붙어 있었다)
-  //   그 안에 브랜드가 없다. 그래서 yt 는 **발굴이 아니라 보강**으로만 쓴다.
-  const relOK=x=>(x.sources||['rel']).includes('rel');
-  const out=B.filter(x=>!x.ours&&!isSeed(x)&&tier(x)>0&&relOK(x))
-              .sort((a,b)=>ns(b)-ns(a)||(b.brandish||0)-(a.brandish||0)||tier(b)-tier(a)||b.search-a.search).slice(0,24);
-  const have=B.filter(x=>x.ours&&tier(x)>0).slice(0,12);
-  el.innerHTML=`<div class="tr-two">
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리 상품명에 없는 말 (${out.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">대부분 브랜드가 아니다.</div>
-      <ul class="tr-list">${out.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
-    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리 상품명에 있는 말 (${have.length})</h4>
-      <div class="tr-sub" style="margin:0 0 6px">상품명에 그 말이 들어 있는 것. 2글자 한글은 오탐이 섞인다.</div>
-      <ul class="tr-list">${have.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div></div>
-   <div class="tr-sub" style="margin-top:8px">브랜드다 싶으면 <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> 의 그 테마에 넣는다.</div>`;
-}
-function renderInsta(){
-  const el=document.getElementById('trInsta'); if(!el) return;
-  const w=(S.cfg||{}).instagramWatch;
-  if(!w){ el.innerHTML='<div class="tr-sub">radar-config.json 에 instagramWatch 가 없습니다</div>'; return; }
-  const GRP=['공간·연출','소비맥락','품목흐름','경쟁채널'];
-  const grp=(t,a)=>a&&a.length?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 4px">${t} (${a.length})</h4>`
-    +`<div style="display:flex;flex-wrap:wrap;gap:6px">${a.map(x=>`<span class="tr-pill" style="background:var(--fill);color:var(--ink-2)">#${esc(x)}</span>`).join('')}</div></div>`:'';
-  const tot=GRP.reduce((s,k)=>s+((w[k]||[]).length),0);
-  el.innerHTML=`<div class="tr-three">${GRP.map(k=>grp(k,w[k])).join('')}</div>
-   <div class="tr-sub" style="margin-top:8px">${esc(w._설명||'')}<br>${esc(w._선정기준||'')} · 현재 ${tot}개 (API 한도 30)</div>`;
-}
 
 // ── 몰 안 검색어 (광고 제외) ────────────────────────────────────────────
 // [2026-10-12] 워커 tab=searchterms. 광고로 들어온 세션은 '우리 몰에서 뭘 찾는지'가 아니라
@@ -509,9 +437,6 @@ window.loadTrendTab=async function(){
    <div class="tr-card"><h2>이번 주 할 일</h2><p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 키워드 판정과 브랜드 사전을 카테고리로 붙인 것이다.</p><div id="trAct"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
-   <div class="tr-card"><h2>브랜드 사전</h2><p class="tr-lead">'조명브랜드'·'그릇브랜드'로 물어 연관검색어로 오는 이름을 모은다. 매일 160질의, 사전은 쌓인다.</p><div id="trShop"></div></div>
-   <div class="tr-card"><h2>카테고리에 붙는 말</h2><p class="tr-lead"><b>브랜드 목록이 아니다.</b> 검색어에서 카테고리 단어를 뗀 나머지 — 소재·대상·주제·용도가 섞인다. 사람들이 우리 카테고리에 뭘 붙여 찾나 보는 용도.</p><div id="trBrands"></div></div>
-   <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">시장이 뭘 하고 있나를 보는 목록이다. <b>우리 브랜드는 넣지 않는다</b> — 그건 우리 반응 확인이지 트렌드 발견이 아니다. 해시태그 검색이 30개/7일 제한이라 주 1회 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
    <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
    <div class="tr-card tr-foot"><b>읽는 법</b><br>
@@ -526,7 +451,7 @@ window.loadTrendTab=async function(){
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
-  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch(); renderBrands(); renderShop(); renderAction();
+  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderSearch(); renderAction();
   document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
@@ -534,7 +459,7 @@ window.loadTrendTab=async function(){
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
   fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();renderAction();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
-  fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderInsta();renderRising();renderBrands();}).catch(()=>{});
+  fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
   fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
     S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
