@@ -118,6 +118,27 @@ def collect(queries, key, cx, sites=SITES, strip=()):
                 'sites': sorted(v['sites'])} for k, v in out.items()}
 
 
+def enrich(found, pool=None, products=None):
+    """collect() 결과에 '우리가 가졌나'·'검색량이 있나'를 붙여 소싱 목록으로 만든다.
+
+    쇼핑몰에 돌고 + 검색 수요가 있고 + 우리에겐 없는 것 = 소싱 후보.
+    반환: [{name, docs, queries, sites, ours, search, keywords}] — 상품 수 내림차순."""
+    ours_text = ' '.join((p.get('name') or '') for p in (products or [])).lower()
+    out = []
+    for name, e in (found or {}).items():
+        n = re.sub(r'\s+', '', name).lower()
+        hits = [k for k in (pool or {}) if n in re.sub(r'\s+', '', k).lower()]
+        search = 0
+        for k in hits:
+            h = (pool[k].get('hist') or {})
+            search = max(search, max(h.values()) if h else 0)
+        out.append({**e, 'name': name,
+                    'ours': len(name) >= 3 and name.lower() in ours_text,
+                    'search': search, 'keywords': sorted(hits)[:5]})
+    out.sort(key=lambda x: (-x['docs'], -x['search']))
+    return out
+
+
 def demo():
     assert head_brand('루이스폴센 PH5 조명 - 오늘의집') == '루이스폴센'
     assert head_brand('아르테미데 톨로메오 테이블 램프 | 29CM') == '아르테미데'
@@ -135,6 +156,14 @@ def demo():
     assert len(b) == 2, b                                                   # 카테고리어는 안 센다
 
     assert search('조명', None, None) == []                                 # 키 없으면 조용히 빈 값
+
+    found = {'루이스폴센': {'docs': 7, 'queries': ['조명'], 'sites': ['ohou.se']},
+             '웨지우드': {'docs': 3, 'queries': ['테이블웨어'], 'sites': ['29cm.co.kr']}}
+    pool = {'루이스폴센조명': {'hist': {'2026-10-19': 3960}}, '루이스폴센': {'hist': {'2026-10-19': 10270}}}
+    en = enrich(found, pool, products=[{'name': '웨지우드 와일드 스트로베리 찻잔'}])
+    assert en[0]['name'] == '루이스폴센' and en[0]['search'] == 10270, en[0]
+    assert en[0]['ours'] is False and en[1]['ours'] is True            # 웨지우드는 우리가 갖고 있다
+    assert en[0]['keywords'] == ['루이스폴센', '루이스폴센조명'], en[0]
     print('shop_catalog 자체검사 통과')
 
 

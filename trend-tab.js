@@ -263,6 +263,33 @@ function renderRising(){
   const sel=document.getElementById('trBand');
   if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
 }
+// ── 쇼핑몰에서 도는 브랜드 ──────────────────────────────────────────
+// [2026-10-19] 상품 제목 맨 앞 = 브랜드. 앞선 세 경로(블로그 제목·유튜브 태그·연관검색어 잔여)가
+//   전부 '브랜드 사전이 없다'는 같은 이유로 실패했다. 카탈로그는 추측을 조회로 바꾼다.
+function renderShop(){
+  const el=document.getElementById('trShop'); if(!el) return;
+  const run=S.data.runs[S.data.runs.length-1];
+  const B=run.shopBrands;
+  if(!Array.isArray(B)){ el.innerHTML='<div class="tr-sub">아직 없습니다 — 구글 CSE 키가 붙은 뒤 첫 실행부터 들어옵니다.</div>'; return; }
+  if(!B.length){ el.innerHTML='<div class="tr-sub">이번 실행에서 브랜드를 못 받았습니다(키·쿼터 확인).</div>'; return; }
+  const li=x=>`<li><span>${esc(x.name)} ${links(x.name)}`
+    +`<div class="tr-sub">상품 ${n(x.docs)}개 · ${esc((x.sites||[]).join(' · '))} · ${esc((x.queries||[]).join(' · '))}</div></span>`
+    +`<span>${x.search?n(x.search)+'<span class="t"> 검색</span>':'<span class="t">검색어 없음</span>'}</span></li>`;
+  const src=B.filter(x=>!x.ours&&x.search>0).slice(0,20);
+  const nosearch=B.filter(x=>!x.ours&&!x.search).slice(0,20);
+  const have=B.filter(x=>x.ours).slice(0,12);
+  el.innerHTML=`<div class="tr-two">
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">소싱 후보 (${src.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">쇼핑몰에 돌고 · 검색 수요가 있고 · <b>우리에겐 없다</b>.</div>
+      <ul class="tr-list">${src.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div>
+    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">우리가 이미 가진 브랜드 (${have.length})</h4>
+      <div class="tr-sub" style="margin:0 0 6px">상품명 대조라 오탐이 섞일 수 있다.</div>
+      <ul class="tr-list">${have.map(li).join('')||'<li class="tr-sub">없음</li>'}</ul></div></div>
+   ${nosearch.length?`<div style="margin-top:12px"><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">검색 수요가 아직 안 잡힌 것 (${nosearch.length})</h4>
+     <div class="tr-sub" style="margin:0 0 6px">쇼핑몰엔 있는데 우리 키워드 풀에 안 걸린다 — 신규이거나 아직 작다.</div>
+     <ul class="tr-list">${nosearch.map(li).join('')}</ul></div>`:''}`;
+}
+
 // ── 카테고리에 붙는 말 ──────────────────────────────────────────────
 // [2026-10-19] **이건 브랜드 목록이 아니다.** 연관검색어에서 카테고리 단어를 떼고 남는 말이고,
 //   그 대부분은 수식어다 — 소재(페르시안·아로마·우드) · 대상(장모님·어르신) · 주제(달마도·모나리자) ·
@@ -433,6 +460,7 @@ window.loadTrendTab=async function(){
      <div id="trTable"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
+   <div class="tr-card"><h2>쇼핑몰에서 도는 브랜드</h2><p class="tr-lead">오늘의집·29CM·텐바이텐·아이디어스의 <b>상품 제목 맨 앞</b>에서 뽑는다. 커머스 텍스트라 구조가 일정하다 — <code>루이스폴센 PH5 조명 - 오늘의집</code>. 구글 색인을 공식 API(Custom Search)로 읽으므로 그 사이트를 직접 호출하지 않는다. 하루 40쿼리(무료 한도 100). <b>이게 진짜 브랜드 목록이다</b> — 아래 '카테고리에 붙는 말'과 섞어 읽지 말 것.</p><div id="trShop"></div></div>
    <div class="tr-card"><h2>카테고리에 붙는 말</h2><p class="tr-lead"><b>브랜드 목록이 아니다.</b> 연관검색어에서 카테고리 단어를 떼고 <b>남는 말</b>일 뿐이라 소재(페르시안·아로마·우드)·대상(장모님·어르신)·주제(달마도·모나리자)·용도(도시락·케이스)·지명(이천·남대문)이 다 섞인다. 브랜드는 그중 소수다 — <code>루이스폴센조명</code>→<code>루이스폴센</code> 처럼 걸릴 때만 보인다. 고유명사와 일반명사를 가를 방법이 없어서(길이·로마자·'○○ 브랜드' 문서비중 전부 약한 대리지표다) <b>제대로 하려면 brand 필드가 있는 쇼핑 카탈로그가 필요하다.</b> 그 전까지는 <b>우리 카테고리에 사람들이 뭘 붙여 찾는지</b> 보는 용도로 읽을 것 — 그건 그대로 쓸모가 있다(워셔블러그·단모러그·대용량디퓨저).</p><div id="trBrands"></div></div>
    <div class="tr-card"><h2>인스타그램 확인 목록</h2><p class="tr-lead">시장이 뭘 하고 있나를 보는 목록이다. <b>우리 브랜드는 넣지 않는다</b> — 그건 우리 반응 확인이지 트렌드 발견이 아니다. 해시태그 검색이 30개/7일 제한이라 주 1회 온도만 본다.</p><div id="trInsta"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
@@ -449,7 +477,7 @@ window.loadTrendTab=async function(){
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
-  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch(); renderBrands();
+  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderInsta(); renderSearch(); renderBrands(); renderShop();
   document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
