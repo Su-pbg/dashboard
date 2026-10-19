@@ -24,7 +24,7 @@
 """
 import re
 
-from market_brands import GENERIC, _strip_set
+from market_brands import GENERIC, RE_LATIN, _strip_set
 
 # '<말>브랜드' 로 물으면 그 분야 브랜드가 연관검색어로 온다. 뒤에 붙이는 꼬리들.
 SUFFIXES = ['브랜드', '브랜드추천', '브랜드순위']
@@ -130,12 +130,23 @@ def merge(doc, found, date):
     return doc
 
 
-def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=2):
+def _cat_words(config):
+    """카테고리 어휘. 이 말을 품은 이름은 브랜드가 아니라 카테고리 문구다."""
+    out = set(GENERIC) | set((config or {}).get('lexicon') or [])
+    seeds = (config or {}).get('seeds') or {}
+    for t, ws in (seeds.items() if isinstance(seeds, dict) else []):
+        out.add(re.sub(r'[^가-힣A-Za-z0-9]', '', t))
+        out.update(ws or [])
+    return {w for w in out if len(w) >= 2}
+
+
+def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=4, config=None):
     """사전 × 검색 수요 × 우리 보유 → 소싱 목록.
 
     쇼핑몰 카탈로그를 못 구해서 사전을 직접 만든 것이므로, 여기가 '브랜드 목록'이다.
     `카테고리에 붙는 말`(market_brands.brand_candidates) 과 섞지 말 것."""
     ours_text = ' '.join((p.get('name') or '') for p in (products or [])).lower()
+    cats_v = _cat_words(config)
     out = []
     for name, e in ((doc or {}).get('brands') or {}).items():
         if e.get('days', 1) < min_days:
@@ -144,6 +155,16 @@ def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=2):
         #   실측: 용기·사이트·호텔·판매·수제·핸드메이드는 그릇·캔들·디퓨저에 전부 나오고
         #   셀레티·시라쿠스·네스티단테는 한 곳에만 나온다. 불용어 목록보다 정확하고 안 늙는다.
         if len(e.get('cats') or e.get('queries') or []) > max_queries:
+            continue
+        nn = re.sub(r'\s+', '', name)
+        # [2026-10-19 실측] 카테고리어를 품은 이름은 브랜드가 아니라 카테고리 문구다 —
+        #   식탁조명·거실러그·펜던트조명·그림액자가 검색량으로 위를 다 먹고 있었다.
+        if any(c in nn for c in cats_v if c != nn):
+            continue
+        # 한글 2글자는 사실상 전부 일반명사였다 — 가을·공예·쇼핑·스프·전기·외국·제주·사과·
+        #   침대·텐트·셋트·물병·야외·가방·출력·향초·풍경·견적·사기·각인·반찬·방수.
+        #   브랜드 중 2글자는 쿤달 정도고 그건 이미 씨앗에 있다.
+        if len(nn) < 3 and not RE_LATIN.search(nn):
             continue
         n = re.sub(r'\s+', '', name).lower()
         hits = [k for k in (pool or {}) if n in re.sub(r'\s+', '', k).lower()]
