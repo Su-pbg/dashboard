@@ -89,6 +89,9 @@ function vdayOf(v,ord){
 const vdLabel=d=>d?`${d.slice(4,6)}/${d.slice(6,8)}`:'';
 const ymdAdd=(d,n)=>{ const t=new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T00:00:00Z`); t.setUTCDate(t.getUTCDate()+n); return t.toISOString().slice(0,10).replace(/-/g,''); };
 // 판매조회(전표 단위) 형식: 판매번호 · 결제일(=주문번호) · 품 목(요약 'OO 외 n건') · 금 액 · 고객명 · 결제유형 · 수량 …  품목코드가 없다.
+// 선수금 줄: 품목코드 222222(이카운트 선수금 품목 — Su, 2026-10-19) 또는 품명에 '선수금'
+const ADV_CODES=new Set(['222222']);
+const isAdvRow=r=>ADV_CODES.has(String(r.code||'').trim())||/선수금/.test(String(r.code||'')+String(r.name||''));
 function parseVoucher(rows,h,fname){
   const head=rows[h].map(c=>String(c??'').replace(/\s/g,'')), col=k=>head.indexOf(k);
   const cNo=col('판매번호'), cOrd=col('결제일'), cItem=col('품목'), cAmt=col('금액'), cPay=col('결제유형'), cQty=col('수량'), cCust=head.findIndex(x=>/고객명/.test(x)), cRes=col('배송결과'), cDday=col('배송일자');
@@ -96,7 +99,7 @@ function parseVoucher(rows,h,fname){
   return rows.slice(h+1).map(r=>({order:String(r[cOrd]??'').trim(),code:'',name:String(r[cItem]??'').trim(),qty:Number(r[cQty])||0,price:0,
       total:Math.round(Number(r[cAmt])||0),vday:vdayOf(r[cNo],r[cOrd]),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim(),voucher:true,
       dres:cRes<0?'':String(r[cRes]??'').trim(),dday:cDday<0?'':String(r[cDday]??'').trim()}))
-    .map(r=>({...r,adv:/^선수금/.test(r.name)})).filter(r=>ORD.test(r.order));
+    .map(r=>({...r,adv:isAdvRow(r)})).filter(r=>ORD.test(r.order));
 }
 function parseEcount(wb,fname,keepAdv){
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null,blankrows:false});
@@ -116,7 +119,7 @@ function parseEcount(wb,fname,keepAdv){
   if(best<body.length*0.3) throw new Error(`${fname}: 주문번호(예: 20260801-0000047) 열을 찾지 못했습니다.`);
   return body.map(r=>({order:String(r[cOrd]??'').trim(),code:String(r[cCode]).trim(),name:String(r[cName]??'').trim(),qty:Number(r[cQty])||0,price:cPrice<0?0:Math.round(Number(r[cPrice])||0),
       total:cTot<0?0:Math.round(Number(r[cTot])||0),vday:vdayOf(cDay<0?'':r[cDay],r[cOrd]),dres:cRes<0?'':String(r[cRes]??'').trim(),dday:cDday<0?'':String(r[cDday]??'').trim(),pay:cPay<0?'':String(r[cPay]??'').trim(),cust:cCust<0?'':String(r[cCust]??'').trim()}))
-    .map(r=>({...r,adv:/선수금/.test(r.code+r.name)}))
+    .map(r=>({...r,adv:isAdvRow(r)}))
     .filter(r=>ORD.test(r.order)&&(keepAdv||!r.adv));   // 선수금 품목은 실제 상품이 아니다(데일리 금액 대조에는 합계로 넣는다)
 }
 
@@ -230,7 +233,7 @@ async function learnFromSaved(months){
     for(const ym of months){ const idx=(await getJSON(`${WORKER}/ecrecon?month=${ym}`)).idx||{};
       for(const dt of Object.keys(idx)){ const d=(await getJSON(`${WORKER}/ecrecon?date=${dt}`)).day; if(!d) continue;
         for(const r of (d.rows||[])){ if(!r.eccodes) continue;
-          for(const p of String(r.eccodes).split(', ')){ const m=p.match(/^(.+?)×(\d+)$/); if(!m||!m[1]) continue; rows.push({order:r.o,code:m[1],name:'',qty:Number(m[2])||1,price:0,total:0,adv:false}); } } } }
+          for(const p of String(r.eccodes).split(', ')){ const m=p.match(/^(.+?)×(\d+)$/); if(!m||!m[1]||ADV_CODES.has(m[1])) continue; rows.push({order:r.o,code:m[1],name:'',qty:Number(m[2])||1,price:0,total:0,adv:false}); } } } }
     if(!rows.length){ S.err=new Error('품목코드가 남아 있는 대조 결과가 없습니다(판매조회 파일은 품목코드가 없어 학습이 안 됩니다).'); S.loading=''; render(); return; }
     const ids=[...new Set(rows.map(r=>r.order))];
     await loadC24Orders(ids,(i,t)=>{ S.loading=`카페24 주문 받는 중… ${i}/${t}`; render(); });

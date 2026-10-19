@@ -151,6 +151,7 @@ const ecRows = E.parseEcount({ SheetNames: ['s'], Sheets: { s: { rows: [['회사
   vrow('26/10/14-5', '20260901-0000009', '상품9', -5000, -1),
 ] } } }, '가짜.xlsx', true);
 eq('판매조회 읽기: 줄 수', ecRows.length, 6);
+eq('품목코드 222222 는 선수금', E.parseEcount({ SheetNames: ['s'], Sheets: { s: { rows: [['회사명'], head, vrow('26/10/14-9', O1, '아무 상품', 10000, 1)] } } }, 'x.xlsx', true).map((r) => r.adv), [false]);
 D.ec = ecRows; D.date = DATE; E.compute();
 eq('대조 상태', [O1, O2, O3, O4, O5].map((id) => row(id).st), ['정상', '환불 대기 확인', '정상', '정상', '미입력']);
 eq('환불 전 예상 금액 비교', [row(O2).expect, row(O2).ecTot], [13000, 23000]);
