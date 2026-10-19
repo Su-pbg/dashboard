@@ -1216,19 +1216,30 @@ function c24Info(o,r){
 function formCard(){
   const sel=(D.rows||[]).filter(r=>D.sel[r.o.order_id]&&r.live.length);
   const sellers=[...new Set([D.seller,...lsGet('pbg_ecdaily_sellers',[])].filter(Boolean))];
+  // 주문 하나 = 카드 하나(Su, 2026-10-19). 위: 주문번호·금액·결제유형·주문자/수령인 한 줄, 가운데: 앞말·고객명·출고처, 아래: 품목 줄(품목코드·사인지). 카페24 상세는 펼치기.
   const body=sel.map(r=>{
-    const o=r.o, E=ed(o.order_id), id=esc(o.order_id), nm=D.names[o.order_id]??custDefault(o);
+    const o=r.o, E=ed(o.order_id), id=esc(o.order_id), nm=D.names[o.order_id]??custDefault(o), rm=remainOf(r), missN=r.live.filter(l=>!codeOf(l)).length;
     const lines=r.live.map(l=>{ const key=l.variant_code||String(l.product_no), c=codeOf(l);
-      return `<div style="display:flex;gap:8px;align-items:center;margin:2px 0"><span style="flex:1">${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} × ${n(l.qty)}</span>
-        <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드" style="width:140px;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}">
-        <label style="font-size:12px;white-space:nowrap;display:flex;gap:4px;align-items:center;${signOn(l)?'color:var(--accent);font-weight:700':'color:var(--muted)'}"><input type="checkbox" data-a="sign" data-k="${esc(key)}" ${signOn(l)?'checked':''}>사인지${signOn(l)&&c?` <span class="ec-sub" style="display:inline;margin:0">${esc((S.sign||{})[c]||c+'SI')}</span>`:''}</label></div>`; }).join('');
-    const rm=remainOf(r);
-    return `<tr><td><b>${id}</b><div class="ec-sub">${n(rm.amt)}원 · ${esc(r.want||'결제유형 확인')}</div>${rm.mode!=='none'?`<div class="ec-sub" style="color:var(--down);font-weight:600;white-space:normal;max-width:180px">${esc(remainTxt(rm))}</div>`:''}${exchTxt(r)?`<div class="ec-sub" style="color:var(--down);font-weight:600">${esc(exchTxt(r))}</div>`:''}</td>
-      <td><input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:96px"></td>
-      <td><input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:150px">${diffRc(o)?'<div><span class="ec-badge ec-warn">주문자≠수령인</span></div>':''}</td>
-      <td><select class="ec-in" data-a="wh" data-o="${id}">${WH.map(w=>`<option ${(E.wh||D.wh)===w?'selected':''}>${esc(w)}</option>`).join('')}</select></td>
-      <td class="l" style="min-width:380px">${lines}</td></tr>
-      <tr><td colspan="5" class="l" style="background:var(--fill);border-bottom:2px solid var(--hair)">${c24Info(o,r)}</td></tr>`;
+      return `<div style="display:grid;grid-template-columns:1fr 170px 90px;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--hair)">
+        <div>${esc(l.product_name)}${l.option_value?` <span class="ec-sub" style="display:inline">${esc(optText(l.option_value))}</span>`:''} <b>× ${n(l.qty)}</b>${l.supplier_name?` <span class="ec-sub" style="display:inline">· ${esc(l.supplier_name)}</span>`:''}</div>
+        <input class="ec-in" data-a="dcode" data-k="${esc(key)}" value="${esc(c)}" placeholder="품목코드 입력" style="width:100%;${c?'':'box-shadow:inset 0 0 0 2px var(--down)'}">
+        <label style="font-size:13px;white-space:nowrap;display:flex;gap:4px;align-items:center;${signOn(l)?'color:var(--accent);font-weight:700':'color:var(--muted)'}"><input type="checkbox" data-a="sign" data-k="${esc(key)}" ${signOn(l)?'checked':''}>사인지${signOn(l)&&c?` <span class="ec-sub" style="display:inline;margin:0">${esc((S.sign||{})[c]||c+'SI')}</span>`:''}</label></div>`; }).join('');
+    const warn=[rm.mode!=='none'?remainTxt(rm):'',exchTxt(r),!r.want?'결제유형을 정할 수 없음 — 이카운트에서 직접':''].filter(Boolean);
+    return `<div style="border:1px solid var(--hair);border-radius:12px;padding:12px 16px;margin-top:10px;background:var(--surface)">
+      <div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center">
+        <b style="font-family:ui-monospace,Menlo,monospace;font-size:14px">${id}</b><span class="ec-sub" style="margin:0">${esc(o.time||'')}</span>
+        <b style="font-variant-numeric:tabular-nums">${n(rm.amt)}원</b><span class="ec-badge ec-info">${esc(r.want||'결제유형 확인')}</span>
+        ${diffRc(o)?'<span class="ec-badge ec-warn">주문자≠수령인</span>':''}${missN?`<span class="ec-badge ec-bad">품목코드 없음 ${missN}</span>`:''}
+        <span style="flex:1"></span><a href="#" data-a="c24toggle" data-o="${id}" style="font-size:13px;color:var(--accent);text-decoration:none">${D.c24open&&D.c24open[o.order_id]?'▾ 카페24 상세 닫기':'▸ 카페24 상세'}</a></div>
+      <div class="ec-sub" style="margin-top:4px">주문자 <b style="color:var(--ink-2)">${esc(o.buyer||'—')}</b> ${esc(o.buyer_phone||'')} · 수령인 <b style="color:var(--ink-2)">${esc(o.rc_name||'—')}</b> ${esc(o.rc_phone||'')} · ${esc(o.rc_addr||'')}${o.rc_msg?` · <span style="color:var(--down)">${esc(o.rc_msg)}</span>`:''}</div>
+      ${warn.length?`<div class="ec-sub" style="color:var(--down);font-weight:600;margin-top:4px">${warn.map(esc).join(' · ')}</div>`:''}
+      ${D.c24open&&D.c24open[o.order_id]?`<div style="background:var(--fill);border-radius:8px;padding:8px 12px;margin-top:8px">${c24Info(o,r)}</div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:10px">
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);font-weight:600">앞말 <input class="ec-in" data-a="pre" data-o="${id}" list="ecdPre" value="${esc(E.pre||'')}" placeholder="퀵)·택배)·설치)" style="width:110px"></label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);font-weight:600">고객명 <input class="ec-in" data-a="name" data-o="${id}" value="${esc(nm)}" style="width:170px"></label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);font-weight:600">출고처 <select class="ec-in" data-a="wh" data-o="${id}">${WH.map(w=>`<option ${(E.wh||D.wh)===w?'selected':''}>${esc(w)}</option>`).join('')}</select></label>
+      </div>
+      <div style="margin-top:8px">${lines}</div></div>`;
   }).join('');
   const miss=sel.reduce((t,r)=>t+r.live.filter(l=>!codeOf(l)).length,0);
   return `<div class="ec-card"><h2>판매입력 양식 만들기</h2>
@@ -1241,8 +1252,7 @@ function formCard(){
       <span style="flex:1"></span><button class="go" data-a="dgen" style="height:36px" ${sel.length?'':'disabled'}>판매입력 엑셀 만들기</button></div>
     <datalist id="ecdPre">${PRE.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
     <datalist id="ecdSellers">${sellers.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
-    ${sel.length?`<div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>주문</th><th>고객명 앞말</th><th>고객명</th><th>출고처</th><th>상품 · 품목코드</th></tr></thead><tbody>${body}</tbody></table></div>`
-      :'<div class="ec-stat">위 표의 \'판매입력\' 칸을 체크하면 여기에 나옵니다. 아직 파일에 안 넣은 주문은 처음부터 체크돼 있습니다.</div>'}
+    ${sel.length?body:'<div class="ec-stat">위 표의 \'판매입력\' 칸을 체크하면 여기에 나옵니다. 아직 파일에 안 넣은 주문은 처음부터 체크돼 있습니다.</div>'}
     <details class="ec-note"><summary>설명 보기</summary><div>주문마다 아래 회색 칸에 카페24 주문 정보(주문자·수령인·연락처·배송지·배송메시지·결제·금액)가 나옵니다 — 보고 위 칸을 채우거나 버튼으로 바로 채우세요.
       고객명은 수령인 이름이고, 주문자와 수령인이 다르면 '수령인(주문자)'로 채웁니다(이카운트 8월 입력 방식) — <b>주문자≠수령인</b> 표시가 붙은 주문은 한 번 더 확인하세요. 연락처·주소는 수령인 것입니다.
       고객명 앞말은 퀵·택배·설치 등 배송 방법이 다를 때만 넣습니다(예: 퀵) 홍길동). 출고처는 위에서 한 번에 고르고, 주문마다 바꿀 수 있습니다.
@@ -1400,6 +1410,7 @@ function wire(root){
     if(a==='rvback'){ RV.date=''; RV.day=null; pushSub(); render(); return; }
     if(a==='gorecon2'){ setMenu('ecrecon'); return; }
     if(a==='rvxlsx'){ try{ await exportRV(t); }catch(err){ alert('엑셀을 만들지 못했습니다: '+err.message); t.disabled=false; t.textContent='엑셀로 받기 (이 달)'; } return; }
+    if(a==='c24toggle'){ e.preventDefault(); (D.c24open ||= {})[t.dataset.o]=!D.c24open[t.dataset.o]; render(); return; }
     if(a==='fillname'){ D.names[t.dataset.o]=t.dataset.v; render(); return; }
     if(a==='fillpre'){ ed(t.dataset.o).pre=t.dataset.v; saveEd(); render(); return; }
     if(a==='runbatch'){ await runBatch(); return; }
