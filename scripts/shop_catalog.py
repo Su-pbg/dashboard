@@ -20,7 +20,11 @@
 쿼터: 하루 100쿼리 무료(이후 1,000건당 $5), 쿼리당 10개 결과.
   테마 10개 x 사이트 4개 = 40쿼리/일 → 무료 안.
 
-시크릿: GOOGLE_CSE_KEY · GOOGLE_CSE_CX (GitHub Secret)
+키: GOOGLE_CSE_KEY (GitHub Secret). cx 는 공개 스니펫에 박히는 값이라 비밀이 아니다 —
+  기본값을 코드에 두고 GOOGLE_CSE_CX 로 덮어쓸 수 있게 해둔다.
+
+**API 키 제한은 '없음' 또는 'IP 주소' 로 둬야 한다.** '웹사이트'(HTTP referrer) 로 걸면
+GitHub Actions 서버 호출에는 Referer 가 없어서 전부 403 이 된다. 한 번 당하기 쉽다.
 
 자체 검사:  python3 scripts/shop_catalog.py
 """
@@ -29,6 +33,8 @@ import re
 import time
 
 SITES = ['ohou.se', '29cm.co.kr', '10x10.co.kr', 'idus.com']
+CX = os.environ.get('GOOGLE_CSE_CX') or 'a75f3eeb848aa4f44'
+KEY = os.environ.get('GOOGLE_CSE_KEY')
 
 # 제목에서 떼어낼 쇼핑몰 꼬리·판촉 문구
 RE_TAIL = re.compile(r'\s*[-|–—]\s*(오늘의집|29CM|텐바이텐|10x10|아이디어스|idus)\s*$', re.I)
