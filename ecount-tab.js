@@ -221,6 +221,25 @@ async function saveManual(key,code,label,name){
   await reloadMap(); learn();
   flash(`저장됨: ${label} → ${code}`); return true;
 }
+// 지난 대조 결과로 배우기(Su, 2026-10-19): 지난주 내내 대조에 올린 파일은 브라우저에서만 읽어 남아 있지 않지만,
+//   저장된 대조 결과 줄에 이카운트 품목코드(eccodes)가 남아 있다(판매현황 품목별로 대조한 날짜만). 그걸로 맵핑 학습을 돌린다.
+async function learnFromSaved(months){
+  S.err=null; S.loading='지난 대조 결과 읽는 중…'; render();
+  try{
+    const rows=[], names={};
+    for(const ym of months){ const idx=(await getJSON(`${WORKER}/ecrecon?month=${ym}`)).idx||{};
+      for(const dt of Object.keys(idx)){ const d=(await getJSON(`${WORKER}/ecrecon?date=${dt}`)).day; if(!d) continue;
+        for(const r of (d.rows||[])){ if(!r.eccodes) continue;
+          for(const p of String(r.eccodes).split(', ')){ const m=p.match(/^(.+?)×(\d+)$/); if(!m||!m[1]) continue; rows.push({order:r.o,code:m[1],name:'',qty:Number(m[2])||1,price:0,total:0,adv:false}); } } } }
+    if(!rows.length){ S.err=new Error('품목코드가 남아 있는 대조 결과가 없습니다(판매조회 파일은 품목코드가 없어 학습이 안 됩니다).'); S.loading=''; render(); return; }
+    const ids=[...new Set(rows.map(r=>r.order))];
+    await loadC24Orders(ids,(i,t)=>{ S.loading=`카페24 주문 받는 중… ${i}/${t}`; render(); });
+    S.ecRows=rows; S.files=[{name:`지난 대조 결과 (${months.join(', ')})`,rows:rows.length}]; S.months=months.slice();
+    S.loading='짝 찾는 중…'; render();
+    learn(); S.view='new';
+  }catch(e){ S.err=e; }
+  S.loading=''; render();
+}
 async function reloadMap(){ const d=await getJSON(`${WORKER}/ecmap`); S.map=d.map||{}; S.sign=d.sign||{}; }
 // 사인지 — 일부 에디션은 이카운트에 사인지 품목(에디션코드+SI, 수량 같게, 0원)을 같이 넣는다. 카페24 주문엔 표시가 없다.
 //   이카운트 파일에서 한 주문에 X 와 X사인지(이름에 [사인지], 보통 XSI)가 같이 있으면 'X 엔 사인지가 붙는다'로 배워 워커에 둔다.
@@ -1314,6 +1333,7 @@ function render(){
       못 찾은 것만 담당자가 넣습니다. 담당자가 넣은 값은 자동 학습이 덮어쓰지 않습니다.</p>
     <div class="ec-row">
       <span class="go ec-file" style="height:36px">이카운트 판매현황 올리기 (여러 개 가능)<input type="file" id="ecFiles" accept=".xlsx,.xls" multiple aria-label="이카운트 판매현황 파일"></span>
+      <button class="ec-dl" data-a="learnsaved" style="height:36px">지난 대조 결과로 배우기 (최근 3개월)</button>
       <span class="ec-sub" style="margin:0">저장된 대응 <b style="color:var(--ink)">${n(saved.length)}</b>건 (자동 ${n(saved.length-man)} · 담당자 ${n(man)})</span>
     </div>
     ${S.files.length?`<div class="ec-stat">올린 파일: ${S.files.map(f=>`<b>${esc(f.name)}</b> (${n(f.rows)}행)`).join(', ')} · 카페24 ${S.months.join(', ')} 주문</div>`:''}
@@ -1461,6 +1481,7 @@ function wire(root){
       t.parentElement.querySelectorAll('a[data-a="pick"]').forEach(x=>{ x.style.outline=x===t?'2px solid var(--accent)':''; });
       return;
     }
+    if(a==='learnsaved'){ const now=kstDay(0), ms=[0,1,2].map(i=>{ const d=new Date(now+'T00:00:00'); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); }); await learnFromSaved(ms); return; }
     if(a==='saveauto'){ t.disabled=true; try{ await saveAuto(); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } t.disabled=false; return; }
     if(a==='savecode'){
       const inp=root.querySelector(`input[data-a="code"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim();
@@ -1515,5 +1536,5 @@ window.loadEcountTab=async function(el,page){
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,loadOpen,learnFromRecon,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,loadOpen,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();
