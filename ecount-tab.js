@@ -568,7 +568,7 @@ function openCard(){
     return `<td style="padding:4px;${hold?'border-left:1px dashed var(--hair)':''}"><button data-a="oocard" data-k="${esc(k)}" style="width:100%;height:64px;border:2px solid ${on?g.ink:'transparent'};background:${nn?g.color:'var(--fill)'};border-radius:10px;cursor:pointer;font-family:var(--sans);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
       <span style="font-size:20px;font-weight:700;color:${nn?'var(--ink)':'var(--ghost)'};line-height:1;font-variant-numeric:tabular-nums">${n(nn)}</span>
       <span class="ec-sub" style="margin:0;${oldN?'color:var(--down);font-weight:600':''}">${oldN?`7일↑ ${n(oldN)}`:'&nbsp;'}</span></button></td>`; };
-  const zone2=`<div style="margin-top:var(--s5)"><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px">2</span><b style="font-size:14px">배송 진행표</b><span class="ec-sub" style="margin:0">입력 확인된 주문 · 칸을 누르면 목록</span></div>
+  const zone2=`<div style="margin-top:var(--s5)"><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px">2</span><b style="font-size:14px">배송 진행표</b><span class="ec-sub" style="margin:0">입력 확인된 주문 · 칸을 누르면 아래에 목록</span></div>
     <div class="ec-scroll"><table style="width:100%;border-collapse:separate;border-spacing:0;min-width:760px;table-layout:fixed">
       <thead><tr><th style="width:170px;text-align:left;padding:6px 8px;font-size:12px;color:var(--muted)">방식</th>${COLS.map(([c,l],i)=>`<th style="padding:6px 4px;font-size:12px;color:var(--muted);font-weight:700">${esc(l)}${i<COLS.length-1?' <span style="color:var(--ghost)">›</span>':''}</th>`).join('')}<th style="width:110px;padding:6px 4px;font-size:12px;color:var(--muted);border-left:1px dashed var(--hair)">보류</th></tr></thead>
       <tbody>${G.map(g=>`<tr><td style="padding:4px 8px;vertical-align:middle"><div style="font-size:13px;font-weight:700;color:${g.ink}">${esc(g.title)} <span class="ec-sub" style="display:inline;margin:0">${n(g.total)}</span></div><div class="ec-sub" style="white-space:normal">${esc(g.sub)}</div></td>${g.cells.map(c=>cell(g,c,false)).join('')}${cell(g,g.hold,true)}</tr>`).join('')}</tbody></table></div></div>`;
@@ -599,15 +599,16 @@ function openCard(){
       <td><input type="checkbox" data-a="rvdone" data-o="${id}" data-d="${esc(dt)}" aria-label="처리완료"></td></tr>`; };
   OO.cardTitle=title;
   if(OO.detail&&list) return detailCard();   // 3단계: 상세 페이지가 목록을 대신한다
-  const listHtml=list?`<div class="ec-row"><button class="ec-dl" data-a="oocard" data-k="">← 진행 중 주문</button><span class="ec-sub" style="margin:0">진행 중 주문 ›</span><b style="font-size:15px">${esc(title)} <span class="ec-sub" style="display:inline">${n(list.length)}건</span></b>
-      <input class="ec-in" id="ecOoQ" value="${esc(OO.q||'')}" placeholder="주문번호·상품·공급사 검색" style="width:200px"></div>
+  // 고른 칸의 목록은 같은 화면 아래에 붙는다(카드·진행표는 그대로 두고 아래로 내려가며 본다)
+  const listHtml=list?`<div id="ooList" style="margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--hair)"><div class="ec-row"><b style="font-size:15px">${esc(title)} <span class="ec-sub" style="display:inline">${n(list.length)}건</span></b>
+      <input class="ec-in" id="ecOoQ" value="${esc(OO.q||'')}" placeholder="주문번호·상품·공급사 검색" style="width:200px"><span style="flex:1"></span><button class="ec-dl" data-a="oocard" data-k="">목록 닫기</button></div>
     <div class="ec-scroll"><table class="ec-t" style="min-width:960px"><thead><tr><th>주문일</th><th>주문번호</th><th>구분 · 진행</th><th class="l">상품 (누르면 상세)</th><th style="text-align:right">실결제</th><th>카페24</th><th>메모</th><th>완료</th></tr></thead>
-      <tbody>${list.map(row).join('')||`<tr><td colspan="8" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>`:'';
-  if(list) return `<div class="ec-card">${listHtml}<details class="ec-note"><summary>설명 보기</summary><div>줄을 누르면 주문 상세(수령인·배송지·품목·대조 결과)가 열립니다. 선수금은 '진행', 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다. 완료를 체크하면 목록에서 빠집니다.</div></details></div>`;   // 2단계: 목록 페이지가 카드를 대신한다
+      <tbody>${list.map(row).join('')||`<tr><td colspan="8" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>
+    <div class="ec-sub">줄을 누르면 주문 상세(수령인·배송지·품목·대조 결과). 선수금은 '진행', 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다. 완료를 체크하면 목록에서 빠집니다.</div></div>`:'';
   return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일 · ${n(L.length)}건${OO.at?` · ${esc(OO.at)} 기준`:''}${OO.hookAt?` · 웹훅 마지막 ${esc(String(OO.hookAt).slice(5,16))}`:''}</span>
       <span style="float:right;display:flex;gap:6px">${old?`<button class="ec-dl" data-a="oocard" data-k="old" style="color:var(--down);font-weight:700;${selKey==='old'?'outline:2px solid var(--down)':''}">7일 지남 ${n(old)}</button>`:''}<button class="ec-dl" data-a="ooreload">새로고침</button></span></h2>
     ${OO.truncated?'<div class="ec-stat err">주문이 너무 많아 일부만 받았습니다.</div>':''}
-    ${groupsHtml}
+    ${groupsHtml}${listHtml}
     <details class="ec-note"><summary>설명 보기</summary><div>① 대조 안 된 주문은 판매 입력 대조를 돌리면 ②로 내려옵니다(미입력이면 데일리 전표 생성에서 판매입력 파일을 만드세요). ② 칸을 누르면 그 주문 목록, 줄을 누르면 상세. '주문 접수'는 아직 진행 단계를 고르지 않은 주문, '배송완료'는 카페24 배송완료인데 처리완료를 안 한 주문입니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</div></details></div>`;
 }
 function filesCard(days,made,rows){
@@ -640,7 +641,7 @@ function renderLog(){
   // 첫 화면은 탭 2개(Su, 2026-10-19): [진행 중 주문] / [대조 현황]. 판매입력 파일 이력은 대조 현황 아래에.
   if(S.logView==='files') S.logView='rv';
   const seg=`<div class="ec-seg" style="margin-bottom:var(--s4)"><button data-a="logview" data-v="oo" class="${S.logView!=='rv'?'on':''}">진행 중 주문</button><button data-a="logview" data-v="rv" class="${S.logView==='rv'?'on':''}">대조 현황 · 파일 이력</button></div>`;
-  if(S.logView!=='rv'&&OO.card){ S.root.innerHTML=openCard(); return; }   // 목록·상세 페이지는 메인을 대신한다
+  if(S.logView!=='rv'&&OO.card&&OO.detail){ S.root.innerHTML=openCard(); return; }   // 상세 페이지만 메인을 대신한다(목록은 메인 아래에 붙음)
   if(S.logView!=='rv'){ S.root.innerHTML=`${seg}${openCard()}`; return; }
   if(S.logView==='rv'){ S.root.innerHTML=`${seg}<div class="ec-card"><h2>대조 현황</h2>
     <p class="ec-lead">날짜별 카페24 ↔ 이카운트 대조 결과입니다(월간요약 · 날짜별 상세 · 전표입력공유). 판매 입력 대조를 돌린 날짜가 쌓이고, 메모·처리완료는 팀이 같이 봅니다.</p>${rvHtml()}</div>
@@ -1458,8 +1459,8 @@ function wire(root){
     if(a==='dview'){ D.view=t.dataset.v; render(); return; }
     if(a==='logview'){ S.logView=t.dataset.v; render(); return; }
     if(a==='ooreload'){ OO.list=null; OO.force=true; await loadOpen(); return; }
-    if(a==='oocard'){ OO.card=t.dataset.k||''; OO.detail=''; OO.q=''; window.scrollTo(0,0); pushSub(); render(); return; }
-    if(a==='oodetail'){ e.preventDefault(); window.scrollTo(0,0); if(!t.dataset.o){ OO.detail=''; pushSub(); render(); } else { OO.detail=t.dataset.o; pushSub(); await openDetail(t.dataset.o); } return; }
+    if(a==='oocard'){ OO.card=t.dataset.k||''; OO.detail=''; OO.q=''; pushSub(); render(); const el=$('ooList'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+    if(a==='oodetail'){ e.preventDefault(); window.scrollTo(0,0); if(!t.dataset.o){ OO.detail=''; pushSub(); render(); const el=$('ooList'); if(el) el.scrollIntoView({block:'start'}); } else { OO.detail=t.dataset.o; pushSub(); await openDetail(t.dataset.o); } return; }
     if(a==='godate'){ e.preventDefault(); D.date=t.dataset.d; D.loadedDate=false; setMenu('ecrecon'); return; }
     if(a==='rvday'){ if(!t.dataset.d) return; RV.q=''; RV.date=t.dataset.d; pushSub(); await loadRVDay(t.dataset.d); return; }
     if(a==='rvback'){ RV.date=''; RV.day=null; pushSub(); render(); return; }

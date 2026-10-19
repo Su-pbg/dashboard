@@ -105,7 +105,7 @@ truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__e
 await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'oo'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
 truthy('진행 중 주문 두 구역(입력 현황 + 진행표)', root.innerHTML.includes('data-k="rec:none"') && root.innerHTML.includes('data-k="rec:missing"') && root.innerHTML.includes('data-k="adv:접수"') && root.innerHTML.includes('data-k="ship:완료"') && root.innerHTML.includes('data-k="rest:배송중"') && !root.innerHTML.includes('마무리 확인'));
 eq('대조 상태 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.rec]), [[O1, 'ok'], [O5, 'missing']]);
-ctx.__ecount.OO.card = 'adv:접수'; ctx.__ecount.render(); truthy('칸 누르면 목록 페이지(선수금 진행 선택, 표는 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-k="adv:완료"'));
+ctx.__ecount.OO.card = 'adv:접수'; ctx.__ecount.render(); truthy('칸 누르면 같은 화면 아래에 목록(선수금 진행 선택, 진행표는 그대로)', root.innerHTML.includes('data-a="rvast"') && root.innerHTML.includes('data-k="adv:완료"') && root.innerHTML.includes('id="ooList"'));
 ctx.__ecount.OO.detail = O1; ctx.__ecount.render(); truthy('줄 누르면 상세 페이지', root.innerHTML.includes('주문 상세') && root.innerHTML.includes('← 목록으로') && !root.innerHTML.includes('data-a="rvmemo" data-o="' + O5)); ctx.__ecount.OO.detail = '';
 ctx.__ecount.OO.card = 'rec:missing'; ctx.__ecount.render(); truthy('미입력 칸 누르면 목록(퀵 주문이라 배송 상태 선택 있음)', root.innerHTML.includes(O5) && root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
