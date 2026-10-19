@@ -102,10 +102,10 @@ try { ctx.__ecount.S.page = 'recon'; ctx.__ecount.D.ec = null; ctx.__ecount.D.sa
   ctx.__ecount.D.savedDay = DAY; ctx.__ecount.compute(); ctx.__ecount.render(); const sv = ctx.__ecount.D.rows.find((r) => r.o.order_id === O1); truthy('저장된 대조 결과를 파일 없이 표에 채움', sv.st === '정상' && sv.ecTot === 23000 && root.innerHTML.includes('대조한 결과입니다')); ctx.__ecount.D.savedDay = null; } catch (e) { bad++; console.log('FAIL 대조 화면 파일 전 ' + e.message); }
 truthy('미대조 날짜 목록(어제부터, 대조된 날짜는 ✓)', ctx.__ecount.D.pending && ctx.__ecount.D.pending.run.length >= 1 && ctx.__ecount.D.pending.run[0] === ctx.__ecount.kstDay(-1));
 // 진행 중 주문: O1 은 대조 결과 선수금 표시 → 선수금 묶음, O5 는 퀵 → 배송방식 묶음
-await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'rv'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
+await ctx.__ecount.loadOpen(); ctx.__ecount.S.page = 'log'; ctx.__ecount.S.logView = 'oo'; ctx.__ecount.RV.date = ''; ctx.__ecount.render();
 truthy('진행 중 주문 두 구역(입력 현황 + 진행표)', root.innerHTML.includes('data-k="rec:none"') && root.innerHTML.includes('data-k="rec:missing"') && root.innerHTML.includes('data-k="adv:접수"') && root.innerHTML.includes('data-k="ship:완료"') && root.innerHTML.includes('data-k="rest:배송중"') && !root.innerHTML.includes('마무리 확인'));
 eq('대조 상태 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.rec]), [[O1, 'ok'], [O5, 'missing']]);
-ctx.__ecount.OO.card = 'adv:접수'; ctx.__ecount.render(); truthy('칸 누르면 목록 페이지(선수금 진행 선택, 표·대조 현황은 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-k="adv:완료"') && !root.innerHTML.includes('월간요약'));
+ctx.__ecount.OO.card = 'adv:접수'; ctx.__ecount.render(); truthy('칸 누르면 목록 페이지(선수금 진행 선택, 표는 숨김)', root.innerHTML.includes('data-a="rvast"') && !root.innerHTML.includes('data-k="adv:완료"'));
 ctx.__ecount.OO.detail = O1; ctx.__ecount.render(); truthy('줄 누르면 상세 페이지', root.innerHTML.includes('주문 상세') && root.innerHTML.includes('← 목록으로') && !root.innerHTML.includes('data-a="rvmemo" data-o="' + O5)); ctx.__ecount.OO.detail = '';
 ctx.__ecount.OO.card = 'rec:missing'; ctx.__ecount.render(); truthy('미입력 칸 누르면 목록(퀵 주문이라 배송 상태 선택 있음)', root.innerHTML.includes(O5) && root.innerHTML.includes('data-a="rvdst"')); ctx.__ecount.OO.card = '';
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
@@ -114,7 +114,7 @@ truthy('웹훅 배송완료 반영 + 미입력 주문은 진행표에 안 들어
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }
-try { E.RV.date = ''; E.S.logView = 'files'; E.render(); truthy('판매입력 파일 이력', root.innerHTML.includes('판매입력 파일 이력')); } catch (e) { bad++; console.log('FAIL 판매입력 파일 이력 ' + e.message); }
+try { E.RV.date = ''; E.S.logView = 'rv'; E.render(); truthy('대조 현황 탭 아래 판매입력 파일 이력', root.innerHTML.includes('판매입력 파일 이력')); E.S.logView = 'oo'; } catch (e) { bad++; console.log('FAIL 판매입력 파일 이력 ' + e.message); }
 
 // 데일리 상태
 const D = E.D, row = (id) => D.rows.find((r) => r.o.order_id === id);

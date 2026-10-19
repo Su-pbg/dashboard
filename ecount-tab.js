@@ -55,7 +55,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 const ORD=/^\d{8}-\d{7}$/;
 
-const S={logView:'rv', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:''};
+const S={logView:'oo', root:null, page:'map', log:null, logErr:null, logMonth:'', map:{}, files:[], ecRows:[], c24:{}, c24miss:new Set(), months:[], loading:'', err:null, result:null, view:'new', q:''};
 
 async function getJSON(url,opt){
   const r=await fetch(url,{cache:'no-store',...opt,headers:{...authHeaders(),...((opt&&opt.headers)||{})}});
@@ -587,6 +587,17 @@ function openCard(){
     ${groupsHtml}
     <details class="ec-note"><summary>설명 보기</summary><div>① 대조 안 된 주문은 판매 입력 대조를 돌리면 ②로 내려옵니다(미입력이면 데일리 전표 생성에서 판매입력 파일을 만드세요). ② 칸을 누르면 그 주문 목록, 줄을 누르면 상세. '주문 접수'는 아직 진행 단계를 고르지 않은 주문, '배송완료'는 카페24 배송완료인데 처리완료를 안 한 주문입니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</div></details></div>`;
 }
+function filesCard(days,made,rows){
+  return `<div class="ec-card"><h2>판매입력 파일 이력</h2>
+    <p class="ec-lead">데일리 전표 생성에서 만든 이카운트 판매입력 파일이 날짜별로 남습니다. 만든 사람은 파일을 만들 때 고른 담당자(판매자)입니다. 이력은 계속 남고, 파일은 만든 날부터 400일 보관합니다.</p>
+    <div class="ec-row"><label>월 <input type="month" class="ec-in" id="ecLogMonth" value="${esc(S.logMonth)}"></label>
+      <span class="ec-sub" style="margin:0">${n(days.length)}일 중 <b style="color:var(--ink)">${n(made)}일</b> 파일 있음</span>
+      <span style="flex:1"></span><button class="ec-dl" data-a="logreload">새로고침</button>
+      <button class="go" data-a="godaily" style="height:36px">데일리 전표 생성으로</button></div>
+    ${S.logErr?`<div class="ec-stat err">${esc(S.logErr.message)}</div>`:''}
+    <div class="ec-scroll"><table class="ec-t" style="min-width:720px"><thead><tr><th>날짜</th><th>판매입력 파일</th><th>만든 사람</th><th>만든 시각</th><th>주문 · 행</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" style="color:var(--muted)">이 달에는 날짜가 없습니다.</td></tr>'}</tbody></table></div></div>`;
+}
 function renderLog(){
   if(!S.logMonth){ const t=new Date(Date.now()+9*3600e3); S.logMonth=t.toISOString().slice(0,7); }
   const [y,m]=S.logMonth.split('-').map(Number), last=new Date(y,m,0).getDate();
@@ -603,10 +614,14 @@ function renderLog(){
       <td>${esc(f.by||'—')}</td><td>${esc(f.at)}</td><td>${n(f.orders)}건 · ${n(f.rows)}행</td>
       <td>${expired(f)?'<span class="ec-sub" style="margin:0">보관 기간 지남</span>':`<button class="ec-dl" data-a="logdl" data-id="${esc(f.id)}">받기</button>`}</td></tr>`).join('');
   }).join('');
-  const seg=`<div class="ec-seg" style="margin-bottom:var(--s4)"><button data-a="logview" data-v="rv" class="${S.logView==='rv'?'on':''}">진행 중 주문 · 대조 현황</button><button data-a="logview" data-v="files" class="${S.logView==='rv'?'':'on'}">판매입력 파일 이력</button></div>`;
-  if(S.logView==='rv'&&OO.card){ S.root.innerHTML=openCard(); return; }   // 목록·상세 페이지는 메인을 대신한다
-  if(S.logView==='rv'){ S.root.innerHTML=`${seg}${openCard()}<div class="ec-card"><h2>대조 현황</h2>
-    <p class="ec-lead">날짜별 카페24 ↔ 이카운트 대조 결과입니다(월간요약 · 날짜별 상세 · 전표입력공유). 판매 입력 대조를 돌린 날짜가 쌓이고, 메모·처리완료는 팀이 같이 봅니다.</p>${rvHtml()}</div>`; return; }
+  // 첫 화면은 탭 2개(Su, 2026-10-19): [진행 중 주문] / [대조 현황]. 판매입력 파일 이력은 대조 현황 아래에.
+  if(S.logView==='files') S.logView='rv';
+  const seg=`<div class="ec-seg" style="margin-bottom:var(--s4)"><button data-a="logview" data-v="oo" class="${S.logView!=='rv'?'on':''}">진행 중 주문</button><button data-a="logview" data-v="rv" class="${S.logView==='rv'?'on':''}">대조 현황 · 파일 이력</button></div>`;
+  if(S.logView!=='rv'&&OO.card){ S.root.innerHTML=openCard(); return; }   // 목록·상세 페이지는 메인을 대신한다
+  if(S.logView!=='rv'){ S.root.innerHTML=`${seg}${openCard()}`; return; }
+  if(S.logView==='rv'){ S.root.innerHTML=`${seg}<div class="ec-card"><h2>대조 현황</h2>
+    <p class="ec-lead">날짜별 카페24 ↔ 이카운트 대조 결과입니다(월간요약 · 날짜별 상세 · 전표입력공유). 판매 입력 대조를 돌린 날짜가 쌓이고, 메모·처리완료는 팀이 같이 봅니다.</p>${rvHtml()}</div>
+    ${RV.date?'':filesCard(days,made,rows)}`; return; }
   S.root.innerHTML=`${seg}<div class="ec-card"><h2>판매입력 파일 이력</h2>
     <p class="ec-lead">데일리 전표 생성에서 만든 이카운트 판매입력 파일이 날짜별로 남습니다. 만든 사람은 파일을 만들 때 고른 담당자(판매자)입니다. 이력은 계속 남고, 파일은 만든 날부터 400일 보관합니다.</p>
     <div class="ec-row"><label>월 <input type="month" class="ec-in" id="ecLogMonth" value="${esc(S.logMonth)}"></label>
@@ -1390,6 +1405,7 @@ function wire(root){
     if(a==='runbatch'){ await runBatch(); return; }
     if(a==='fall'||a==='frange'||a==='fnone'){ D.fsel={}; for(const x of (D.fdates||[])) if(a==='fall'||(a==='frange'&&x.inR)) D.fsel[x.d]=true; render(); return; }
     if(a==='gorv'){ S.logView='rv'; RV.idx=null; setMenu('eclog'); return; }
+    if(a==='gooo'){ S.logView='oo'; render(); return; }
     if(a==='confopen'){ S.confOpen=true; S.confMsg=''; render(); return; }
     if(a==='confclose'){ S.confOpen=false; render(); return; }
     if(a==='confsave'){ t.disabled=true; try{ await saveConf(root); }catch(err){ S.confMsg='저장 실패: '+err.message; } t.disabled=false; render(); return; }
