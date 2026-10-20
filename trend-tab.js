@@ -139,6 +139,16 @@ function bars(obj,label=k=>k){
   return '<div class="tr-bars">'+e.map(([k,v])=>`<div><span class="k">${esc(label(k))}</span><span class="b" style="width:${Math.max(2,v/mx*120)}px"></span><span>${v}%</span></div>`).join('')+'</div>';
 }
 
+// [2026-10-20] 화면에서 재보니 11열 중 3열이 비어 있었다 —
+//   '검색수 28일' 100% · '여성' 67% · '유튜브·블로그·카페' 67%. 빈 열은 눈만 가져간다.
+//   60% 넘게 비는 열은 안 그린다. 데이터가 다시 들어오면 저절로 살아난다.
+function liveCols(rows){
+  return COLS.filter(c=>{
+    if(c.l) return true;
+    const blank=rows.filter(x=>x[c.k]==null||x[c.k]==='').length;
+    return !rows.length || blank/rows.length < 0.6;
+  });
+}
 const COLS=[
   {k:'keyword',t:'키워드',l:1},{k:'action',t:'판정 · 할 일',l:1},{k:'ourSales30',t:'우리 몰',l:1},
   {k:'monthlySearch',t:'월간 검색'},{k:'volGrowth28',t:'검색수 28일'},
@@ -188,8 +198,9 @@ function detailHTML(x,i){
 function renderTable(){
   const run=S.data.runs[S.data.runs.length-1]; const all=run.rows;
   const rows=filtered(all); const shown=rows.slice(0,S.limit);
+  const CL=liveCols(rows);
   const box=document.getElementById('trTable');
-  box.innerHTML=`<div class="tr-scroll"><table class="tr-t"><thead><tr>${COLS.map(c=>`<th class="${c.l?'l':''} ${S.sort===c.k?'sorted':''}" data-k="${c.k}">${c.t}${S.sort===c.k?(S.dir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
+  box.innerHTML=`<div class="tr-scroll"><table class="tr-t"><thead><tr>${CL.map(c=>`<th class="${c.l?'l':''} ${S.sort===c.k?'sorted':''}" data-k="${c.k}">${c.t}${S.sort===c.k?(S.dir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
    <tbody>${shown.map((x,i)=>rowHTML(x,i)+(S.open===x.keyword?detailHTML(x,i):'')).join('')||`<tr><td colspan="99" class="l tr-sub">조건에 맞는 키워드가 없습니다</td></tr>`}</tbody></table></div>
    <div class="tr-sub" style="margin-top:6px">${rows.length}개 중 ${shown.length}개 표시 · 행을 누르면 추이·연령·우리 상품이 열립니다</div>
    ${rows.length>shown.length?'<button class="tr-more" id="trMore">더 보기</button>':''}`;
