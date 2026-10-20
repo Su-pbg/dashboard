@@ -142,6 +142,16 @@ const bigrams=s=>{s=norm(s);const g=new Set();for(let i=0;i<s.length-1;i++)g.add
 function sim(a,b){const A=bigrams(a),B=bigrams(b);if(!A.size||!B.size)return 0;let k=0;for(const x of A)if(B.has(x))k++;return 2*k/(A.size+B.size);}
 const ecProd=name=>String(name).split(/\s*\/\s*/).slice(1).join(' ')||name;   // '브랜드 / 상품 [규격]' → 상품 [규격]
 const optText=v=>String(v||'').replace(/^(선택|옵션)=/,'').replace(/,\s*(선택|옵션)=/g,', ');
+// 옵션 낱말(컬러=겨자 → '겨자', 사이즈=A2 → 'a2'): 이름 비슷함만으로는 '타원 트레이 / 겨자' 와 '타원 트레이 [베이지]' 가 거의 같은 점수라 색이 바뀌어 짝지어졌다(Su, 2026-10-20).
+//   옵션 낱말이 이카운트 품명에 있으면 가산, 같은 주문의 다른 옵션 낱말이 들어 있으면 감산한다.
+const OPT_SKIP=new Set(['컬러','색상','사이즈','선택','옵션','size','color','type','타입','종류']);
+const optWords=opt=>String(opt||'').toLowerCase().split(/[\s,=\/()\[\]]+/).filter(w=>w.length>=2&&!OPT_SKIP.has(w)&&!/^\d+~\d+주/.test(w));
+function pairScore(L,ecname,otherWords){
+  const nm=String(ecname||'').toLowerCase(); let sc=sim(L.name+' '+L.opt,ecname);
+  const mine=optWords(L.opt); const hit=mine.some(w=>nm.includes(w)), miss=[...otherWords].some(w=>!mine.includes(w)&&nm.includes(w));
+  if(hit) sc+=0.3; else if(miss) sc-=0.3;
+  return sc;
+}
 
 function learn(){
   // 주문별 카페24 옵션(variant_code) · 이카운트 품목코드 (순수량 > 0 만)
@@ -176,7 +186,8 @@ function learn(){
   // 이름: 서로 가장 비슷하고 0.45 이상인 짝만
   for(const x of orders){
     const r=rest.get(x.o); if(!r||!r.C.length||!r.E.length||(r.C.length===1&&r.E.length===1)) continue;
-    const pairs=[]; for(const k of r.C) for(const c of r.E){ const L=label[k]; pairs.push([sim(L.name+' '+L.opt,ecProd(ecName[c])),k,c]); }
+    const otherWords=new Set(r.C.flatMap(k=>optWords(label[k].opt)));
+    const pairs=[]; for(const k of r.C) for(const c of r.E){ const L=label[k]; pairs.push([pairScore(L,ecProd(ecName[c]),otherWords),k,c]); }
     pairs.sort((a,b)=>b[0]-a[0]);
     const uk=new Set(), uc=new Set();
     for(const [s,k,c] of pairs){ if(s<0.45||uk.has(k)||uc.has(c)) continue; uk.add(k); uc.add(c); add(k,c,'이름'); }
@@ -872,7 +883,7 @@ async function onDailyFile(f){
   D.err=null; D.loading='이카운트 파일 읽는 중…'; D.savedDates=new Set(); D.attached=null; D.signLearned=0; D.mapLearned=null; render();
   try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name;
     try{ const k=await learnSign(D.ec); if(k) D.signLearned=k; }catch(e){} }
-  catch(e){ D.err=e; }
+  catch(e){ D.err=e; D.ec=null; D.ecFile=''; D.fdates=null; D.fres={}; D.loading=''; compute(); render(); return; }   // 못 읽은 파일이면 전 파일 결과로 저장·학습하지 않는다
   D.loading=''; fileDates(); compute(); render(); saveRecon(); attachLater(); learnFromRecon();
 }
 // 다시 올리기 · 파일 취소(Su, 2026-10-20): 잘못 올린 이카운트 파일을 물린다.
@@ -1388,7 +1399,7 @@ function render(){
       <button class="ec-dl" data-a="learnsaved" style="height:36px">지난 대조 결과로 배우기 (최근 3개월)</button>
       <span class="ec-sub" style="margin:0">저장된 대응 <b style="color:var(--ink)">${n(saved.length)}</b>건 (자동 ${n(saved.length-man)} · 담당자 ${n(man)})</span>
     </div>
-    ${S.files.length?`<div class="ec-stat">올린 파일: ${S.files.map(f=>`<b>${esc(f.name)}</b> (${n(f.rows)}행)`).join(', ')} · 카페24 ${S.months.join(', ')} 주문</div>`:''}
+    ${S.files.length?`<div class="ec-stat">올린 파일: ${S.files.map(f=>`<b>${esc(f.name)}</b> (${n(f.rows)}행)`).join(', ')} · 카페24 ${S.months.join(', ')} 주문 <button class="ec-dl" data-a="mclear" title="올린 파일과 학습 결과를 지우고 처음부터">파일 지우기</button></div>`:''}
     ${S.loading?`<div class="ec-stat">${esc(S.loading)}</div>`:''}
     ${S.flash?`<div class="ec-stat" style="position:sticky;top:8px;z-index:5;background:${S.flash.bad?'var(--down-soft)':'var(--up-soft)'};color:${S.flash.bad?'var(--down)':'var(--up)'};border-radius:8px;padding:8px 12px;font-weight:600">${esc(S.flash.msg)}</div>`:''}
     ${S.err?`<div class="ec-stat err">${esc(S.err.message||S.err)}</div>`:''}
@@ -1404,7 +1415,9 @@ function candCard(){
   const all=Object.entries(S.cand).map(([key,v])=>{ const cs=Object.entries(v.cands||{}).sort((a,b)=>b[1]-a[1]); return {key,...v,cs,top:cs[0]?cs[0][0]:'',single:cs.length===1}; });
   const list=all.filter(x=>!q||[x.label,x.key,...x.cs.map(c=>c[0]+' '+((x.names||{})[c[0]]||''))].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))||a.key.localeCompare(b.key));
   const singles=all.filter(x=>x.single).length;
-  const chip=(x,c)=>`<a href="#" data-a="cpick" data-k="${esc(x.key)}" data-c="${esc(c[0])}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${c[0]===x.top?'var(--up-soft)':'var(--fill)'};border-radius:8px;padding:4px 8px;font-size:12px"><b>${esc(c[0])}</b><span style="flex:1">${esc((x.names||{})[c[0]]||'')}</span><span class="ec-sub" style="margin:0;white-space:nowrap">${n(c[1])}건</span>${S.map[x.key]&&S.map[x.key].code===c[0]?'<span class="ec-badge ec-info">저장된 값</span>':''}</a>`;
+  const optOf=label=>{ const i=String(label||'').indexOf(' / '); return i<0?'':label.slice(i+3); };
+  const warn=(x,c)=>{ const ws=optWords(optOf(x.label)), nm=String((x.names||{})[c[0]]||'').toLowerCase(); return ws.length&&/\[[^\]]+\]/.test(nm)&&!ws.some(w=>nm.includes(w)); };
+  const chip=(x,c)=>`<a href="#" data-a="cpick" data-k="${esc(x.key)}" data-c="${esc(c[0])}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${c[0]===x.top?'var(--up-soft)':'var(--fill)'};border-radius:8px;padding:4px 8px;font-size:12px"><b>${esc(c[0])}</b><span style="flex:1">${esc((x.names||{})[c[0]]||'')}</span><span class="ec-sub" style="margin:0;white-space:nowrap">${n(c[1])}건</span>${warn(x,c)?'<span class="ec-badge ec-warn" title="카페24 옵션 낱말(색·크기)이 이카운트 품명에 없습니다">옵션 확인</span>':''}${S.map[x.key]&&S.map[x.key].code===c[0]?'<span class="ec-badge ec-info">저장된 값</span>':''}</a>`;
   return `<div class="ec-card"><h2>확정 대기 <span class="ec-sub" style="display:inline;margin-left:6px">예비 목록 ${n(all.length)}건</span></h2>
     <p class="ec-lead">매일 판매 입력 대조에 올린 이카운트 파일(품목별)에서 찾은 짝이 여기 쌓입니다. 아직 대응표에 들어가지 않았으니 보고 <b>확정</b>하거나 <b>버리기</b>로 지워 주세요. 확정한 값은 담당자 값으로 저장되고 자동 학습이 덮어쓰지 않습니다.</p>
     <div class="ec-row"><input class="ec-in" id="ecCandQ" value="${esc(S.qc)}" placeholder="상품명·옵션코드·품목코드 검색" style="width:260px"><span style="flex:1"></span>
@@ -1559,6 +1572,7 @@ function wire(root){
       t.parentElement.querySelectorAll('a[data-a="pick"]').forEach(x=>{ x.style.outline=x===t?'2px solid var(--accent)':''; });
       return;
     }
+    if(a==='mclear'){ S.ecRows=[]; S.files=[]; S.months=[]; S.result=null; S.err=null; S.view='new'; render(); return; }
     if(a==='learnsaved'){ const now=kstDay(0), ms=[0,1,2].map(i=>{ const d=new Date(now+'T00:00:00'); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); }); await learnFromSaved(ms); return; }
     if(a==='cpick'){ e.preventDefault(); const inp=root.querySelector(`input[data-a="ccode"][data-k="${CSS.escape(t.dataset.k)}"]`); if(inp) inp.value=t.dataset.c; t.parentElement.querySelectorAll('a[data-a="cpick"]').forEach(x=>{ x.style.outline=x===t?'2px solid var(--accent)':''; }); return; }
     if(a==='cconfirm'){ const inp=root.querySelector(`input[data-a="ccode"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim(); if(!code) return flash('품목코드를 넣거나 후보를 눌러 주세요.',true);

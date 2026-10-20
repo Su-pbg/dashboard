@@ -183,5 +183,13 @@ D.ec = [{ order: O3, code: 'EC009', name: '가 / 상품3', qty: 1, price: 10000,
 await E.learnFromRecon(); ctx.fetch = prevFetch;
 truthy('대조 파일로 맵핑 학습 → 바로 저장하지 않고 예비 목록에 올림', posted && !posted.entries && posted.cand && posted.cand.some((x) => x.cands && x.cands.EC009) && D.mapLearned && !D.mapLearned.err);
 
+// 옵션 낱말: 한 주문에 겨자·베이지 두 옵션과 이카운트 [베이지]·[겨자] 두 품목 — 이름 비슷함이 같아도 색이 맞는 쪽으로
+{ const S = ctx.__ecount.S, keep = { c24: S.c24, ecRows: S.ecRows, map: S.map };
+  S.map = {}; S.c24 = { 'X1': [{ variant_code: 'V_GJ', product_no: 1, product_name: '타원 트레이 (중)', option_value: '컬러=겨자', qty: 1, sale: 220000 }, { variant_code: 'V_BJ', product_no: 1, product_name: '타원 트레이 (중)', option_value: '컬러=베이지', qty: 1, sale: 220000 }] };
+  S.ecRows = [{ order: 'X1', code: 'C_BJ', name: '브랜드 / 타원 트레이 (중) 3-2 [베이지] [30x18.5]', qty: 1, price: 0 }, { order: 'X1', code: 'C_GJ', name: '브랜드 / 타원 트레이 (중) 3-2 [겨자] [30x18.5]', qty: 1, price: 0 }];
+  ctx.__ecount.learn(); const got = Object.fromEntries(S.result.rows.map((r) => [r.key, r.code]));
+  eq('옵션 색이 맞는 품목과 짝', got, { V_GJ: 'C_GJ', V_BJ: 'C_BJ' });
+  Object.assign(S, keep); }
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);
