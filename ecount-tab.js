@@ -1421,7 +1421,8 @@ function candCard(){
   return `<div class="ec-card"><h2>확정 대기 <span class="ec-sub" style="display:inline;margin-left:6px">예비 목록 ${n(all.length)}건</span></h2>
     <p class="ec-lead">매일 판매 입력 대조에 올린 이카운트 파일(품목별)에서 찾은 짝이 여기 쌓입니다. 아직 대응표에 들어가지 않았으니 보고 <b>확정</b>하거나 <b>버리기</b>로 지워 주세요. 확정한 값은 담당자 값으로 저장되고 자동 학습이 덮어쓰지 않습니다.</p>
     <div class="ec-row"><input class="ec-in" id="ecCandQ" value="${esc(S.qc)}" placeholder="상품명·옵션코드·품목코드 검색" style="width:260px"><span style="flex:1"></span>
-      ${singles?`<button class="go" data-a="cconfirmall" style="height:36px">후보가 하나뿐인 ${n(singles)}건 모두 확정</button>`:''}</div>
+      ${singles?`<button class="go" data-a="cconfirmall" style="height:36px">후보가 하나뿐인 ${n(singles)}건 모두 확정</button>`:''}
+      ${all.length?`<button class="ec-dl" data-a="cdropall" style="height:36px;color:var(--down)" title="예비 목록만 비웁니다(대응표는 그대로). 파일을 다시 올리면 새로 쌓입니다">예비 목록 모두 비우기</button>`:''}</div>
     <div class="ec-scroll"><table class="ec-t"><thead><tr><th>카페24 상품 · 옵션</th><th>옵션코드</th><th>카페24 판매가</th><th class="l">이카운트 품목코드 후보 (누르면 채워짐)</th><th>본 날짜</th><th>확정 · 버리기</th></tr></thead><tbody>
       ${list.length?list.slice(0,300).map(x=>`<tr><td class="l">${esc(x.label||'')}</td><td>${esc(x.key)}</td><td>${x.price?n(x.price)+'원':'—'}</td>
         <td class="l" style="min-width:360px"><div style="display:flex;flex-direction:column;gap:4px">${x.cs.slice(0,5).map(c=>chip(x,c)).join('')}</div></td>
@@ -1578,6 +1579,8 @@ function wire(root){
     if(a==='cconfirm'){ const inp=root.querySelector(`input[data-a="ccode"][data-k="${CSS.escape(t.dataset.k)}"]`), code=(inp&&inp.value||'').trim(); if(!code) return flash('품목코드를 넣거나 후보를 눌러 주세요.',true);
       t.disabled=true; try{ const d=await candAct([t.dataset.k],code); flash(d.saved?`확정: ${(S.map[t.dataset.k]||{}).label||t.dataset.k} → ${code}`:`저장되지 않았습니다: ${code} — 코드 형식을 확인해 주세요.`,!d.saved); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } return; }
     if(a==='cdrop'){ t.disabled=true; try{ await candAct([t.dataset.k],''); render(); }catch(err){ flash('지우지 못했습니다: '+err.message,true); } return; }
+    if(a==='cdropall'){ const ks=Object.keys(S.cand||{}); if(!ks.length) return; if(!confirm(`예비 목록 ${ks.length}건을 모두 비울까요? 대응표(확정된 값)는 그대로 둡니다.`)) return; t.disabled=true;
+      try{ await candAct(ks,''); flash(`예비 목록 ${n(ks.length)}건을 비웠습니다.`); }catch(err){ flash('비우지 못했습니다: '+err.message,true); } return; }
     if(a==='cconfirmall'){ const ks=Object.entries(S.cand).filter(([k,v])=>Object.keys(v.cands||{}).length===1); if(!ks.length) return;
       if(!confirm(`후보가 하나뿐인 ${ks.length}건을 모두 담당자 값으로 저장할까요?`)) return; t.disabled=true;
       try{ let saved=0; for(const [k,v] of ks){ const d=await candAct([k],Object.keys(v.cands)[0]); saved+=d.saved||0; } flash(`${n(saved)}건 확정했습니다. 대응표 ${n(Object.keys(S.map).length)}건`); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } return; }
