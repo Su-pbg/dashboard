@@ -3867,6 +3867,31 @@ window.addEventListener('message',(e)=>{
 // 경비환급 직접 링크만 로그인 없이 열린다.
 // 로그인이 필요한 메뉴인데 토큰이 없으면 로그인 창이 뜨고, 그 전에는 load()가 호출되지 않는다(데이터 요청 자체가 안 나감).
 // 경비환급 메뉴는 토큰이 없어도 그대로 열린다.
+// [2026-10-20] 새 배포가 올라오면 알려준다.
+//   GitHub Pages 가 index.html 에 10분 캐시를 걸어서, 고쳐 배포해도 브라우저가 옛 화면을 계속 보여준다.
+//   "바뀐 게 없는데" 가 여기서 나왔다. 탭 스크립트는 no-cache 로 바꿨지만 index.html 자체는 못 바꾸므로
+//   Last-Modified 를 주기적으로 물어보고 달라지면 배너를 띄운다. 자동 새로고침은 하지 않는다 —
+//   입력 중인 메모·담당자가 날아가면 안 된다.
+(function watchBuild(){
+  let seen=null;
+  const check=async()=>{
+    try{
+      const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
+      const v=r.headers.get('last-modified')||r.headers.get('etag');
+      if(!v) return;
+      if(seen===null){ seen=v; return; }
+      if(v!==seen && !document.getElementById('newBuild')){
+        const b=document.createElement('div');
+        b.id='newBuild';
+        b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:9999;background:var(--ink);color:var(--card);padding:10px 14px;border-radius:12px;font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.25)';
+        b.innerHTML='새 버전이 올라왔어요 <button style="border:0;border-radius:8px;padding:5px 10px;cursor:pointer;font:inherit">새로고침</button>';
+        b.querySelector('button').onclick=()=>location.reload(true);
+        document.body.appendChild(b);
+      }
+    }catch(e){ /* 오프라인이면 조용히 넘어간다 */ }
+  };
+  check(); setInterval(check, 120000);
+})();
 setMenu(MENU);
 // 왼쪽 위 PrintBakery Admin → 대시보드 첫 탭
 document.getElementById('sideBrand').addEventListener('click',(e)=>{
