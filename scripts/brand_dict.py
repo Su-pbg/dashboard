@@ -27,7 +27,7 @@ import re
 from market_brands import GENERIC, RE_LATIN, _strip_set
 
 # '<말>브랜드' 로 물으면 그 분야 브랜드가 연관검색어로 온다. 뒤에 붙이는 꼬리들.
-SUFFIXES = ['브랜드', '브랜드추천', '브랜드순위']
+SUFFIXES = ['브랜드', '브랜드추천', '브랜드순위', '유명브랜드', '수입브랜드', '브랜드모음']
 # 씨앗 말고도 넣어두는 상위 질의 — 카테고리를 안 좁혀도 리빙 브랜드가 통으로 온다.
 EXTRA = ['리빙브랜드', '인테리어브랜드', '북유럽브랜드', '해외리빙브랜드', '디자인브랜드',
          '수입그릇브랜드', '명품그릇브랜드', '조명브랜드순위', '가구브랜드']
@@ -39,10 +39,14 @@ ROTATE = 0                                   # 0 = 전부 (돌려쓰기 안 함)
 # 질의 뼈대는 **카테고리어**여야 한다. 씨앗 값에는 브랜드가 섞여 있어서(되먹임으로 넣었다)
 #   그대로 쓰면 '나그참파브랜드'·'기안84그림브랜드' 같은 쓸모없는 질의가 나온다.
 #   lexicon(=카테고리 사전) + 테마 이름만 쓰고, 이미 사전에 있는 이름은 뺀다.
-def queries(config, day_index=0, rotate=ROTATE, known=()):
+def queries(config, day_index=0, rotate=ROTATE, known=(), brands=(), pool=None, pool_top=60):
     """radar-config 의 카테고리 사전으로 '브랜드' 질의를 만든다. 날마다 돌려써서 넓힌다.
 
-    known: 이미 사전에 있는 브랜드 이름 — '<브랜드>브랜드' 를 또 묻지 않는다."""
+    known:  이미 사전에 있는 브랜드 이름 — '<브랜드>브랜드' 를 또 묻지 않는다.
+    brands: 확인된 브랜드 — **맨이름 그대로** 묻는다. 그 브랜드의 연관검색어에 경쟁 브랜드가
+            섞여 온다(실측: 루이스폴센 → 아르떼미데·판텔라·PH5). 2차 확장이다.
+    pool:   (안 쓴다) 풀에서 끝말을 긁어 카테고리어를 늘려봤는데 단어가 잘려
+            '릇세트브랜드'·'저세트브랜드' 같은 쓰레기가 나왔다. 형태소 분석 없이는 안 된다."""
     seeds = (config or {}).get('seeds') or {}
     words = [re.sub(r'[^가-힣A-Za-z0-9]', '', t) for t in seeds.keys()]
     words += list((config or {}).get('lexicon') or [])
@@ -54,6 +58,8 @@ def queries(config, day_index=0, rotate=ROTATE, known=()):
             continue
         qs += [w + suf for suf in SUFFIXES]   # 접미사마다 연관검색어가 다르게 온다
     qs += EXTRA
+    # 확인된 브랜드는 맨이름으로 — 연관검색어에 경쟁 브랜드가 온다
+    qs += [re.sub(r'\s+', '', b) for b in (brands or []) if len(re.sub(r'\s+', '', b)) >= 2]
     seen, uniq = set(), []
     for q in qs:                             # 순서 유지 중복 제거
         if q not in seen:
@@ -146,7 +152,7 @@ def _cat_words(config):
     return {w for w in out if len(w) >= 2}
 
 
-def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=4, config=None, per_cat=15):
+def sourcing(doc, pool=None, products=None, top=4000, min_days=1, max_queries=5, config=None, per_cat=60):
     """사전 × 검색 수요 × 우리 보유 → 소싱 목록.
 
     쇼핑몰 카탈로그를 못 구해서 사전을 직접 만든 것이므로, 여기가 '브랜드 목록'이다.

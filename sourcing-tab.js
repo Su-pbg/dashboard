@@ -28,6 +28,27 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
 const bust=()=>'?v='+Math.floor(Date.now()/600000);
 const norm=s=>String(s||'').replace(/\s+/g,'');
+// [2026-10-20] 지금 보고 소싱하면 도착은 한 달 뒤다. 스파이크는 이미 늦은 것이고
+//   **꾸준한 수요**(연중 들쭉날쭉하지 않은 것)가 소싱 리스크가 가장 낮다.
+const NEXT=(new Date().getMonth()+1)%12;          // 다음 달 0-based
+function profile(r){
+  const idx=r&&r.seasonIdx;
+  if(!idx||idx.length!==12) return null;
+  const mean=idx.reduce((a,b)=>a+b,0)/12;
+  const cv=Math.sqrt(idx.reduce((a,b)=>a+(b-mean)*(b-mean),0)/12)/(mean||1);
+  const lo=Math.min(...idx), hi=Math.max(...idx);
+  return {next:idx[NEXT], lo, hi, cv,
+          kind: cv<0.20?'상시':(cv<0.45?'계절':'들쭉날쭉'),
+          peak: MON[idx.indexOf(hi)]};
+}
+function verdict(p){
+  if(!p) return ['<span class="sc-sub">시즌 자료 없음</span>',0];
+  if(p.kind==='상시') return [`<b>사철 수요</b> <span class="sc-sub">연중 최저 ${p.lo.toFixed(2)} — 타이밍 부담 적음</span>`,3];
+  if(p.next>=1.15) return [`<span class="sc-hot">정점에 맞음</span> <span class="sc-sub">${MON[NEXT]} 지수 ${p.next.toFixed(2)}</span>`,4];
+  if(p.next>=0.95) return [`평년 수준 <span class="sc-sub">${MON[NEXT]} 지수 ${p.next.toFixed(2)} · 정점 ${p.peak}</span>`,2];
+  return [`<span class="sc-sub">비수기 — 급하지 않음 (${MON[NEXT]} 지수 ${p.next.toFixed(2)} · 정점 ${p.peak})</span>`,1];
+}
+const pc=v=>v==null?'':`${v>0?'+':''}${Math.round(v*100)}%`;
 
 function links(name){
   const e=encodeURIComponent(name);
@@ -65,30 +86,34 @@ window.loadSourcingTab = async function(root){
     const top=ks.length?ks.reduce((a,c)=>c.monthlySearch>a.monthlySearch?c:a):null;
     const ourCount=ks.reduce((s,r)=>s+(r.ourCount||0),0), sold=ks.reduce((s,r)=>s+(r.ourSales30||0),0);
     const todo=ks.filter(r=>TODO[r.action]);
-    const why=[];
-    if(b.search) why.push(`<b>${n(b.search)}</b> 검색`);
-    if(top&&top.peakMonth) why.push(`${MON[top.peakMonth-1]} 정점`);
-    if(b.cats&&b.cats.length) why.push(esc(b.cats.slice(0,3).join(' · ')));
-    const gap = ks.length
-      ? `${esc(top.keyword)} ${n(top.monthlySearch)}<br><span class="sc-sub">우리 ${n(ourCount)}종 · 30일 ${n(sold)}개${todo.length?` · <span class="sc-hot">${esc(todo[0].action)}</span>`:''}</span>`
+    const p=profile(top), vd=verdict(p);
+    const trend=top?[top.growth4w!=null?`4주 ${pc(top.growth4w)}`:'', top.yoy!=null?`전년 ${pc(top.yoy)}`:''].filter(Boolean).join(' · '):'';
+    const why = top
+      ? `<b>${esc(top.keyword)}</b> ${n(top.monthlySearch)}<br><span class="sc-sub">${esc(trend)||'추세 자료 없음'}</span>`
       : '<span class="sc-sub">레이더에 안 걸림</span>';
-    return `<tr><td><span class="sc-b">${esc(name)}</span>${have?' <span class="sc-pill">보유</span>':''}<br><span class="sc-sub">${esc(note||'')}</span></td>`
-      + `<td class="sc-why">${why.join(' · ')||'<span class="sc-sub">—</span>'}</td>`
+    const when = `${vd[0]}${p?`<br><span class="sc-sub">${p.kind} · 연중 ${p.lo.toFixed(2)}~${p.hi.toFixed(2)}</span>`:''}`;
+    const gap = ks.length
+      ? `우리 ${n(ourCount)}종 · 30일 ${n(sold)}개${todo.length?`<br><span class="sc-hot">${esc(todo[0].action)}</span>`:''}`
+      : '<span class="sc-sub">—</span>';
+    return [`<tr><td><span class="sc-b">${esc(name)}</span>${have?' <span class="sc-pill">보유</span>':''}<br><span class="sc-sub">${esc(note||'')}</span></td>`
+      + `<td class="sc-why">${why}</td>`
+      + `<td class="sc-why">${when}</td>`
       + `<td class="sc-gap">${gap}</td>`
-      + `<td>${links(name)}</td></tr>`;
+      + `<td>${links(name)}</td></tr>`, vd[1], top?top.monthlySearch:0, have];
   }
-  const head=`<thead><tr><th style="width:24%">브랜드</th><th style="width:22%">왜</th><th style="width:30%">우리 공백</th><th>확인</th></tr></thead>`;
+  const head=`<thead><tr><th style="width:20%">브랜드</th><th style="width:20%">수요 · 추세</th>`
+    +`<th style="width:25%">${MON[NEXT]} 도착 기준</th><th style="width:16%">우리 상태</th><th>확인</th></tr></thead>`;
 
   // 확인된 브랜드 — 우리에게 없는 것 먼저, 검색량 순
-  const names=Object.keys(conf);
-  const score=nm=>{const b=byName[nm]||{}; const have=nm.length>=3&&ourText.includes(nm.toLowerCase()); return [have?1:0, -(b.search||0)];};
-  names.sort((a,b)=>{const x=score(a),y=score(b); return x[0]-y[0]||x[1]-y[1];});
-  const confHTML=names.length?`<table class="sc-t">${head}<tbody>${names.map(nm=>row(nm,conf[nm])).join('')}</tbody></table>`
+  const built=Object.keys(conf).map(nm=>[nm].concat(row(nm,conf[nm])));
+  // 미보유 먼저 → 사철/정점 판정 높은 순 → 검색량
+  built.sort((a,b)=>(a[4]?1:0)-(b[4]?1:0)||b[2]-a[2]||b[3]-a[3]);
+  const confHTML=built.length?`<table class="sc-t">${head}<tbody>${built.map(x=>x[1]).join('')}</tbody></table>`
     :'<div class="sc-sub">brand-review.json 의 confirmed 가 비어 있습니다.</div>';
 
   // 소재·원산지 — 브랜드는 아니지만 소싱 품목으로 쓴다
   const matNames=Object.keys(mat).filter(k=>k!=='_설명');
-  const matHTML=matNames.length?`<table class="sc-t">${head}<tbody>${matNames.map(nm=>row(nm,mat[nm])).join('')}</tbody></table>`:'';
+  const matHTML=matNames.length?`<table class="sc-t">${head}<tbody>${matNames.map(nm=>row(nm,mat[nm])[0]).join('')}</tbody></table>`:'';
 
   // 아직 안 가른 후보 — 사전 전체에서 카테고리별로. [2026-10-20] 전엔 search>0 만 봐서
   //   검색량이 안 잡히는 해외 브랜드(MAGIS·USM·크로스노·큐티폴)가 통째로 안 보였다.
@@ -123,7 +148,8 @@ window.loadSourcingTab = async function(root){
     ${zeroHTML?`<div class="sc-card"><h2>이름 치고 왔는데 물건이 없다</h2>
       <p class="sc-lead">우리 몰에서 검색했는데 결과 0건. 이미 온 수요라 제일 급하다. 아트·굿즈는 브랜드가 아니라 작가 단위라 이쪽에 잡힌다.</p>${zeroHTML}</div>`:''}
     <div class="sc-card"><h2>소싱 목록</h2>
-      <p class="sc-lead">사람이 확인한 브랜드만 올린다. <b>보유</b> 표시가 없으면 우리에게 없는 것이다.</p>${confHTML}</div>
+      <p class="sc-lead">지금 정하면 <b>물건은 한 달 뒤</b> 들어온다. 그래서 '지금 뜨는 것'이 아니라 <b>${MON[NEXT]}에 수요가 있는 것</b>으로 세운다.
+        사철 수요(연중 들쭉날쭉하지 않은 것)가 타이밍 부담이 가장 적다. <b>보유</b> 표시가 없으면 우리에게 없는 것.</p>${confHTML}</div>
     ${matHTML?`<div class="sc-card"><h2>소재 · 원산지</h2><p class="sc-lead">브랜드는 아니지만 소싱 품목으로 쓴다.</p>${matHTML}</div>`:''}
     <div class="sc-card"><h2>아직 안 가른 후보 (${unTot})</h2>
       <p class="sc-lead">기계가 뽑은 이름 중 아직 사람이 안 본 것. 브랜드면 <code>confirmed</code>, 소재·원산지면 <code>material</code>, 아니면 <code>rejected</code> 로 옮긴다 →
