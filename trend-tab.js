@@ -155,14 +155,14 @@ function rowHTML(x,i){
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
   const yt=(x.ytViews7d!=null||x.blog7d!=null||x.cafeTotal!=null)?`${x.ytViews7d!=null?n(x.ytViews7d)+'회':'—'}<div class="tr-sub">블로그 ${n(x.blog7d)} · 카페 ${x.cafeNew!=null?'+'+n(x.cafeNew):'—'}</div>`:'—';
   return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · <span class="tr-sub">'+esc(x.trendType)+'</span>':''}${x.seasonal?' · <b>'+x.peakMonth+'월 시즌</b>':''}</div></td>
-  <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td>${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
-  <td>${pct(x.volGrowth28)}</td><td><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
-  <td>${pct(x.yoy)}</td><td>${shopc}</td><td>${fem}</td><td>${esc(x.adCompetition||'—')}</td><td>${yt}</td><td>${our}</td></tr>`;
+  <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td data-k="monthlySearch">${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
+  <td data-k="volGrowth28">${pct(x.volGrowth28)}</td><td data-k="growth4w"><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
+  <td data-k="yoy">${pct(x.yoy)}</td><td data-k="shopGrowth4w">${shopc}</td><td data-k="femaleShare">${fem}</td><td data-k="adCompetition">${esc(x.adCompetition||'—')}</td><td data-k="ytViews7d">${yt}</td><td data-k="ourSales30">${our}</td></tr>`;
 }
 function detailHTML(x,i){
   const prods=(x.ourTop||[]).map(p=>`<li><a href="${esc(p.url||('https://www.printbakery.com/product/detail.html?product_no='+p.no))}" target="_blank" rel="noopener">${esc(p.name)}</a> · ${n(p.price)}원 · 30일 ${n(p.q30)}개${p.soldOut?' · <b>품절</b>':''}</li>`).join('')||'<li class="tr-sub">우리 몰에 매칭되는 상품 없음</li>';
   const comp=(x.compTop||[]).map(p=>`<li>${esc(p.name||p.title||'')} ${p.price?'· '+n(p.price)+'원':''}</li>`).join('');
-  return `<tr class="tr-detail"><td colspan="${COLS.length}"><div class="tr-dgrid">
+  return `<tr class="tr-detail"><td colspan="99"><div class="tr-dgrid">
     <div><h4>검색 지수 추이 (최근 60일, 네이버 검색어 트렌드)</h4>${bigChart(x.trendSeries,i)}
       <div class="tr-sub" style="margin-top:6px">처음 잡힌 날 ${esc(x.firstSeen||'—')} · 월 클릭 ${n(x.monthlyClicks)} · 클릭률 ${x.ctr!=null?x.ctr+'%':'—'} · 유튜브 7일 ${n(x.yt7d)}개 영상 · 블로그 7일 ${n(x.blog7d)}건(누적 ${n(x.blogTotal)}) · 카페 새 글 ${n(x.cafeNew)}(누적 ${n(x.cafeTotal)})</div></div>
     <div><h4>쇼핑 클릭 연령 (최근 3개월)</h4>${bars(x.ageShare,k=>AGE[k]||k)}
@@ -181,9 +181,13 @@ function renderTable(){
   const rows=filtered(all); const shown=rows.slice(0,S.limit);
   const box=document.getElementById('trTable');
   box.innerHTML=`<div class="tr-scroll"><table class="tr-t"><thead><tr>${COLS.map(c=>`<th class="${c.l?'l':''} ${S.sort===c.k?'sorted':''}" data-k="${c.k}">${c.t}${S.sort===c.k?(S.dir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
-   <tbody>${shown.map((x,i)=>rowHTML(x,i)+(S.open===x.keyword?detailHTML(x,i):'')).join('')||`<tr><td colspan="${COLS.length}" class="l tr-sub">조건에 맞는 키워드가 없습니다</td></tr>`}</tbody></table></div>
+   <tbody>${shown.map((x,i)=>rowHTML(x,i)+(S.open===x.keyword?detailHTML(x,i):'')).join('')||`<tr><td colspan="99" class="l tr-sub">조건에 맞는 키워드가 없습니다</td></tr>`}</tbody></table></div>
    <div class="tr-sub" style="margin-top:6px">${rows.length}개 중 ${shown.length}개 표시 · 행을 누르면 추이·연령·우리 상품이 열립니다</div>
    ${rows.length>shown.length?'<button class="tr-more" id="trMore">더 보기</button>':''}`;
+  // 비어 있는 열은 셀까지 걷어낸다 (헤더만 빼면 줄이 어긋난다)
+  const keep=new Set(CL.map(c=>c.k));
+  COLS.filter(c=>!c.l&&!keep.has(c.k)).forEach(c=>
+    box.querySelectorAll(`td[data-k="${c.k}"]`).forEach(td=>td.remove()));
   const byId={}; shown.forEach((x,i)=>byId[i]=x);
   box.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(S.sort===k)S.dir*=-1;else{S.sort=k;S.dir=(k==='keyword'||k==='theme'||k==='action')?1:-1;}renderTable();});
   box.querySelectorAll('tr.row').forEach(tr=>tr.onclick=()=>{const x=shown[+tr.dataset.i];S.open=S.open===x.keyword?null:x.keyword;renderTable();});
@@ -431,6 +435,7 @@ window.loadTrendTab=async function(){
   c.innerHTML=`
    <div class="tr-meta"><span>기준 <b>${esc(run.date)}</b> (매일 06:50 갱신)</span><span>키워드 풀 <b>${n(run.poolSize)}</b>개</span><span>오늘 새로 들어옴 <b>${n(run.newToday)}</b>개</span><span>추석(9/14~9/28)은 추세 계산에서 제외</span></div>
    ${errs.length?`<div class="tr-warn">일부 네이버 API 호출이 실패했습니다: ${errs.map(([k,v])=>esc(k)+' '+esc(v).slice(0,80)).join(' / ')}</div>`:''}
+   <div class="tr-card"><h2>이번 주 할 일</h2><p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 키워드 판정과 브랜드 사전을 카테고리로 붙인 것이다.</p><div id="trAct"></div></div>
    <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 처음엔 할 일(재고확보·시즌 준비·시즌 소싱·소싱·밀기·안 팔림 점검)만 보입니다. 상시 수요인데 잘 팔리는 키워드는 '유지'로 빠집니다.</p>
      <div class="tr-acts" id="trActs"></div>
      <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="${esc(S.q)}">
@@ -438,7 +443,6 @@ window.loadTrendTab=async function(){
        <label><input type="checkbox" id="trNew" ${S.onlyNew?'checked':''}>신규만</label>
        <label title="백테스트에서 모멘텀 적중률 46% — 동전던지기보다 낮다. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
      <div id="trTable"></div></div>
-   <div class="tr-card"><h2>이번 주 할 일</h2><p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 키워드 판정과 브랜드 사전을 카테고리로 붙인 것이다.</p><div id="trAct"></div></div>
    <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
    <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
    <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
