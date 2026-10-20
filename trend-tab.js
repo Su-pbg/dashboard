@@ -276,7 +276,11 @@ function renderAction(){
   const brandsFor=kw=>{
     const k=String(kw).replace(/\s+/g,''); const seen={}, out=[];
     for(const c in byCat){ if(c.includes(k)||k.includes(c)) for(const b of byCat[c]) if(!seen[b.name]){seen[b.name]=1;out.push(b);} }
-    return out.sort((a,b)=>b.search-a.search).slice(0,6);
+    // [2026-10-20] 검색 수요가 확인된 것만 보여준다. 카테고리마다 질이 갈린다 —
+    //   조명/러그는 브랜드가 나오지만(베르판·사이잘·파펠리나) 액자/굿즈/캔들은
+    //   '○○브랜드' 로 물으면 판촉물·DIY 업체가 나온다(칫솔살균기·이모티콘만들기·퀼트천).
+    //   쓰레기를 보여주느니 비워두는 게 낫다.
+    return out.filter(b=>b.search>0).sort((a,b)=>b.search-a.search).slice(0,5);
   };
   const bchips=bs=>bs.length?bs.map(b=>`<a href="https://search.naver.com/search.naver?query=${encodeURIComponent(b.name)}" target="_blank" rel="noopener" class="tr-pill" style="background:var(--fill);color:var(--ink-2);text-decoration:none" title="${b.search?n(b.search)+' 검색':'검색 수요 미포착'} · ${esc((b.cats||[]).join(' · '))}">${esc(b.name)}</a>`).join(' ')
     :'<span class="t">후보 없음 — 사전이 더 쌓여야 한다</span>';

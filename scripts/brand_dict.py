@@ -130,6 +130,12 @@ def merge(doc, found, date):
     return doc
 
 
+# '○○브랜드' 질의에 딸려오는 B2B·판촉 어휘. 브랜드가 아니라 거래 문구다.
+#   실측: 액자브랜드 → 안전용품납품·안경케이스도매·안전용품견적, 패브릭브랜드 → 퀼트도안·인형원단
+TRADE = ('납품', '도매', '구매', '견적', '제작', '주문', '업체', '공장', '판매처', '판매사이트',
+         '사이트', '쇼핑몰', '매장', '패키지', '도안', '원단', '재료', '부자재', '용품')
+
+
 def _cat_words(config):
     """카테고리 어휘. 이 말을 품은 이름은 브랜드가 아니라 카테고리 문구다."""
     out = set(GENERIC) | set((config or {}).get('lexicon') or [])
@@ -140,7 +146,7 @@ def _cat_words(config):
     return {w for w in out if len(w) >= 2}
 
 
-def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=4, config=None):
+def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=4, config=None, per_cat=15):
     """사전 × 검색 수요 × 우리 보유 → 소싱 목록.
 
     쇼핑몰 카탈로그를 못 구해서 사전을 직접 만든 것이므로, 여기가 '브랜드 목록'이다.
@@ -161,6 +167,8 @@ def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=4, 
         #   식탁조명·거실러그·펜던트조명·그림액자가 검색량으로 위를 다 먹고 있었다.
         if any(c in nn for c in cats_v if c != nn):
             continue
+        if any(t in nn for t in TRADE):
+            continue
         # 한글 2글자는 사실상 전부 일반명사였다 — 가을·공예·쇼핑·스프·전기·외국·제주·사과·
         #   침대·텐트·셋트·물병·야외·가방·출력·향초·풍경·견적·사기·각인·반찬·방수.
         #   브랜드 중 2글자는 쿤달 정도고 그건 이미 씨앗에 있다.
@@ -180,7 +188,25 @@ def sourcing(doc, pool=None, products=None, top=400, min_days=1, max_queries=4, 
     # 브랜드는 대개 우리 풀에 없다(풀은 카테고리 키워드로 만들어졌다). 검색량 순으로만 세우면
     #   풀에 우연히 걸린 일반어가 위를 먹는다. 질의 수가 적은 쪽(= 더 고유한 쪽)을 먼저 본다.
     out.sort(key=lambda x: (len(x.get('cats') or x['queries']), -x['search'], -x['hits']))
-    return out[:top]
+    # [2026-10-20] 그냥 top 으로 자르면 검색량 큰 카테고리(가구·그릇·러그·조명)가 자리를 다 먹는다.
+    #   실측: 사전 cats 39개인데 잘린 뒤엔 13개만 남아 액자(85)·패브릭(138)·포스터(29)가 통째로
+    #   사라졌고, 그 키워드 행에는 '후보 없음' 이 떴다. 카테고리마다 몫을 준다.
+    picked, seen, bycat = [], set(), {}
+    for b in out:
+        for c in (b.get('cats') or ['-']):
+            bycat.setdefault(c, []).append(b)
+    for c, bs in bycat.items():
+        for b in bs[:per_cat]:
+            if b['name'] not in seen:
+                seen.add(b['name'])
+                picked.append(b)
+    for b in out:                                   # 남는 자리는 전체 순위로 채운다
+        if len(picked) >= top:
+            break
+        if b['name'] not in seen:
+            seen.add(b['name'])
+            picked.append(b)
+    return picked[:top]
 
 
 def demo():
