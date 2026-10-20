@@ -42,10 +42,11 @@ function links(name){
 window.loadSourcingTab = async function(root){
   if(!document.getElementById('scCss')){ const st=document.createElement('style'); st.id='scCss'; st.textContent=CSS; document.head.appendChild(st); }
   root.innerHTML='<div class="sc-wrap"><div class="sc-sub">불러오는 중…</div></div>';
-  const [tmR,revR,snapR] = await Promise.all([
+  const [tmR,revR,snapR,dictR] = await Promise.all([
     fetch('trend-metrics.json'+bust()).then(r=>r.json()),
     fetch('brand-review.json'+bust()).then(r=>r.json()).catch(()=>({confirmed:{},material:{},rejected:[]})),
-    fetch('product-snapshot.json'+bust()).then(r=>r.json()).catch(()=>({products:[]}))
+    fetch('product-snapshot.json'+bust()).then(r=>r.json()).catch(()=>({products:[]})),
+    fetch('brand-dictionary.json'+bust()).then(r=>r.json()).catch(()=>({brands:{}}))
   ]);
   const run=tmR.runs[tmR.runs.length-1];
   const rows=run.rows||[], dict=run.brandDict||[];
@@ -89,10 +90,26 @@ window.loadSourcingTab = async function(root){
   const matNames=Object.keys(mat).filter(k=>k!=='_설명');
   const matHTML=matNames.length?`<table class="sc-t">${head}<tbody>${matNames.map(nm=>row(nm,mat[nm])).join('')}</tbody></table>`:'';
 
-  // 아직 안 가른 후보
-  const unreviewed=dict.filter(b=>!b.ours&&b.search>0&&!conf[b.name]&&!mat[b.name]&&!rej.has(b.name))
-                       .sort((a,b)=>b.search-a.search).slice(0,60);
-  const unHTML=unreviewed.length?`<div class="sc-new">${unreviewed.map(b=>`<span title="${esc((b.cats||[]).join(' · '))} · ${n(b.search)} 검색">${esc(b.name)} <span class="sc-sub">${n(b.search)}</span></span>`).join('')}</div>`
+  // 아직 안 가른 후보 — 사전 전체에서 카테고리별로. [2026-10-20] 전엔 search>0 만 봐서
+  //   검색량이 안 잡히는 해외 브랜드(MAGIS·USM·크로스노·큐티폴)가 통째로 안 보였다.
+  const all=dictR.brands||{};
+  const CATWORD=/조명|러그|그릇|접시|액자|포스터|캔들|디퓨저|가구|쿠션|패브릭|커트러리|식기|방향제|향초|인테리어|소품|굿즈|오브제|수저|트레이|화병/;
+  const TRADEW=/납품|도매|구매|견적|제작|주문|업체|공장|판매|사이트|쇼핑몰|매장|도안|원단|재료|부자재|용품|브랜딩|리모델링|컨설팅|전시회|가볼만한곳|놀거리/;
+  const un={};
+  for(const nm in all){
+    const e=all[nm], cats=e.cats||[];
+    if(conf[nm]||mat[nm]||rej.has(nm)) continue;
+    if(cats.length>3) continue;
+    const t=norm(nm);
+    if(t.length<3&&!/[A-Za-z]{2,}/.test(t)) continue;
+    if(CATWORD.test(t)||TRADEW.test(t)) continue;
+    const c=cats[0]||'기타'; (un[c]=un[c]||[]).push({name:nm,hits:e.hits||0,search:(byName[nm]||{}).search||0});
+  }
+  const unCats=Object.keys(un).sort((a,b)=>un[b].length-un[a].length);
+  const unTot=unCats.reduce((s,c)=>s+un[c].length,0);
+  const unHTML=unTot?unCats.map(c=>`<div style="margin-bottom:10px"><div class="sc-sub" style="margin-bottom:4px"><b>${esc(c)}</b> (${un[c].length})</div>`
+      +`<div class="sc-new">${un[c].sort((a,b)=>b.hits-a.hits||b.search-a.search).slice(0,40)
+          .map(b=>`<span title="${b.search?n(b.search)+' 검색':'검색 수요 미포착'}">${esc(b.name)}</span>`).join('')}</div></div>`).join('')
     :'<div class="sc-sub">새 후보 없음</div>';
 
   // 이름 치고 왔는데 결과 0건 — 작가 소싱 신호
@@ -108,7 +125,7 @@ window.loadSourcingTab = async function(root){
     <div class="sc-card"><h2>소싱 목록</h2>
       <p class="sc-lead">사람이 확인한 브랜드만 올린다. <b>보유</b> 표시가 없으면 우리에게 없는 것이다.</p>${confHTML}</div>
     ${matHTML?`<div class="sc-card"><h2>소재 · 원산지</h2><p class="sc-lead">브랜드는 아니지만 소싱 품목으로 쓴다.</p>${matHTML}</div>`:''}
-    <div class="sc-card"><h2>아직 안 가른 후보 (${unreviewed.length})</h2>
+    <div class="sc-card"><h2>아직 안 가른 후보 (${unTot})</h2>
       <p class="sc-lead">기계가 뽑은 이름 중 아직 사람이 안 본 것. 브랜드면 <code>confirmed</code>, 소재·원산지면 <code>material</code>, 아니면 <code>rejected</code> 로 옮긴다 →
         <a class="sc-a" href="https://github.com/Su-pbg/dashboard/edit/main/brand-review.json" target="_blank" rel="noopener">brand-review.json 고치기</a></p>${unHTML}</div>
   </div>`;
