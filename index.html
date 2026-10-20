@@ -956,7 +956,7 @@ async function load(){
   if(TAB==='revenue'){ await loadRevenue(); return; }
   if(TAB==='manager'){ await loadManagerTab(); return; }
   if(TAB==='trend'){   // 트렌드 탭은 별도 파일을 처음 열 때만 불러온다
-    if(!window.loadTrendTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='trend-tab.js?v='+Math.floor(Date.now()/3600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    await loadTabScript('trend-tab.js','loadTrendTab');
     await window.loadTrendTab(); return; }
   showLoading();
   try{
@@ -3722,13 +3722,23 @@ function enterDashboard(){
 }
 // 위탁 정산 화면은 별도 파일이라 처음 열 때만 불러온다(트렌드 탭과 같은 방식).
 // 캐시 키는 10분 단위 — 배포 후 예전 화면이 오래 남지 않게(Pages 캐시도 10분).
+// [2026-10-20] 탭 스크립트는 **매번 서버에 최신인지 묻고** 받는다(cache:no-cache → 안 바뀌었으면 304).
+//   전엔 ?v=10분·1시간 버킷을 썼는데, 고친 화면이 최대 1시간 늦게 반영되고 사람마다 버전이 섞였다.
+//   "고쳤다는데 화면 그대로"가 여기서 나왔다. 이카운트 탭이 같은 이유로 먼저 바꿨던 방식이다.
+async function loadTabScript(file, globalName){
+  if(window[globalName]) return;
+  const code=await (await fetch(file,{cache:'no-cache'})).text();
+  const url=URL.createObjectURL(new Blob([code+'\n//# sourceURL='+file],{type:'text/javascript'}));
+  try{ await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src=url;sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);}); }
+  finally{ URL.revokeObjectURL(url); }
+}
 let SOURCING_LOADED=false;
 async function enterSourcing(){
   showGate(false);
   if(SOURCING_LOADED) return;
   SOURCING_LOADED=true;
   try{
-    if(!window.loadSourcingTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='sourcing-tab.js?v='+Math.floor(Date.now()/600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    await loadTabScript('sourcing-tab.js','loadSourcingTab');
     await window.loadSourcingTab($('sourcingContent'));
   }catch(e){ SOURCING_LOADED=false; $('sourcingContent').innerHTML='<div class="err">소싱 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }
@@ -3738,7 +3748,7 @@ async function enterSettle(){
   if(SETTLE_LOADED) return;
   SETTLE_LOADED=true;
   try{
-    if(!window.loadSettleTab) await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src='settle-tab.js?v='+Math.floor(Date.now()/600000);sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);});
+    await loadTabScript('settle-tab.js','loadSettleTab');
     await window.loadSettleTab($('settleContent'));
   }catch(e){ SETTLE_LOADED=false; $('settleContent').innerHTML='<div class="err">위탁 정산 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }
