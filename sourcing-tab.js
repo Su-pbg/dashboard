@@ -49,6 +49,34 @@ function verdict(p){
   return [`<span class="sc-sub">비수기 — 급하지 않음 (${MON[NEXT]} 지수 ${p.next.toFixed(2)} · 정점 ${p.peak})</span>`,1];
 }
 const pc=v=>v==null?'':`${v>0?'+':''}${Math.round(v*100)}%`;
+// [2026-10-20] 변이할당분석(shift-share). 전년 대비 변화를 세 몫으로 쪼갠다 —
+//   전체효과(시장 전체) · 구성효과(그 카테고리) · 경쟁효과(그 키워드 고유).
+//   실측: 전체 -27.5% 라 개별 하락의 대부분이 시장 몫이다. '카테고리가 죽었다' 로 읽으면 틀린다.
+//   경쟁효과가 진짜 신호다 — 국립중앙박물관굿즈 -25,206 ↔ 국중박굿즈 +26,409 로 거의 상쇄된다
+//   (수요가 준 게 아니라 줄임말로 표기가 이동했다).
+// 분해만 보여주면 "그래서?" 가 남는다. 숫자를 판단으로 옮긴다.
+function ssVerdict(e, top){
+  if(!e||!top) return '';
+  const V0=top.monthlySearch/(1+top.yoy);
+  const compR=e.comp/(V0||1), mixR=e.gT-e.G;
+  if(compR<=-0.25) return '<span class="sc-hot">고유 이탈</span> <span class="sc-sub">시장 탓이 아니다 — 대체어·경쟁 이동 확인</span>';
+  if(compR>=0.25)  return '<b>혼자 가져감</b> <span class="sc-sub">시장이 빠지는데 이 품목만 늘었다 — 밀어도 된다</span>';
+  if(mixR>=0.08)   return '<b>버티는 카테고리</b> <span class="sc-sub">시장보다 덜 빠진다 — 소싱 무게를 둘 만하다</span>';
+  if(mixR<=-0.08)  return '<span class="sc-sub">역풍 카테고리 — 시장보다 더 빠진다. 서두르지 말 것</span>';
+  return '<span class="sc-sub">시장 전체가 빠진 몫 — 이 품목 고유 문제는 아니다</span>';
+}
+function shiftShare(rows){
+  const ok=rows.filter(r=>r.yoy!=null&&r.monthlySearch&&(1+r.yoy)>0.01)
+               .map(r=>({r, V1:r.monthlySearch, V0:r.monthlySearch/(1+r.yoy), t:r.theme||'-'}));
+  if(!ok.length) return null;
+  const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+  const G=sum(ok,x=>x.V1)/sum(ok,x=>x.V0)-1;
+  const byT={}; for(const x of ok) (byT[x.t]=byT[x.t]||[]).push(x);
+  const gT={}; for(const t in byT) gT[t]=sum(byT[t],x=>x.V1)/sum(byT[t],x=>x.V0)-1;
+  const per={};
+  for(const x of ok) per[x.r.keyword]={G, gT:gT[x.t], comp:x.V0*(x.r.yoy-gT[x.t]), mix:x.V0*(gT[x.t]-G)};
+  return {G, gT, per};
+}
 
 function links(name){
   const e=encodeURIComponent(name);
@@ -71,6 +99,7 @@ window.loadSourcingTab = async function(root){
   ]);
   const run=tmR.runs[tmR.runs.length-1];
   const rows=run.rows||[], dict=run.brandDict||[];
+  const SS=shiftShare(rows);
   const conf=revR.confirmed||{}, mat=revR.material||{}, rej=new Set(revR.rejected||[]);
   const ourText=(snapR.products||[]).map(p=>p.name||'').join(' ').toLowerCase();
 
@@ -88,8 +117,16 @@ window.loadSourcingTab = async function(root){
     const todo=ks.filter(r=>TODO[r.action]);
     const p=profile(top), vd=verdict(p);
     const trend=top?[top.growth4w!=null?`4주 ${pc(top.growth4w)}`:'', top.yoy!=null?`전년 ${pc(top.yoy)}`:''].filter(Boolean).join(' · '):'';
+    // 전년 하락을 시장 몫과 고유 몫으로 가른다
+    let ss='';
+    if(SS&&top&&SS.per[top.keyword]){
+      const e=SS.per[top.keyword];
+      const sign=e.comp>0?'고유 +':'고유 ';
+      ss=`<br><span class="sc-sub">시장 ${pc(SS.G)} · 카테고리 ${(e.gT-SS.G)>=0?'+':''}${Math.round((e.gT-SS.G)*100)}p · <b>${sign}${n(Math.round(e.comp))}</b></span>`
+         +`<br>${ssVerdict(e, top)}`;
+    }
     const why = top
-      ? `<b>${esc(top.keyword)}</b> ${n(top.monthlySearch)}<br><span class="sc-sub">${esc(trend)||'추세 자료 없음'}</span>`
+      ? `<b>${esc(top.keyword)}</b> ${n(top.monthlySearch)}<br><span class="sc-sub">${esc(trend)||'추세 자료 없음'}</span>${ss}`
       : '<span class="sc-sub">레이더에 안 걸림</span>';
     const when = `${vd[0]}${p?`<br><span class="sc-sub">${p.kind} · 연중 ${p.lo.toFixed(2)}~${p.hi.toFixed(2)}</span>`:''}`;
     const gap = ks.length
@@ -101,7 +138,7 @@ window.loadSourcingTab = async function(root){
       + `<td class="sc-gap">${gap}</td>`
       + `<td>${links(name)}</td></tr>`, vd[1], top?top.monthlySearch:0, have];
   }
-  const head=`<thead><tr><th style="width:20%">브랜드</th><th style="width:20%">수요 · 추세</th>`
+  const head=`<thead><tr><th style="width:20%">브랜드</th><th style="width:26%">수요 · 추세 · 몫 분해</th>`
     +`<th style="width:25%">${MON[NEXT]} 도착 기준</th><th style="width:16%">우리 상태</th><th>확인</th></tr></thead>`;
 
   // 확인된 브랜드 — 우리에게 없는 것 먼저, 검색량 순
@@ -148,6 +185,10 @@ window.loadSourcingTab = async function(root){
     ${zeroHTML?`<div class="sc-card"><h2>이름 치고 왔는데 물건이 없다</h2>
       <p class="sc-lead">우리 몰에서 검색했는데 결과 0건. 이미 온 수요라 제일 급하다. 아트·굿즈는 브랜드가 아니라 작가 단위라 이쪽에 잡힌다.</p>${zeroHTML}</div>`:''}
     <div class="sc-card"><h2>소싱 목록</h2>
+      ${SS?`<div class="sc-sub" style="margin:0 0 8px;padding:8px 10px;background:var(--fill);border-radius:8px">
+        <b>시장 전체 ${pc(SS.G)}</b> (전년 대비, 검색량 가중). 개별 하락의 대부분은 이 몫이다 —
+        <b>카테고리가 죽은 것으로 읽으면 틀린다.</b> 볼 건 <b>고유(경쟁효과)</b> 쪽이다.
+        버티는 카테고리: ${Object.entries(SS.gT).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,g])=>`${esc(t)} ${(g-SS.G)>=0?'+':''}${Math.round((g-SS.G)*100)}p`).join(' · ')}</div>`:''}
       <p class="sc-lead">지금 정하면 <b>물건은 한 달 뒤</b> 들어온다. 그래서 '지금 뜨는 것'이 아니라 <b>${MON[NEXT]}에 수요가 있는 것</b>으로 세운다.
         사철 수요(연중 들쭉날쭉하지 않은 것)가 타이밍 부담이 가장 적다. <b>보유</b> 표시가 없으면 우리에게 없는 것.</p>${confHTML}</div>
     ${matHTML?`<div class="sc-card"><h2>소재 · 원산지</h2><p class="sc-lead">브랜드는 아니지만 소싱 품목으로 쓴다.</p>${matHTML}</div>`:''}

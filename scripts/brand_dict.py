@@ -39,14 +39,16 @@ ROTATE = 0                                   # 0 = 전부 (돌려쓰기 안 함)
 # 질의 뼈대는 **카테고리어**여야 한다. 씨앗 값에는 브랜드가 섞여 있어서(되먹임으로 넣었다)
 #   그대로 쓰면 '나그참파브랜드'·'기안84그림브랜드' 같은 쓸모없는 질의가 나온다.
 #   lexicon(=카테고리 사전) + 테마 이름만 쓰고, 이미 사전에 있는 이름은 뺀다.
-def queries(config, day_index=0, rotate=ROTATE, known=(), brands=(), pool=None, pool_top=60):
+def queries(config, day_index=0, rotate=ROTATE, known=(), brands=(), pool=None, pool_top=120):
     """radar-config 의 카테고리 사전으로 '브랜드' 질의를 만든다. 날마다 돌려써서 넓힌다.
 
     known:  이미 사전에 있는 브랜드 이름 — '<브랜드>브랜드' 를 또 묻지 않는다.
     brands: 확인된 브랜드 — **맨이름 그대로** 묻는다. 그 브랜드의 연관검색어에 경쟁 브랜드가
             섞여 온다(실측: 루이스폴센 → 아르떼미데·판텔라·PH5). 2차 확장이다.
-    pool:   (안 쓴다) 풀에서 끝말을 긁어 카테고리어를 늘려봤는데 단어가 잘려
-            '릇세트브랜드'·'저세트브랜드' 같은 쓰레기가 나왔다. 형태소 분석 없이는 안 된다."""
+    pool:   keyword-pool.json. 풀 키워드 중 **품목어 꼴**인 것을 통째로 질의 밑동으로 쓴다 —
+            그릇세트브랜드·수저세트브랜드·펜던트조명브랜드처럼 lexicon 에 없는 복합 카테고리를 메운다.
+            [실패 기록] 처음엔 끝 3~4글자를 잘라 썼는데 단어가 쪼개져 '릇세트브랜드'·
+            '저세트브랜드' 가 나왔다. 자르지 말고 키워드를 그대로 쓴다."""
     seeds = (config or {}).get('seeds') or {}
     words = [re.sub(r'[^가-힣A-Za-z0-9]', '', t) for t in seeds.keys()]
     words += list((config or {}).get('lexicon') or [])
@@ -58,6 +60,34 @@ def queries(config, day_index=0, rotate=ROTATE, known=(), brands=(), pool=None, 
             continue
         qs += [w + suf for suf in SUFFIXES]   # 접미사마다 연관검색어가 다르게 온다
     qs += EXTRA
+    # 풀에서 '품목어 꼴' 키워드를 통째로 밑동으로 쓴다 (그릇세트 · 수저세트 · 펜던트조명)
+    if pool:
+        lex = set((config or {}).get('lexicon') or [])
+        for ws in ((config or {}).get('seeds') or {}).values():
+            lex |= set(ws or [])
+        lex = {w for w in lex if len(w) >= 2}
+        extra = []
+        for k in pool:
+            t = re.sub(r'\s+', '', k)
+            if not (3 <= len(t) <= 7) or re.search(r'\d|[A-Za-z]', t):
+                continue
+            if t in known or t in lex:
+                continue
+            if not any(w in t for w in lex):              # 품목어를 품고 있어야 한다
+                continue
+            if any(x in t for x in ('추천', '순위', '인기', '후기', '가격', '싼', '저렴',
+                                    '선물', '만들기', '도매', '파는곳', '쇼핑몰', '사이트')):
+                continue
+            h = (pool[k].get('hist') or {}) if isinstance(pool, dict) else {}
+            extra.append((max(h.values()) if h else 0, t))
+        seen_e = set()
+        for _, t in sorted(extra, reverse=True):      # 가나다순이면 큰 카테고리가 밀린다 — 검색량 순
+            if t in seen_e:
+                continue
+            seen_e.add(t)
+            qs.append(t + SUFFIXES[0])
+            if len(seen_e) >= pool_top:
+                break
     # 확인된 브랜드는 맨이름으로 — 연관검색어에 경쟁 브랜드가 온다
     qs += [re.sub(r'\s+', '', b) for b in (brands or []) if len(re.sub(r'\s+', '', b)) >= 2]
     seen, uniq = set(), []
