@@ -3,6 +3,10 @@
 // index.html 은 탭을 처음 열 때 이 파일을 불러와 loadTrendTab() 을 부른다.
 (function(){
 const CSS=`
+.tr-act.lead{border-color:var(--accent);}
+.tr-act.dim{opacity:.55}
+.tr-sep{display:inline-block;width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+
 .tr-meta{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);font-size:13px;color:var(--muted);margin:0 0 var(--s4);}
 .tr-meta b{color:var(--ink-2);font-weight:600;}
 .tr-warn{background:var(--down-soft);color:var(--ink);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);font-size:13px;margin-bottom:var(--s4);}
@@ -79,7 +83,7 @@ const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절'
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
   '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
-const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,sres:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:60};
+const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,sres:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:15};
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
 const pct=v=>{if(v==null)return '<span class="tr-flat">—</span>';const p=Math.round(v*100);const c=p>=10?'tr-up':p<=-10?'tr-down':'tr-flat';return `<span class="${c}">${p>0?'+':''}${p}%</span>`;};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -136,9 +140,10 @@ function bars(obj,label=k=>k){
 }
 
 const COLS=[
-  {k:'keyword',t:'키워드',l:1},{k:'action',t:'판정 · 할 일',l:1},{k:'monthlySearch',t:'월간 검색'},{k:'volGrowth28',t:'검색수 28일'},
+  {k:'keyword',t:'키워드',l:1},{k:'action',t:'판정 · 할 일',l:1},{k:'ourSales30',t:'우리 몰',l:1},
+  {k:'monthlySearch',t:'월간 검색'},{k:'volGrowth28',t:'검색수 28일'},
   {k:'growth4w',t:'4주 추세'},{k:'yoy',t:'전년 대비'},{k:'shopGrowth4w',t:'쇼핑 클릭 4주'},{k:'femaleShare',t:'여성'},
-  {k:'adCompetition',t:'광고 경쟁'},{k:'ytViews7d',t:'유튜브·블로그·카페'},{k:'ourSales30',t:'우리 몰'},
+  {k:'adCompetition',t:'광고 경쟁'},{k:'ytViews7d',t:'유튜브·블로그·카페'},
 ];
 function filtered(rows){
   const q=S.q.trim().replace(/\s/g,'');
@@ -150,14 +155,18 @@ function filtered(rows){
   return r;
 }
 function rowHTML(x,i){
-  const our=x.ourCount?`${n(x.ourCount)}개 · <b>${n(x.ourSales30)}</b>개 판매<div class="tr-sub">최저 ${x.ourMinPrice?n(x.ourMinPrice)+'원':'—'}</div>`:'<span class="tr-flat">없음</span>';
+  // [2026-10-20] 상위 상품을 행에 바로 보여준다. 전엔 행을 눌러야 나와서 훑을 수가 없었다.
+  const t1=(x.ourTop||[])[0];
+  const our=x.ourCount
+    ? `${n(x.ourCount)}개 · <b>${n(x.ourSales30)}</b>개 판매<div class="tr-sub">${t1?esc(String(t1.name).slice(0,22))+(t1.soldOut?' · <b>품절</b>':'')+' · 30일 '+n(t1.q30)+'개':'최저 '+(x.ourMinPrice?n(x.ourMinPrice)+'원':'—')}</div>`
+    : '<span class="tr-flat">없음</span>';
   const fem=x.femaleShare!=null?`${Math.round(x.femaleShare)}%<div class="tr-sub">${AGE[x.topAge]||''}</div>`:'—';
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
   const yt=(x.ytViews7d!=null||x.blog7d!=null||x.cafeTotal!=null)?`${x.ytViews7d!=null?n(x.ytViews7d)+'회':'—'}<div class="tr-sub">블로그 ${n(x.blog7d)} · 카페 ${x.cafeNew!=null?'+'+n(x.cafeNew):'—'}</div>`:'—';
   return `<tr class="row" data-i="${i}"><td class="l"><span class="tr-kw">${esc(x.keyword)}</span>${x.isNew?'<span class="tr-badge tr-new">신규</span>':''}${x.isSeed?'<span class="tr-badge tr-seed">씨앗</span>':''}<div class="tr-sub">${esc(x.theme||'')}${x.trendType?' · <span class="tr-sub">'+esc(x.trendType)+'</span>':''}${x.seasonal?' · <b>'+x.peakMonth+'월 시즌</b>':''}</div></td>
-  <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td data-k="monthlySearch">${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
+  <td class="l"><span class="tr-pill tr-p-${esc(String(x.action).replace(/\s/g,''))}">${esc(x.action)}</span>${x.why?`<div class="tr-why">${esc(x.why)}</div>`:''}</td><td class="l" data-k="ourSales30">${our}</td><td data-k="monthlySearch">${n(x.monthlySearch)}<div class="tr-sub">모바일 ${x.mobileShare!=null?Math.round(x.mobileShare*100)+'%':'—'}</div></td>
   <td data-k="volGrowth28">${pct(x.volGrowth28)}</td><td data-k="growth4w"><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${spark(x.trendSeries)}${pct(x.growth4w)}</div></td>
-  <td data-k="yoy">${pct(x.yoy)}</td><td data-k="shopGrowth4w">${shopc}</td><td data-k="femaleShare">${fem}</td><td data-k="adCompetition">${esc(x.adCompetition||'—')}</td><td data-k="ytViews7d">${yt}</td><td data-k="ourSales30">${our}</td></tr>`;
+  <td data-k="yoy">${pct(x.yoy)}</td><td data-k="shopGrowth4w">${shopc}</td><td data-k="femaleShare">${fem}</td><td data-k="adCompetition">${esc(x.adCompetition||'—')}</td><td data-k="ytViews7d">${yt}</td></tr>`;
 }
 function detailHTML(x,i){
   const prods=(x.ourTop||[]).map(p=>`<li><a href="${esc(p.url||('https://www.printbakery.com/product/detail.html?product_no='+p.no))}" target="_blank" rel="noopener">${esc(p.name)}</a> · ${n(p.price)}원 · 30일 ${n(p.q30)}개${p.soldOut?' · <b>품절</b>':''}</li>`).join('')||'<li class="tr-sub">우리 몰에 매칭되는 상품 없음</li>';
@@ -191,16 +200,24 @@ function renderTable(){
   const byId={}; shown.forEach((x,i)=>byId[i]=x);
   box.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(S.sort===k)S.dir*=-1;else{S.sort=k;S.dir=(k==='keyword'||k==='theme'||k==='action')?1:-1;}renderTable();});
   box.querySelectorAll('tr.row').forEach(tr=>tr.onclick=()=>{const x=shown[+tr.dataset.i];S.open=S.open===x.keyword?null:x.keyword;renderTable();});
-  const m=document.getElementById('trMore'); if(m) m.onclick=()=>{S.limit+=60;renderTable();};
+  const m=document.getElementById('trMore'); if(m) m.onclick=()=>{S.limit+=30;renderTable();};
   bindBig(box,byId);
 }
+// [2026-10-20] 버튼 9개가 같은 무게로 늘어서 있어서 뭘 먼저 눌러야 할지 안 보였다.
+//   급한 순(재고확보 → 시즌 소싱 → 소싱 검토 → 안 팔림 점검 → 시즌 준비 → 밀기)으로 세우고
+//   참고군(유지·패스·전체)은 흐리게 뒤로 뺀다.
+const URGENT=['재고확보','시즌 소싱','소싱 검토','안 팔림 점검','시즌 준비','밀기'];
 function renderActs(){
   const rows=S.data.runs[S.data.runs.length-1].rows; const cnt={}; rows.forEach(r=>cnt[r.action]=(cnt[r.action]||0)+1);
   const el=document.getElementById('trActs');
   const todo=rows.filter(r=>TODO.includes(r.action)).length;
-  el.innerHTML=`<button class="tr-act ${S.act==='할 일'?'on':''}" data-a="할 일"><span class="n">${todo}</span><span class="l">할 일</span></button><button class="tr-act ${S.act?'':'on'}" data-a=""><span class="n">${rows.length}</span><span class="l">전체</span></button>`+
-    ACTIONS.filter(a=>cnt[a]).map(a=>`<button class="tr-act ${S.act===a?'on':''}" data-a="${a}" title="${ACT_HELP[a]}"><span class="n">${cnt[a]}</span><span class="l">${a}</span></button>`).join('');
-  el.querySelectorAll('.tr-act').forEach(b=>b.onclick=()=>{S.act=b.dataset.a;S.limit=60;renderActs();renderTable();});
+  const btn=(a,label,num,cls)=>`<button class="tr-act ${cls||''} ${S.act===a?'on':''}" data-a="${esc(a)}" title="${esc(ACT_HELP[a]||'')}"><span class="n">${num}</span><span class="l">${esc(label)}</span></button>`;
+  el.innerHTML = btn('할 일','할 일',todo,'lead')
+    + URGENT.filter(a=>cnt[a]).map(a=>btn(a,a,cnt[a])).join('')
+    + '<span class="tr-sep"></span>'
+    + ['유지','패스','지켜보기','저가라인','소싱'].filter(a=>cnt[a]).map(a=>btn(a,a,cnt[a],'dim')).join('')
+    + btn('','전체',rows.length,'dim');
+  el.querySelectorAll('.tr-act').forEach(b=>b.onclick=()=>{S.act=b.dataset.a;S.limit=15;renderActs();renderTable();});
 }
 function renderCats(){
   const c=(S.shop||{}).categories||{}; const el=document.getElementById('trCats');
@@ -460,7 +477,7 @@ window.loadTrendTab=async function(){
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
   renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderSearch(); renderAction();
-  document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=60;renderTable();};
+  document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=15;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
   document.getElementById('trRise').onchange=e=>{S.onlyRising=e.target.checked;renderTable();};
