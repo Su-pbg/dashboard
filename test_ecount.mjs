@@ -191,5 +191,14 @@ truthy('대조 파일로 맵핑 학습 → 바로 저장하지 않고 예비 목
   eq('옵션 색이 맞는 품목과 짝', got, { V_GJ: 'C_GJ', V_BJ: 'C_BJ' });
   Object.assign(S, keep); }
 
+// 확정 대기 상품 묶음: 겨자 옵션만 예비 목록에 있어도 같은 상품의 베이지 옵션이 같이 보이고, 앞머리(ARTBHMW)+옵션 낱말로 사전에서 제안
+{ const S = ctx.__ecount.S, keep = { page: S.page, cand: S.cand, dict: S.dict, vars: S.vars };
+  S.page = 'map'; S.cand = { V_GJ: { pno: '77', label: '타원 트레이 (중) / 컬러=겨자', price: 220000, cands: { ARTBHMW0110: 3 }, names: { ARTBHMW0110: '타원 트레이 (중) 3-2 [겨자]' }, first: '2026-10-20', at: '2026-10-20' } };
+  S.dict = { ARTBHMW0110: { name: '타원 트레이 (중) 3-2 [겨자]' }, ARTBHMW0109: { name: '타원 트레이 (중) 3-2 [베이지]' }, OATXXXX0001: { name: '베이지 다른 브랜드' } };
+  S.vars = { 77: [{ variant_code: 'V_GJ', opt: '컬러=겨자' }, { variant_code: 'V_BJ', opt: '컬러=베이지' }, { variant_code: 'V_MT', opt: '컬러=민트' }] };
+  ctx.__ecount.render(); const h = root.innerHTML;
+  truthy('상품 묶음에 형제 옵션 + 사전 제안', h.includes('data-k="V_BJ"') && h.includes('value="ARTBHMW0109"') && h.includes('data-k="V_MT"') && h.includes('사전에 맞는 품목 없음') && h.includes('data-a="cconfirmprod"'));
+  Object.assign(S, keep); }
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);

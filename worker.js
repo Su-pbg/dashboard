@@ -348,11 +348,28 @@ var worker_default = {
         const CAND_KEY = "ecmapcand:v1";
         const candRaw = await kv0.get(CAND_KEY);
         const cand = candRaw ? JSON.parse(candRaw) : {};
-        if (request.method === "GET") return json({ map, sign, cand, count: Object.keys(map).length });
+        // [2026-10-20] 이카운트 품목 사전: 올린 판매현황에 나온 코드→품명·정가를 계속 모은다(옵션 제안용). {코드:{name,price,at}}
+        const DICT_KEY = "ecdict:v1";
+        const dictRaw = await kv0.get(DICT_KEY);
+        const dict = dictRaw ? JSON.parse(dictRaw) : {};
+        if (request.method === "GET") return json({ map, sign, cand, dict, count: Object.keys(map).length });
         if (request.method !== "POST") return json({ error: "지원하지 않는 메서드" }, 405);
         let b = {};
         try { b = await request.json(); } catch (e) { }
         const okCode = (c) => /^[^\s\u0000-\u001f]{1,40}$/.test(String(c));
+        if (b.dict && typeof b.dict === "object") {
+          const today = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
+          let ch = 0;
+          for (const [c, v] of Object.entries(b.dict).slice(0, 5000)) {
+            if (!okCode(c)) continue;
+            const name = String((v && v.name) || "").slice(0, 120), price = Number(v && v.price) || 0;
+            if (!name) continue;
+            const cur = dict[c];
+            if (!cur || cur.name !== name || (price && cur.price !== price)) { dict[c] = { name, price: price || (cur ? cur.price : 0) || 0, at: today }; ch++; }
+          }
+          if (ch) await kv0.put(DICT_KEY, JSON.stringify(dict));
+          if (!Array.isArray(b.cand) && !Array.isArray(b.candremove) && !Array.isArray(b.entries) && !Array.isArray(b.remove) && !b.sign) return json({ ok: true, dictChanged: ch, dictCount: Object.keys(dict).length });
+        }
         if (Array.isArray(b.cand) || Array.isArray(b.candremove)) {
           const today = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 10);
           let added = 0, removed = 0;
@@ -366,6 +383,7 @@ var worker_default = {
             const cur = cand[key] || { first: today, cands: {} };
             for (const [cc, nn] of Object.entries(cs)) cur.cands[cc] = (cur.cands[cc] || 0) + nn;
             cur.label = String(c.label || cur.label || "").slice(0, 160); cur.price = Number(c.price) || cur.price || 0;
+            if (c.pno != null && /^\d{1,9}$/.test(String(c.pno))) cur.pno = String(c.pno);
             cur.names = Object.assign(cur.names || {}, Object.fromEntries(Object.entries(c.names || {}).filter(([cc]) => okCode(cc)).map(([cc, nm]) => [cc, String(nm || "").slice(0, 120)])));
             cur.at = today; cand[key] = cur; added++;
           }
@@ -894,6 +912,29 @@ var worker_default = {
       //     shipping/suppliers/{공급사 계정ID} — 공급사코드가 아니라 계정ID 를 받는다(코드로 부르면 404 "supplier account cannot be found").
       //     계정ID 는 suppliers/users?supplier_code= 로 얻는다. 공급사당 2번 호출이라 KV 에 하루 둔다(서브요청 한도 50).
       //   · 상품 목록의 shipping_fee_by_product 는 우리 몰에선 전부 F(개별 배송비 안 씀)였다 → 상품 단위는 보지 않는다.
+      // [2026-10-20] 카페24 상품의 옵션 전체(variants) — 품목코드 맵핑에서 '한 상품의 옵션을 모두' 보여 주기 위해. 상품당 하루 KV.
+      if (q.get("tab") === "variants") {
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const mallId = env.CAFE24_MALL_ID, kv = env.CAFE24_TOKEN_KV;
+        const nos = String(q.get("products") || "").split(",").map((x) => x.trim()).filter((x) => /^\d{1,9}$/.test(x)).slice(0, 30);
+        const variants = {};
+        for (const no of nos) {
+          const ck = "cafe24:variants:v1:" + no;
+          let v = null;
+          try { const raw = kv ? await kv.get(ck) : null; v = raw ? JSON.parse(raw) : null; } catch (e) { }
+          if (!v) {
+            try {
+              const j = await cafe24Get(mallId, tok, `products/${no}/variants`, false, env);
+              v = (j.variants || []).map((x) => ({ variant_code: x.variant_code || "", opt: (x.options || []).map((o) => `${o.name}=${o.value}`).join(", "),
+                custom: x.custom_variant_code || "", display: x.display || "", selling: x.selling || "" }));
+              try { if (kv) await kv.put(ck, JSON.stringify(v), { expirationTtl: 86400 }); } catch (e) { }
+            } catch (e) { v = { error: String(e.message || e).slice(0, 120) }; }
+          }
+          variants[no] = v;
+        }
+        return json({ variants });
+      }
       if (q.get("tab") === "settleprod") {
         const tok = await getCafe24AccessToken(env);
         if (!tok) return json({ error: "cafe24 인증 실패" }, 200);

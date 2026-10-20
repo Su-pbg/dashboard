@@ -94,5 +94,10 @@ u = await call('/ecrecon', { undo: { date: '2026-10-06' } });
 idx = (await call('/ecrecon?month=2026-10')).idx;
 eq('처음 저장한 날짜는 되돌리면 지움', [u.removed, '2026-10-06' in idx], ['2026-10-06', false]);
 
+// ⑦ 품목 사전 + 후보의 상품번호
+await call('/ecmap', { cand: [{ key: 'P3', pno: '77', label: '상품3 / 컬러=겨자', cands: { EC7: 1 } }], dict: { EC7: { name: '상품3 [겨자]', price: 10 }, EC8: { name: '상품3 [베이지]' } } });
+m = await call('/ecmap');
+eq('사전·상품번호', [m.dict.EC7.name, m.dict.EC8.price, m.cand.P3.pno], ['상품3 [겨자]', 0, '77']);
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);
