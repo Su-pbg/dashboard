@@ -425,6 +425,7 @@
     <button class="nav-item" data-menu="dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>대시보드</button>
     <button class="nav-item" data-menu="trend"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>트렌드 분석</button>
     <button class="nav-item" data-menu="sourcing"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>소싱</button>
+    <button class="nav-item" data-menu="ops"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>상품 운영</button>
     <button class="nav-item" data-menu="expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>경비환급</button>
     <button class="nav-item" data-menu="settle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>위탁 정산</button>
     <button class="nav-item nav-group" data-menu="eclog"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>주문 처리</button>
@@ -482,6 +483,14 @@
   <h1>경비환급 엑셀 만들기</h1>
   <p class="sub">영수증 PDF를 올리면 경비환급신청서 엑셀을 만들어줘요 · 로그인 없이 쓸 수 있고, 파일은 이 브라우저 안에서만 처리돼요</p>
   <iframe id="expenseFrame" title="경비환급 엑셀 만들기" scrolling="no" loading="lazy"></iframe>
+</div>
+
+<!-- [2026-10-20] 상품 운영: 품절·미진열·안 팔림·검색 누락을 작업 목록으로. 담당자·상태·메모는 워커 KV(/worklist). -->
+<div class="wrap" id="opsView" hidden>
+  <p class="eyebrow">PrintBakery</p>
+  <h1>상품 운영</h1>
+  <p class="sub">재고·진열·노출에서 지금 막혀 있는 것 — 담당과 상태를 적어두면 처리한 건 사라져요</p>
+  <div id="opsContent"></div>
 </div>
 
 <!-- [2026-10-20] 소싱: 브랜드가 행인 목록. sourcing-tab.js 를 처음 열 때 불러온다.
@@ -633,7 +642,7 @@ const DASH_TABS=TABS.filter(t=>t.id!=='trend');
 const URL_Q=new URLSearchParams(location.search);
 const URL_TAB=URL_Q.get('tab');
 const SAVED_TAB=localStorage.getItem('pbg_dashboard_tab');
-const MENUS=['dashboard','trend','sourcing','expense','settle','eclog','ecdaily','ecrecon','ecmap'];
+const MENUS=['dashboard','trend','sourcing','ops','expense','settle','eclog','ecdaily','ecrecon','ecmap'];
 let MENU = URL_Q.get('m')==='ecount' ? 'ecmap'   // [2026-10-14] 예전 '전표 입력 대조' 주소
          : MENUS.includes(URL_Q.get('m')) ? URL_Q.get('m')
          : (URL_TAB==='trend' ? 'trend'
@@ -3706,6 +3715,7 @@ function applyMenuView(){
 function enterDashboard(){
   showGate(false);
   if(MENU==='sourcing'){ enterSourcing(); return; }
+  if(MENU==='ops'){ enterOps(); return; }
   if(MENU==='settle'){ enterSettle(); return; }
   if(MENU==='eclog'||MENU==='ecdaily'||MENU==='ecrecon'||MENU==='ecmap'){ enterEcount(); return; }
   if(!ENTERED){
@@ -3731,6 +3741,14 @@ async function loadTabScript(file, globalName){
   const url=URL.createObjectURL(new Blob([code+'\n//# sourceURL='+file],{type:'text/javascript'}));
   try{ await new Promise((ok,ng)=>{const sc=document.createElement('script');sc.src=url;sc.onload=ok;sc.onerror=ng;document.head.appendChild(sc);}); }
   finally{ URL.revokeObjectURL(url); }
+}
+let OPS_LOADED=false;
+async function enterOps(){
+  showGate(false);
+  if(OPS_LOADED) return;
+  OPS_LOADED=true;
+  try{ await loadTabScript('ops-tab.js','loadOpsTab'); await window.loadOpsTab($('opsContent')); }
+  catch(e){ OPS_LOADED=false; $('opsContent').innerHTML='<div class="err">상품 운영 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }
 let SOURCING_LOADED=false;
 async function enterSourcing(){
@@ -3778,8 +3796,8 @@ function setMenu(m,fromHistory){
   if(!fromHistory&&m!==MENU){ try{ history.pushState({m},'',location.pathname+'?m='+m); }catch(e){} }
   MENU=m;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.menu===m));
-  const ex=(m==='expense'), st=(m==='settle'), so=(m==='sourcing'), ec=(m==='eclog'||m==='ecdaily'||m==='ecrecon'||m==='ecmap');
-  $('dashView').hidden=ex||st||so||ec; $('expenseView').hidden=!ex; $('settleView').hidden=!st; $('sourcingView').hidden=!so; $('ecountView').hidden=!ec;
+  const ex=(m==='expense'), st=(m==='settle'), so=(m==='sourcing'), op=(m==='ops'), ec=(m==='eclog'||m==='ecdaily'||m==='ecrecon'||m==='ecmap');
+  $('dashView').hidden=ex||st||so||op||ec; $('expenseView').hidden=!ex; $('settleView').hidden=!st; $('sourcingView').hidden=!so; $('opsView').hidden=!op; $('ecountView').hidden=!ec;
   if(ec){
     try{ history.replaceState(null,'',location.pathname+'?m='+m); }catch(e){}
     const EC={eclog:['주문 처리','진행 중인 주문(선수금 · 배송)과 날짜별 카페24 ↔ 이카운트 대조 현황, 판매입력 파일 이력을 봐요'],

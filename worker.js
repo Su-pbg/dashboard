@@ -83,6 +83,39 @@ var worker_default = {
       if (!keyOk && !tokOk) {
         return json({ error: "\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." }, 403);
       }
+      // ===== 상품 운영 작업 목록 =====
+      // [2026-10-20] MD 가 수시로 보는 화면이라 '뭘 했는지' 가 남아야 한다. 안 남으면 같은 걸 계속 다시 본다.
+      //   담당자·상태·메모를 사람 사이에 공유해야 하므로 브라우저 저장소로는 안 되고 KV 에 둔다.
+      //   ponytail: /supplier-map 과 같이 맵 전체를 키 하나에. 동시에 둘이 저장하면 나중 것이 이긴다.
+      if (url.pathname === "/worklist") {
+        const kv0 = env.CAFE24_TOKEN_KV;
+        if (!kv0) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        const WL_KEY = "worklist:v1";
+        const raw0 = await kv0.get(WL_KEY);
+        const items = raw0 ? JSON.parse(raw0) : {};
+        if (request.method === "GET") return json({ items });
+        if (request.method === "POST") {
+          let b = {};
+          try { b = await request.json(); } catch (e) { /* 본문 없음 */ }
+          const id = String(b.id || "").trim().slice(0, 120);
+          if (!id) return json({ error: "id 가 없습니다" }, 400);
+          if (b.remove === true) delete items[id];
+          else {
+            const ST = ["미처리", "진행", "완료", "보류"];
+            const prev = items[id] || {};
+            items[id] = {
+              status: ST.includes(b.status) ? b.status : (prev.status || "미처리"),
+              owner: String(b.owner ?? prev.owner ?? "").trim().slice(0, 20),
+              memo: String(b.memo ?? prev.memo ?? "").trim().slice(0, 200),
+              at: new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 16).replace("T", " ")
+            };
+          }
+          await kv0.put(WL_KEY, JSON.stringify(items));
+          return json({ ok: true, items });
+        }
+        return json({ error: "지원하지 않는 메서드" }, 405);
+      }
+
       // ===== 공급사 담당자·구분 오버레이 =====
       // [2026-09-28] supplier-managers.json 은 GitHub Pages 의 정적 파일이라 화면에서 고칠 수 없다.
       // 거래처 LIST 를 사람이 채울 때까지 기다리는 대신, 대시보드에서 입력한 값을 KV 에 얹는다.
