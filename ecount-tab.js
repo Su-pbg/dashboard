@@ -1425,8 +1425,9 @@ function render(){
 function candCard(){
   const q=S.qc.trim().toLowerCase();
   const all=Object.entries(S.cand).map(([key,v])=>{ const cs=Object.entries(v.cands||{}).sort((a,b)=>b[1]-a[1]); return {key,...v,cs,top:cs[0]?cs[0][0]:'',single:cs.length===1}; });
-  const optOf=label=>{ const i=String(label||'').indexOf(' / '); return i<0?'':label.slice(i+3); };
-  const prodOf=label=>{ const i=String(label||'').indexOf(' / '); return i<0?String(label||''):label.slice(0,i); };
+  // 상품명 안에도 ' / ' 가 있을 수 있어('[… / 선물 포장 제공]타원 트레이') 마지막 ' / ' 에서 가른다
+  const optOf=label=>{ const i=String(label||'').lastIndexOf(' / '); return i<0?'':label.slice(i+3); };
+  const prodOf=label=>{ const i=String(label||'').lastIndexOf(' / '); return i<0?String(label||''):label.slice(0,i); };
   const warn=(opt,code)=>{ const ws=optWords(opt), nm=String((S.dict[code]||{}).name||'').toLowerCase(); return ws.length&&/\[[^\]]+\]/.test(nm)&&!ws.some(w=>nm.includes(w)); };
   const singles=all.filter(x=>x.single).length;
   // 상품 단위로 묶는다(Su, 2026-10-20: 카페24 상품 하나의 옵션마다 이카운트 코드가 있으니 한 옵션이 짝지어지면 나머지 옵션도 같이 보여 준다)
