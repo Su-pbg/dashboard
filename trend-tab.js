@@ -3,6 +3,42 @@
 // index.html 은 탭을 처음 열 때 이 파일을 불러와 loadTrendTab() 을 부른다.
 (function(){
 const CSS=`
+/* 금액 카드 — 개수 말고 돈으로 말한다 */
+.tr-moneys{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:16px 0}
+.tr-money{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.tr-money.hot{border-color:var(--down);background:linear-gradient(0deg,var(--card),var(--card))}
+.tr-money.warn{border-color:var(--line)}
+.tm-t{font-size:12.5px;color:var(--muted);font-weight:600}
+.tm-b{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px;line-height:1.1}
+.tr-money.hot .tm-b{color:var(--down)}
+.tm-u{font-size:15px;font-weight:600;margin-left:3px;color:var(--muted)}
+.tm-s{font-size:12px;color:var(--muted);line-height:1.6}
+.tm-l{display:inline-block;margin-top:8px;font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600}
+.tm-l:hover{text-decoration:underline}
+/* 시즌 히트맵 */
+.hm{margin-top:4px}
+.hm-row{display:grid;grid-template-columns:150px repeat(12,1fr);gap:3px;align-items:stretch;cursor:pointer}
+.hm-row.hm-head{cursor:default;margin-bottom:3px}
+.hm-row:not(.hm-head):hover .hm-n{color:var(--accent)}
+.hm-n{font-size:12.5px;font-weight:600;padding:5px 8px 5px 0;display:flex;flex-direction:column;justify-content:center;line-height:1.25}
+.hm-n .t{font-weight:400;font-size:11px;color:var(--muted)}
+.hm-w{text-align:center;font-size:11px;color:var(--muted);padding:1px}
+.hm-w.now{background:var(--fill);border-radius:5px}
+.hm-c{height:30px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.hm-0{background:var(--fill);color:var(--muted)}
+.hm-1{background:#dbeafe;color:#1e40af}
+.hm-2{background:#93c5fd;color:#0b2f6b}
+.hm-3{background:#4b8ef0;color:#fff}
+.hm-4{background:#1d4ed8;color:#fff}
+/* 기회 맵 */
+.opm svg{width:100%;height:auto;max-height:340px;display:block}
+.op-q{fill:var(--down);opacity:.07}
+.op-ax{stroke:var(--line);stroke-width:1}
+.op-qt{fill:var(--down);font-size:11.5px;font-weight:600;opacity:.85}
+.op-lb{fill:var(--muted);font-size:10.5px}
+.op-dot{fill:var(--muted);opacity:.5;cursor:pointer}
+.op-dot:hover{opacity:1;fill:var(--accent)}
+.op-dot.hot{fill:var(--down);opacity:.9}
 .tr-act.lead{border-color:var(--accent);}
 .tr-act.dim{opacity:.55}
 .tr-sep{display:inline-block;width:1px;align-self:stretch;background:var(--line);margin:0 4px}
@@ -295,10 +331,102 @@ function renderRising(){
   const sel=document.getElementById('trBand');
   if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
 }
+// ── 금액 · 시즌 히트맵 · 기회 맵 ────────────────────────────────────
+// [2026-10-21] 지금까지 전부 같은 모양의 회색 표였고 개수·검색수로만 말했다.
+//   12개월 seasonIdx 와 amt30(금액)을 갖고 있으면서 표 안 숫자로만 쓰고 있었다.
+const MONS=['1','2','3','4','5','6','7','8','9','10','11','12'];
+const won=v=>v>=1e8?(v/1e8).toFixed(1)+'억':v>=1e4?Math.round(v/1e4).toLocaleString('ko-KR')+'만':Math.round(v).toLocaleString('ko-KR');
+
+function moneyCards(){
+  const rows=S.data.runs[S.data.runs.length-1].rows;
+  const ps=S.prodsRaw||[];
+  // 1점짜리 원화는 품절이 정상이라 섞으면 안 된다 — 반복 판매(30일 2개 이상)만 센다
+  const rep=ps.filter(p=>(p.q30||0)>=2&&p.soldOut), one=ps.filter(p=>(p.q30||0)===1&&p.soldOut);
+  const repAmt=rep.reduce((s,p)=>s+(p.amt30||0),0), oneAmt=one.reduce((s,p)=>s+(p.amt30||0),0);
+  const off=ps.filter(p=>(p.stock||0)>0&&(!p.display||!p.selling));
+  const offStock=off.reduce((s,p)=>s+(p.stock||0),0);
+  const idle=rows.filter(r=>(r.monthlySearch||0)>=5000&&(r.ourCount||0)>0&&(r.ourSales30||0)===0);
+  const idleSearch=idle.reduce((s,r)=>s+r.monthlySearch,0);
+  const card=(tone,big,unit,title,sub,link)=>`<div class="tr-money ${tone}">
+    <div class="tm-t">${title}</div><div class="tm-b">${big}<span class="tm-u">${unit}</span></div>
+    <div class="tm-s">${sub}</div>${link?`<a class="tm-l" href="?m=ops">${link}</a>`:''}</div>`;
+  return `<div class="tr-moneys">
+    ${card('hot', won(repAmt),'원','품절로 멈춘 매출',
+      `반복 판매 ${rep.length}종의 최근 30일 매출 · 재입고 안 하면 계속 발생<br><span class="t">1점짜리 원화 ${one.length}종 ${won(oneAmt)}원은 제외 — 품절이 정상</span>`,
+      '재고 확보 '+rep.length+'건 →')}
+    ${card('warn', nfmt(offStock),'개','진열이 꺼진 재고',
+      `${off.length}종이 재고가 있는데 미진열·판매중지 상태`, '진열 확인 '+off.length+'건 →')}
+    ${card('', nfmt(idleSearch),'회','수요는 있는데 판매 0',
+      `월 검색 ${nfmt(idleSearch)}회짜리 ${idle.length}개 키워드에 우리 상품이 있는데 30일 판매가 없다`,
+      '상품 점검 '+idle.length+'건 →')}
+  </div>`;
+}
+const nfmt=v=>Number(v||0).toLocaleString('ko-KR');
+
+function heatmap(){
+  const rows=S.data.runs[S.data.runs.length-1].rows;
+  const by={};
+  rows.forEach(r=>{const si=r.seasonIdx; if(!si||si.length!==12)return;
+    const t=r.theme||'기타'; (by[t]=by[t]||[]).push([r.monthlySearch||0,si,r]);});
+  const now=new Date().getMonth();
+  const themes=Object.keys(by).sort((a,b)=>by[b].reduce((s,x)=>s+x[0],0)-by[a].reduce((s,x)=>s+x[0],0));
+  const cell=v=>{
+    const c=v>=1.3?4:v>=1.15?3:v>=1.0?2:v>=0.85?1:0;
+    return `<div class="hm-c hm-${c}" title="지수 ${v.toFixed(2)}">${v>=1.15?v.toFixed(1):''}</div>`;
+  };
+  const body=themes.map(t=>{
+    const v=by[t], tot=v.reduce((s,x)=>s+x[0],0)||1;
+    const avg=[...Array(12)].map((_,m)=>v.reduce((s,x)=>s+x[0]*x[1][m],0)/tot);
+    const top=[...v].sort((a,b)=>b[1][(now+1)%12]-a[1][(now+1)%12])[0];
+    return `<div class="hm-row" data-t="${esc(t)}"><div class="hm-n">${esc(t)}<div class="t">${esc(top?top[2].keyword:'')}</div></div>
+      ${avg.map((a,m)=>`<div class="hm-w ${m===now?'now':''}">${cell(a)}</div>`).join('')}</div>`;
+  }).join('');
+  return `<div class="hm">
+    <div class="hm-row hm-head"><div class="hm-n"></div>${MONS.map((m,i)=>`<div class="hm-w ${i===now?'now':''}">${m}</div>`).join('')}</div>
+    ${body}
+    <div class="tr-sub" style="margin-top:8px">최근 3년 월별 검색 지수(평균=1)를 검색량으로 가중한 값. 진할수록 그 달에 몰린다.
+      세로줄이 이번 달이다 — <b>소싱은 한 달 뒤 도착</b>이라 한 칸 오른쪽을 봐야 한다.</div></div>`;
+}
+
+function oppMap(){
+  const rows=S.data.runs[S.data.runs.length-1].rows.filter(r=>r.monthlySearch>0);
+  const W=760,H=320,P=46;
+  const xs=rows.map(r=>Math.log10(r.monthlySearch)), ys=rows.map(r=>Math.log10((r.ourSales30||0)+1));
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=0,y1=Math.max(...ys,1);
+  const px=v=>P+(Math.log10(v)-x0)/(x1-x0||1)*(W-P-14);
+  const py=v=>H-P-(Math.log10((v||0)+1)-y0)/(y1-y0||1)*(H-P-16);
+  const mx=px(Math.pow(10,(x0+x1)/2)), my=py(Math.pow(10,(y0+y1)/2)-1);
+  const dot=r=>{const hot=(r.ourSales30||0)===0&&r.monthlySearch>=8000;
+    return `<circle cx="${px(r.monthlySearch).toFixed(1)}" cy="${py(r.ourSales30).toFixed(1)}" r="${hot?5:3.2}"
+      class="op-dot ${hot?'hot':''}" data-k="${esc(r.keyword)}"><title>${esc(r.keyword)} · 검색 ${nfmt(r.monthlySearch)} · 30일 ${nfmt(r.ourSales30||0)}개</title></circle>`;};
+  const lbl=rows.filter(r=>(r.ourSales30||0)===0&&r.monthlySearch>=12000).slice(0,7)
+    .map(r=>`<text x="${(px(r.monthlySearch)+7).toFixed(1)}" y="${(py(r.ourSales30)+3).toFixed(1)}" class="op-lb">${esc(r.keyword)}</text>`).join('');
+  return `<div class="opm"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+    <rect x="${P}" y="${my}" width="${mx-P}" height="${H-P-my}" class="op-q"/>
+    <line x1="${mx}" y1="14" x2="${mx}" y2="${H-P}" class="op-ax"/><line x1="${P}" y1="${my}" x2="${W-14}" y2="${my}" class="op-ax"/>
+    <text x="${P+8}" y="${H-P-8}" class="op-qt">수요는 큰데 우리가 약하다 — 소싱·점검</text>
+    ${rows.map(dot).join('')}${lbl}
+    <text x="${W-14}" y="${H-14}" text-anchor="end" class="op-lb">시장 검색 수요 →</text>
+    <text x="8" y="22" class="op-lb">↑ 우리 30일 판매</text>
+  </svg><div class="tr-sub">점 하나가 키워드다. 빨간 점은 <b>월 8,000회 넘게 찾는데 30일 판매가 0</b>인 것. 누르면 그 키워드로 표가 걸러진다.</div></div>`;
+}
+
 // ── 이번 주 할 일 ──────────────────────────────────────────────────
 // [2026-10-19] 데이터만 쌓고 판단을 안 만들어놨다는 지적을 받고 붙였다.
 //   키워드 판정 · 브랜드 사전 · 몰 검색 0건이 따로 놀고 있었다. 한 줄에 묶는다:
 //   무엇을 / 왜 지금 / 우리 상태 / 어느 브랜드로.
+function renderViz(){
+  const el=document.getElementById('trViz'); if(!el||!S.data) return;
+  el.innerHTML=(S.prodsRaw?moneyCards():'')
+    +`<div class="tr-card"><h2>언제 뭐가 뜨나</h2><p class="tr-lead">최근 3년 월별 검색 지수. 세로줄이 이번 달 — 소싱은 한 달 뒤 도착이라 한 칸 오른쪽을 본다.</p>${heatmap()}</div>`
+    +`<div class="tr-card"><h2>기회 맵</h2><p class="tr-lead">왼쪽 위 칸이 '시장은 찾는데 우리는 못 파는' 자리다.</p>${oppMap()}</div>`;
+  el.querySelectorAll('.op-dot').forEach(c=>c.onclick=()=>{S.q=c.dataset.k;S.act='';S.limit=15;
+    const q=document.getElementById('trQ'); if(q) q.value=c.dataset.k;
+    renderActs();renderTable();document.getElementById('trTable').scrollIntoView({behavior:'smooth',block:'start'});});
+  el.querySelectorAll('.hm-row[data-t]').forEach(r=>r.onclick=()=>{S.theme=r.dataset.t;S.act='';S.limit=15;
+    const t=document.getElementById('trTheme'); if(t) t.value=r.dataset.t;
+    renderActs();renderTable();document.getElementById('trTable').scrollIntoView({behavior:'smooth',block:'start'});});
+}
 function renderAction(){
   const el=document.getElementById('trAct'); if(!el) return;
   const run=S.data.runs[S.data.runs.length-1];
@@ -463,6 +591,7 @@ window.loadTrendTab=async function(){
   c.innerHTML=`
    <div class="tr-meta"><span>기준 <b>${esc(run.date)}</b> (매일 06:50 갱신)</span><span>키워드 풀 <b>${n(run.poolSize)}</b>개</span><span>오늘 새로 들어옴 <b>${n(run.newToday)}</b>개</span><span>추석(9/14~9/28)은 추세 계산에서 제외</span></div>
    ${errs.length?`<div class="tr-warn">일부 네이버 API 호출이 실패했습니다: ${errs.map(([k,v])=>esc(k)+' '+esc(v).slice(0,80)).join(' / ')}</div>`:''}
+   <div id="trViz"></div>
    <div class="tr-card"><h2>이번 주 할 일</h2><p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 키워드 판정과 브랜드 사전을 카테고리로 붙인 것이다.</p><div id="trAct"></div></div>
    <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 처음엔 할 일(재고확보·시즌 준비·시즌 소싱·소싱·밀기·안 팔림 점검)만 보입니다. 상시 수요인데 잘 팔리는 키워드는 '유지'로 빠집니다.</p>
      <div class="tr-acts" id="trActs"></div>
@@ -487,7 +616,7 @@ window.loadTrendTab=async function(){
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
      시장가·경쟁강도(상품수÷검색수)는 비어 있습니다 — 네이버 쇼핑 검색 API 를 부를 키가 없습니다. 경쟁은 검색광고 경쟁정도로 대신합니다.<br>
      씨앗·사전·제외어 고치기: <a href="https://github.com/Su-pbg/dashboard/edit/main/radar-config.json" target="_blank" rel="noopener">radar-config.json</a> (다음 날 아침 반영)</div>`;
-  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderSearch(); renderAction();
+  renderActs(); renderTable(); renderCats(); renderPool(); renderRising(); renderSearch(); renderAction(); renderViz();
   document.getElementById('trQ').oninput=e=>{S.q=e.target.value;S.limit=15;renderTable();};
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
@@ -498,9 +627,10 @@ window.loadTrendTab=async function(){
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
   fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
+    S.prodsRaw=Object.values(j.products||{});          // 금액 카드는 품절·미진열도 봐야 한다
     S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
       .map(p=>{const t=((p.name||'')+' '+(p.tags||[]).join(' ')+' '+(p.categories||[]).join(' ')).replace(/\s+/g,'');return {q:p.q30||0,s:t,sl:t.toLowerCase()};});
-    renderRising();
+    renderRising(); renderViz();
   }).catch(()=>{});
 };
 })();
