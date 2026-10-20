@@ -212,6 +212,22 @@ var worker_default = {
           const empty = !next.memo && !next.done && !next.dst && !next.ast;
           return json({ ok: true, note: empty ? null : next });
         }
+        // [2026-10-20] undo — '다시 올리기'·'파일 취소': 잘못 올린 파일로 덮어쓴 날짜 결과를 직전 결과로 되돌린다.
+        //   직전 결과는 저장할 때 ecrecon:prev:{date} 에 30일 둔다(아래 저장 참조). 직전 결과가 없던 날짜면 지운다.
+        //   메모·처리완료(note)·품목코드 예비 목록·이전 날짜에 붙인 전표 표시(attach)는 건드리지 않는다.
+        if (b.undo && okDate(b.undo.date)) {
+          const date = b.undo.date, pk = "ecrecon:prev:" + date, prev = await getJ(pk, null);
+          if (prev && prev.day) {
+            await kv0.put("ecrecon:day:" + date, JSON.stringify(prev.day), { expirationTtl: 400 * 86400 });
+            await putIdx(date, prev.idx || { at: prev.day.at, file: prev.day.file, summary: prev.day.summary });
+            await kv0.delete(pk);
+            return json({ ok: true, restored: date, file: String(prev.day.file || ""), at: String(prev.day.at || "") });
+          }
+          const ik = "ecrecon:idx:" + date.slice(0, 7), idx = await getJ(ik, {});
+          await kv0.delete("ecrecon:day:" + date); await kv0.delete(`ecrecon:i:${date.slice(0, 7)}:${date}`);
+          if (idx[date]) { delete idx[date]; await kv0.put(ik, JSON.stringify(idx)); }
+          return json({ ok: true, removed: date });
+        }
         // remove — 잘못 저장된 날짜 결과 지우기(메모·처리완료 등 note 는 그대로 둔다)
         if (b.remove && okDate(b.remove.date)) {
           const date = b.remove.date, ik = "ecrecon:idx:" + date.slice(0, 7), idx = await getJ(ik, {});
@@ -253,6 +269,11 @@ var worker_default = {
         if (!okDate(b.date) || !Array.isArray(b.rows)) return json({ error: "date 와 rows 가 필요합니다" }, 400);
         const body = JSON.stringify({ date: b.date, at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {}, rows: b.rows.slice(0, 3000) });
         if (body.length > 5e6) return json({ error: "너무 큽니다" }, 400);
+        // [2026-10-20] 덮어쓰기 전 직전 결과를 ecrecon:prev:{date} 에 30일 둔다 — 잘못 올린 파일을 undo 로 되돌릴 때 쓴다.
+        //   같은 파일 이름으로 다시 저장할 때(같은 파일 재대조·일괄 대조)는 직전 결과를 덮지 않는다 — 안 그러면 잘못된 결과가 직전 결과를 밀어낸다.
+        const curDay = await getJ("ecrecon:day:" + b.date, null), newFile = String(b.file || "").slice(0, 120);
+        if (curDay && String(curDay.file || "") !== newFile)
+          await kv0.put("ecrecon:prev:" + b.date, JSON.stringify({ day: curDay, idx: { at: curDay.at, file: curDay.file, summary: curDay.summary } }), { expirationTtl: 30 * 86400 });
         await kv0.put("ecrecon:day:" + b.date, body, { expirationTtl: 400 * 86400 });
         await putIdx(b.date, { at: now, file: String(b.file || "").slice(0, 120), summary: b.summary || {} });
         return json({ ok: true, at: now });

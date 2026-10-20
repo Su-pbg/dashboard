@@ -80,5 +80,19 @@ eq('확정 → 대응표 담당자 값 · 예비에서 빠짐', [m.map.P1.code, 
 m = await call('/ecmap', { cand: [{ key: 'P1', cands: { EC9: 1 } }], candremove: ['P2'] });
 eq('담당자 값 있으면 다시 안 쌓임 · 버리기', Object.keys(m.cand), []);
 
+// ⑦ 되돌리기(undo): 다른 파일로 덮어쓴 날짜는 직전 결과로, 직전이 없으면 지움. 같은 파일 이름 재저장은 직전 결과를 덮지 않음
+await call('/ecrecon', { date: '2026-10-05', file: 'a.xlsx', summary: { total: 1 }, rows: [{ o: 'x' }] });
+await call('/ecrecon', { date: '2026-10-05', file: 'wrong.xlsx', summary: { total: 9 }, rows: [] });
+await call('/ecrecon', { date: '2026-10-05', file: 'wrong.xlsx', summary: { total: 8 }, rows: [] });   // 같은 잘못된 파일을 두 번
+let u = await call('/ecrecon', { undo: { date: '2026-10-05' } });
+let day = (await call('/ecrecon?date=2026-10-05')).day; idx = (await call('/ecrecon?month=2026-10')).idx;
+eq('되돌리기 → 직전 결과(a.xlsx)', [u.restored, u.file, day.file, day.rows.length, idx['2026-10-05'].summary.total], ['2026-10-05', 'a.xlsx', 'a.xlsx', 1, 1]);
+u = await call('/ecrecon', { undo: { date: '2026-10-05' } });
+eq('한 번 더 되돌리면 직전이 없어 지움', [u.removed, (await call('/ecrecon?date=2026-10-05')).day], ['2026-10-05', null]);
+await call('/ecrecon', { date: '2026-10-06', file: 'wrong.xlsx', summary: { total: 9 }, rows: [] });
+u = await call('/ecrecon', { undo: { date: '2026-10-06' } });
+idx = (await call('/ecrecon?month=2026-10')).idx;
+eq('처음 저장한 날짜는 되돌리면 지움', [u.removed, '2026-10-06' in idx], ['2026-10-06', false]);
+
 console.log(bad ? `${bad}건 실패 · ${ok}건 통과` : `전부 통과 (${ok}건)`);
 process.exit(bad ? 1 : 0);

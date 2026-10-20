@@ -864,15 +864,41 @@ async function saveRecon(){
   let res; try{ res=(await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,summary:sm,rows,file})})).at; }
   catch(e){ res='fail:'+e.message; }
   if(res&&!String(res).startsWith('fail')&&D.pending){ D.pending.done.add(date); D.pending.run=D.pending.run.filter(d=>d!==date); }
+  if(res&&!String(res).startsWith('fail')) (D.savedDates ||= new Set()).add(date);   // 이 파일로 남긴 날짜 — '다시 올리기'·'파일 취소'가 되돌릴 범위
   if(D.date===date){ D.reconSaved=res; render(); }   // 그사이 다른 날짜로 넘어갔으면 화면 표시는 건드리지 않는다
   return res;
 }
 async function onDailyFile(f){
-  D.err=null; D.loading='이카운트 파일 읽는 중…'; render();
+  D.err=null; D.loading='이카운트 파일 읽는 중…'; D.savedDates=new Set(); D.attached=null; D.signLearned=0; D.mapLearned=null; render();
   try{ await loadXLSX(); D.ec=parseEcount(XLSX.read(await f.arrayBuffer(),{type:'array'}),f.name,true); D.ecFile=f.name;
     try{ const k=await learnSign(D.ec); if(k) D.signLearned=k; }catch(e){} }
   catch(e){ D.err=e; }
   D.loading=''; fileDates(); compute(); render(); saveRecon(); attachLater(); learnFromRecon();
+}
+// 다시 올리기 · 파일 취소(Su, 2026-10-20): 잘못 올린 이카운트 파일을 물린다.
+//   그 파일로 대조 현황에 남긴 날짜 결과(D.savedDates: 이 파일로 저장 성공한 날짜, 일괄 대조 포함)를 워커 undo 로 직전 결과로 되돌린다(직전이 없던 날짜는 지운다).
+//   화면의 파일·날짜 묶음·학습 안내도 비운다. 되돌리지 않는 것: 메모·처리완료, 품목코드 예비 목록(맵핑 화면에서 버린다), 이전 날짜에 붙인 반품·정산 전표 표시.
+async function undoFile(){
+  const dates=[...(D.savedDates||[])].sort(), name=D.ecFile, out={restored:[],removed:[],failed:[]};
+  for(const dt of dates){
+    try{ const r=await getJSON(`${WORKER}/ecrecon`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({undo:{date:dt}})});
+      if(r.restored) out.restored.push(`${dt.slice(5)}(${r.file||'이전 결과'})`); else out.removed.push(dt.slice(5)); }
+    catch(e){ out.failed.push(dt.slice(5)); }
+  }
+  D.ec=null; D.ecFile=''; D.fdates=null; D.fsel={}; D.fres={}; D.attached=null; D.mapLearned=null; D.signLearned=0; D.reconSaved=''; D.savedDates=new Set(); D.savedDay=null; D.pending=null;
+  RV.idx=null;   // 대조 현황 월간요약을 다시 받게
+  await loadPending();
+  const msg=[`${name} 취소`];
+  if(out.restored.length) msg.push(`이전 결과로 되돌림 ${out.restored.join(', ')}`);
+  if(out.removed.length) msg.push(`대조 현황에서 지움 ${out.removed.join(', ')}`);
+  if(out.failed.length) msg.push(`되돌리기 실패 ${out.failed.join(', ')}`);
+  if(!dates.length) msg.push('대조 현황에 남긴 결과 없음');
+  dflash(msg.join(' · '),!!out.failed.length);
+  return out;
+}
+function undoConfirm(next){
+  const nSaved=(D.savedDates||new Set()).size;
+  return confirm(`${D.ecFile} 을(를) 물립니다.${next?` 그리고 ${next} 을(를) 올립니다.`:''}${nSaved?`\n\n이 파일로 대조 현황에 남긴 ${nSaved}개 날짜 결과는 직전 결과로 되돌립니다(직전 결과가 없던 날짜는 지웁니다).`:'\n\n이 파일로 대조 현황에 남긴 결과는 없습니다.'}\n메모·처리완료는 그대로 둡니다.`);
 }
 // 매일 올리는 대조 파일로 품목코드 맵핑을 자동 학습한다(Su, 2026-10-19: 맵핑 파일을 따로 올릴 필요 없이).
 //   판매현황(품목별)만 가능(판매조회는 품목코드가 없다). 맵핑 화면과 같은 학습(1:1 → 소거 → 이름)을 돌려 '새로 연결'은 바로 저장,
@@ -1137,7 +1163,9 @@ function dateRow(withFile){
       <div class="ec-seg">${quick.map(d=>{ const dn=P.done.has(d); return `<button data-a="qdate" data-d="${d}" class="${D.date===d?'on':''}" style="${dn?'color:var(--muted)':'font-weight:700'}">${d===kstDay(-1)?'어제 ':''}${d.slice(5).replace('-','/')} (${wdOf(d)})${dn?' ✓':''}</button>`; }).join('')}</div>
       ${withFile&&P.run.length>1?`<span class="ec-sub" style="margin:0">대조 안 한 날짜 ${n(P.run.length)}일</span>`:''}
       ${withFile?`<span class="go ec-file" style="height:36px">이카운트 판매현황 올리기<input type="file" id="ecdFile" accept=".xlsx,.xls" aria-label="이카운트 판매현황 파일"></span>
-      ${D.ecFile?`<span class="ec-sub" style="margin:0">올린 파일 <b style="color:var(--ink)">${esc(D.ecFile)}</b> · ${ymd(D.date)} 주문 ${n(new Set((D.ec||[]).filter(r=>r.order.startsWith(ymd(D.date))).map(r=>r.order)).size)}건</span>`:''}`:''}
+      ${D.ecFile?`<span class="ec-sub" style="margin:0">올린 파일 <b style="color:var(--ink)">${esc(D.ecFile)}</b> · ${ymd(D.date)} 주문 ${n(new Set((D.ec||[]).filter(r=>r.order.startsWith(ymd(D.date))).map(r=>r.order)).size)}건</span>
+      <span class="ec-dl ec-file" style="display:inline-flex;align-items:center" title="파일을 잘못 올렸을 때 — 이 파일로 남긴 대조 결과를 되돌리고 다른 파일을 올립니다">다시 올리기<input type="file" id="ecdReFile" accept=".xlsx,.xls" aria-label="이카운트 판매현황 다시 올리기"></span>
+      <button class="ec-dl" data-a="ecundo" title="이 파일을 물리고 남긴 대조 결과를 되돌립니다">파일 취소</button>`:''}`:''}
       <span style="flex:1"></span><button class="ec-dl" data-a="dreload">카페24 다시 받기</button></div>
     ${D.loading?`<div class="ec-stat">${esc(D.loading)}</div>`:''}
     ${D.err?`<div class="ec-stat err">${esc(D.err.message||D.err)}</div>`:''}
@@ -1336,6 +1364,7 @@ function onDailyChange(t){
   const a=t.dataset.a, o=t.dataset.o;
   if(t.id==='ecdDate'){ if(t.value){ D.date=t.value; loadDailyC24(); } return true; }
   if(t.id==='ecdFile'){ const f=t.files[0]; t.value=''; if(f) onDailyFile(f).then(()=>{ D.view='bad'; render(); }); return true; }
+  if(t.id==='ecdReFile'){ const f=t.files[0]; t.value=''; if(f&&undoConfirm(f.name)) undoFile().then(()=>onDailyFile(f)).then(()=>{ D.view='bad'; render(); }); return true; }
   if(t.id==='ecdWh'){ D.wh=t.value; for(const k of Object.keys(D.ed)) delete D.ed[k].wh; saveEd(); render(); return true; }
   if(t.id==='ecdSeller'){ D.seller=t.value; return true; }
   if(a==='sel'){ D.sel[o]=t.checked; render(); return true; }
@@ -1517,6 +1546,7 @@ function wire(root){
     if(a==='selall'||a==='selnone'){ const v=D.gview||'new'; for(const r of (D.rows||[])){ if(!r.live.length) continue; const inView=v==='all'||(v==='new'&&r.gst==='새 주문')||(v==='wait'&&r.gst==='환불 대기')||(v==='made'&&r.gst==='파일 있음'); if(a==='selnone') delete D.sel[r.o.order_id]; else if(inView) D.sel[r.o.order_id]=true; } render(); return; }
     if(a==='togen'){ D.sel={}; for(const r of (D.rows||[])) if(r.st==='미입력'&&r.live.length) D.sel[r.o.order_id]=true; D.selInit=true; D.gview='all'; setMenu('ecdaily'); return; }
     if(a==='dreload'){ await loadDailyC24(); return; }
+    if(a==='ecundo'){ if(!undoConfirm('')) return; await undoFile(); await loadDailyC24(); return; }
     if(a==='qdate'){ if(D.date!==t.dataset.d){ D.date=t.dataset.d; await loadDailyC24(); } return; }
     if(a==='dgen'){ t.disabled=true; try{ await generate(); }catch(err){ dflash('만들지 못했습니다: '+err.message,true); } t.disabled=false; return; }
     if(a==='logdl'){ t.disabled=true; const txt=t.textContent; t.textContent='받는 중…'; try{ await downloadFile(t.dataset.id); }catch(err){ alert('받지 못했습니다: '+err.message); } t.disabled=false; t.textContent=txt; return; }
@@ -1591,5 +1621,5 @@ window.loadEcountTab=async function(el,page){
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,loadOpen,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,loadOpen,undoFile,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();

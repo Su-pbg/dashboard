@@ -40,9 +40,10 @@ const DAY = { date: DATE, at: '2026-10-14 10:00', file: '가짜.xlsx', summary: 
 const el = () => ({ innerHTML: '', style: {}, dataset: {}, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [], appendChild() {}, remove() {}, focus() {}, setSelectionRange() {} });
 const store = {};
 const json = (o) => ({ ok: true, status: 200, json: async () => o });
+const undoPosts = [];
 const fetchStub = async (url, opt = {}) => {
   const u = String(url);
-  if (opt.method === 'POST') return json({ ok: true, at: '2026-10-14 10:00', saved: 0, attached: [], note: null, sign: {} });
+  if (opt.method === 'POST') { const b = JSON.parse(opt.body || '{}'); if (b.undo) { undoPosts.push(b.undo.date); return json({ ok: true, restored: b.undo.date, file: '이전.xlsx' }); } return json({ ok: true, at: '2026-10-14 10:00', saved: 0, attached: [], note: null, sign: {} }); }
   if (u.includes('/ecconf')) return json({ lists: { wh: ['온라인창고', '온라인 브랜드창고', '테스트창고'], pre: ['퀵)'], dst: ['출고완료'], ast: ['발주 필요'] } });
   if (u.includes('/ecmap')) return json({ map: { P0000AAA001: { code: 'EC001', name: '가 / 상품1', src: 'auto' }, P0000AAA002: { code: 'EC002', name: '가 / 상품2', src: 'auto' } }, sign: { EC001: 'EC001SI' } });
   if (u.includes('/ecsales')) return json({ log: [] });
@@ -158,6 +159,15 @@ eq('환불 전 예상 금액 비교', [row(O2).expect, row(O2).ecTot], [13000, 2
 truthy('대조 결과에 이카운트 품명 저장', (() => { const rr = E.reconRows ? E.reconRows() : null; return true; })());
 eq('선수금·퀵·정산 전표 표시', row(O1).tags, '선수금(완납) · 퀵 · 선수금 정산 전표 10/20');
 eq('파일 기간 (전표 10/14~10/20, 시작 2일 전부터)', [E.covered('2026-10-12'), E.covered('2026-10-11'), E.covered('2026-10-20')], [true, false, true]);
+
+// 다시 올리기 · 파일 취소: 올린 파일 옆에 버튼이 보이고, 취소하면 이 파일로 남긴 날짜를 워커 undo 로 되돌리고 화면을 비운다
+try {
+  E.S.page = 'recon'; D.ecFile = '잘못.xlsx'; D.savedDates = new Set([DATE]); E.render();
+  truthy('올린 파일 옆 다시 올리기 · 파일 취소', root.innerHTML.includes('id="ecdReFile"') && root.innerHTML.includes('data-a="ecundo"'));
+  const out = await E.undoFile(); E.render();
+  eq('파일 취소 → 그 날짜 undo 요청 · 화면 비움', [undoPosts, out.restored.length, D.ec, D.ecFile, D.savedDates.size, root.innerHTML.includes('잘못.xlsx 취소'), root.innerHTML.includes('id="ecdReFile"')], [[DATE], 1, null, '', 0, true, false]);
+  D.ec = ecRows; D.date = DATE; E.compute();
+} catch (e) { bad++; console.log('FAIL 다시 올리기 ' + e.message); D.ec = ecRows; D.date = DATE; E.compute(); }
 
 // 기간 밖 날짜: 나중 반품 전표만 있는 주문도 금액을 판단하지 않는다
 D.date = '2026-10-01'; E.compute();
