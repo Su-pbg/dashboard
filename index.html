@@ -3259,12 +3259,22 @@ async function loadPnlSection(){
     roas:     r.ad? r.revenue/r.ad : 0,
   }));
   const last=calc[calc.length-1];
-  const tot={revenue:0,cost:0,ad:0};
-  calc.forEach(r=>{ tot.revenue+=r.revenue; tot.cost+=r.cost; tot.ad+=(r.ad||0); });
+  const sum={revenue:0,cost:0,ad:0};
+  calc.forEach(r=>{ sum.revenue+=r.revenue; sum.cost+=r.cost; sum.ad+=(r.ad||0); });
+  // [2026-10-21] **손익표가 정본이다.** 월별 합과 손익표 누계가 다르면 손익표를 쓴다.
+  //   실측 8월 기준 매출액만 510,000 차이났다(원가·광고는 0원 차이). 어느 달이 사후 수정됐는지
+  //   모르는 채로 특정 달에 얹으면 그 달이 틀려지므로, 누계만 손익표로 바꾸고 차이는 따로 보여준다.
+  const stm=p.statement||null;
+  const upto=stm&&stm.through ? calc.filter(r=>r.month<=stm.through) : calc;
+  const uptoSum={revenue:0,cost:0,ad:0};
+  upto.forEach(r=>{ uptoSum.revenue+=r.revenue; uptoSum.cost+=r.cost; uptoSum.ad+=(r.ad||0); });
+  const after={revenue:sum.revenue-uptoSum.revenue, cost:sum.cost-uptoSum.cost, ad:sum.ad-uptoSum.ad};
+  const tot = stm ? {revenue:stm.revenue+after.revenue, cost:stm.cost+after.cost, ad:stm.ad+after.ad} : sum;
+  const gap = {revenue:tot.revenue-sum.revenue, cost:tot.cost-sum.cost, ad:tot.ad-sum.ad};
   const totCostRate=tot.revenue? tot.cost/tot.revenue*100 : 0;
 
   let h='<h2 class="sec">손익 (회계 기준)</h2>';
-  h+='<p class="sec-desc">배송완료·부가세 제외 · 위 거래액·실매출은 주문일·부가세 포함이라 값이 다릅니다</p>';
+  h+='<p class="sec-desc">배송완료·부가세 제외 · 위 거래액·실매출은 주문일·부가세 포함이라 값이 다릅니다 · <b>손익표가 정본</b>입니다</p>';
 
   // 월별 표
   h+='<div class="section-block">';
@@ -3280,11 +3290,20 @@ async function loadPnlSection(){
       <span>${r.adRate.toFixed(1)}%</span>
     </div>`;
   }).join('');
+  if(gap.revenue||gap.cost||gap.ad){
+    h+=`<div class="pnl-row" style="color:var(--muted)">
+      <span>보정</span><span>${gap.revenue?won(gap.revenue):'—'}</span><span>${gap.cost?won(gap.cost):'—'}</span>
+      <span>—</span><span>${gap.ad?won(gap.ad):'—'}</span><span>—</span></div>`;
+  }
   h+=`<div class="pnl-row pnl-total">
       <span>누적</span><span>${won(tot.revenue)}</span><span>${won(tot.cost)}</span>
       <span><b>${totCostRate.toFixed(1)}%</b></span><span>${won(tot.ad)}</span>
       <span>${(tot.ad/tot.revenue*100).toFixed(1)}%</span></div>`;
   h+='</div>';
+  if(gap.revenue||gap.cost||gap.ad){
+    h+=`<p class="sec-desc">누적은 <b>손익표 기준</b>입니다(${stm.through} 까지). 월별 합과 ${won(Math.abs(gap.revenue))}원 차이가 나는데,
+      어느 달이 사후 수정됐는지 확인되기 전까지 특정 달에 얹지 않고 '보정' 으로 둡니다.</p>`;
+  }
 
   // 원가율 추이 — 목표선과 함께
   if(calc.length>=3){
