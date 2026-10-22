@@ -231,6 +231,130 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         }
       }
 
+      // ===== KPI 시트 쓰기 (2026-10-22) =====
+      // 시트·데일리 리포트·대시보드가 각자 다른 데서 숫자를 가져와 영영 안 맞았다.
+      // 이 엔드포인트가 한 소스(revenue-daily.json)로 시트를 채운다.
+      // 시트를 서비스계정에 '편집자' 로 공유해야 한다.
+      if (url.pathname === "/kpisheet") {
+        const sa = JSON.parse(env.GA_SA_KEY);
+        const id = q.get("id");
+        if (!id) return json({ error: "id(스프레드시트 ID) 가 필요합니다", saEmail: sa.client_email }, 400);
+        const tok = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+        const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=properties.title,sheets.properties`, {
+          headers: { Authorization: "Bearer " + tok }
+        });
+        const mj = await meta.json().catch(() => ({}));
+        if (!meta.ok) {
+          return json({ error: mj?.error?.message || `HTTP ${meta.status}`,
+            hint: `시트를 ${sa.client_email} 에 '편집자' 로 공유해 주세요.`, saEmail: sa.client_email }, meta.status);
+        }
+        if (q.get("ping")) {
+          return json({ ok: true, title: mj?.properties?.title,
+            tabs: (mj.sheets || []).map((x) => x.properties.title), saEmail: sa.client_email });
+        }
+        const year = q.get("year") || "2026";
+        // revenue-daily.json 하나만 본다 — 데일리 슬랙봇과 같은 주문 API 산출물이고
+        // 타 조직 개인결제창이 빠져 있다(2026-09-01~). 아카이브는 그 이전 구간.
+        const GHP = "https://su-pbg.github.io/dashboard/";
+        const grab = async (f) => { const r = await fetch(GHP + f); return r.ok ? (await r.json()).daily || [] : []; };
+        const [arc, cur] = await Promise.all([grab("revenue-daily-archive.json"), grab("revenue-daily.json")]);
+        const byDate = /* @__PURE__ */ new Map();
+        for (const d of [...arc, ...cur]) if (d && d.date) byDate.set(d.date, d);
+        const days = [...byDate.values()].filter((d) => d.date.startsWith(year)).sort((a, b) => a.date.localeCompare(b.date));
+        if (!days.length) return json({ error: `${year} 데이터가 없습니다` }, 400);
+
+        const mon = {};
+        for (const d of days) {
+          const m = d.date.slice(0, 7), x = mon[m] || (mon[m] = { gmv: 0, net: 0, refund: 0, cnt: 0 });
+          x.gmv += d.gmv || 0; x.net += d.net || 0; x.refund += d.refund || 0; x.cnt += d.count || 0;
+        }
+        const tgt = KPI_TARGET[year] || [];
+        const pct = (v, t) => t ? v / t : "";
+        const sumRow = { gmv: 0, net: 0, refund: 0, cnt: 0, t: 0 };
+        const mrows = [];
+        for (let i = 0; i < 12; i++) {
+          const m = `${year}-${String(i + 1).padStart(2, "0")}`, x = mon[m];
+          const t = tgt[i] || 0;
+          if (x) { sumRow.gmv += x.gmv; sumRow.net += x.net; sumRow.refund += x.refund; sumRow.cnt += x.cnt; sumRow.t += t; }
+          mrows.push([`${i + 1}월`, t || "", x ? x.gmv : "", x ? pct(x.gmv, t) : "",
+            x ? x.net : "", x ? pct(x.net, t) : "", x ? x.refund : "", x ? x.cnt : ""]);
+        }
+        mrows.push(["누계", sumRow.t, sumRow.gmv, pct(sumRow.gmv, sumRow.t), sumRow.net, pct(sumRow.net, sumRow.t), sumRow.refund, sumRow.cnt]);
+
+        const last = days[days.length - 1].date;
+        const head = [
+          [`${year} KPI — 주문 기준`],
+          [`카페24 주문 API · 타 조직 개인결제창 제외 · 데일리 슬랙 리포트와 같은 소스`],
+          [`갱신 ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC · 실적 ${days[0].date} ~ ${last}`],
+          [],
+          ["월", "목표", "거래액(GMV)", "달성율(거래액)", "순매출", "달성율(순매출)", "환불", "주문수"]
+        ];
+        const daily = [["날짜", "거래액(GMV)", "순매출", "환불", "주문수"],
+          ...days.map((d) => [d.date, d.gmv || 0, d.net || 0, d.refund || 0, d.count || 0])];
+
+        const have = new Set((mj.sheets || []).map((x) => x.properties.title));
+        const want = ["요약", "일별"].filter((t) => !have.has(t));
+        if (want.length) {
+          await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
+            method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+            body: JSON.stringify({ requests: want.map((title) => ({ addSheet: { properties: { title } } })) })
+          });
+        }
+        // 요약 I열(선수금)은 사람이 채우는 칸이라 건드리지 않는다 — 이카운트 전표가 있어야 나오는 값이고 수동 업로드다.
+        const wr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+          method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            valueInputOption: "USER_ENTERED",
+            data: [
+              { range: "요약!A1:H18", values: [...head, ...mrows] },
+              { range: "일별!A1:E" + (daily.length), values: daily }
+            ]
+          })
+        });
+        const wj = await wr.json().catch(() => ({}));
+        if (!wr.ok) return json({ error: wj?.error?.message || `HTTP ${wr.status}`, saEmail: sa.client_email }, wr.status);
+
+        // 서식 — 매번 다시 입힌다(값만 쓰면 원 단위 숫자가 그대로 보여서 읽을 수 없다)
+        const m2 = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`, {
+          headers: { Authorization: "Bearer " + tok } })).json().catch(() => ({}));
+        const sid = {};
+        for (const x of m2.sheets || []) sid[x.properties.title] = x.properties.sheetId;
+        const fmt = (sheetId, sr, er, sc, ec, pattern) => ({
+          repeatCell: {
+            range: { sheetId, startRowIndex: sr, endRowIndex: er, startColumnIndex: sc, endColumnIndex: ec },
+            cell: { userEnteredFormat: { numberFormat: { type: pattern === "0%" ? "PERCENT" : "NUMBER", pattern } } },
+            fields: "userEnteredFormat.numberFormat"
+          }
+        });
+        const bold = (sheetId, row) => ({
+          repeatCell: { range: { sheetId, startRowIndex: row, endRowIndex: row + 1 },
+            cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" }
+        });
+        const freeze = (sheetId, n) => ({
+          updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: n } }, fields: "gridProperties.frozenRowCount" }
+        });
+        const reqs = [];
+        if (sid["요약"] != null) {
+          const S = sid["요약"];
+          reqs.push(fmt(S, 5, 18, 1, 3, "#,##0"), fmt(S, 5, 18, 4, 5, "#,##0"), fmt(S, 5, 18, 6, 8, "#,##0"),
+            fmt(S, 5, 18, 3, 4, "0%"), fmt(S, 5, 18, 5, 6, "0%"),
+            bold(S, 0), bold(S, 4), bold(S, 17), freeze(S, 5),
+            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 1, endIndex: 8 } } },
+            { updateDimensionProperties: { range: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
+              properties: { pixelSize: 70 }, fields: "pixelSize" } });
+        }
+        if (sid["일별"] != null) {
+          const S = sid["일별"];
+          reqs.push(fmt(S, 1, daily.length, 1, 5, "#,##0"), bold(S, 0), freeze(S, 1),
+            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 5 } } });
+        }
+        if (reqs.length) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
+          method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+          body: JSON.stringify({ requests: reqs })
+        });
+        return json({ ok: true, year, days: days.length, through: last, updated: wj.totalUpdatedCells });
+      }
+
       // ===== 공급사 담당자·구분 오버레이 =====
       // [2026-09-28] supplier-managers.json 은 GitHub Pages 의 정적 파일이라 화면에서 고칠 수 없다.
       // 거래처 LIST 를 사람이 채울 때까지 기다리는 대신, 대시보드에서 입력한 값을 KV 에 얹는다.
@@ -1773,6 +1897,8 @@ async function handleReceipt(request, env) {
 __name(handleReceipt, "handleReceipt");
 // [2026-10-12] 위탁 정산용 거래처 LIST 읽기. 시트 ID 는 비밀이 아니다(접근은 공유 설정이 막는다).
 // 거래처 LIST 탭에는 연락처가 있어 정산에 쓰는 열(입점여부·브랜드명·공급사코드)만 남긴다.
+// 월별 매출 목표(원). KPI 시트 '0. 요약' 5행과 같은 값이다. 바뀌면 여기만 고친다.
+var KPI_TARGET = { "2026": [297, 264, 352, 385, 418, 352, 341, 352, 350, 350, 700, 350].map((x) => x * 1e6) };
 var SETTLE_SHEET_ID = "1_murW4zNdM5lYIUG5vM1F-LARA3Q7lfLLBtArvtYA0c";
 // 담당자는 대시보드 담당자 탭(supplier-managers.json)이 아니라 거래처 LIST 의 '담당자' 열을 따른다(아트·라이프 탭).
 var SETTLE_TABS = {
