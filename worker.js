@@ -246,6 +246,23 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         try { b = await request.json(); } catch (e) { }
         // 손입력 데이터(광고·신규상품수)를 KV 에 둔다 — 주문 API 에 없는 값이라 사람이 넣는다.
         //   POST {ad:{ "2026-01-05": {c:커머스광고, t:Total광고, sku:신규상품수}, ... }, adMonth:{ "2025-01": {t:...} }}
+        // 탭 순서 맞추기 / 빈 탭 지우기:  POST {id, order:["0. 요약", ...], drop:["시트1"]}
+        if (Array.isArray(b.order) || Array.isArray(b.drop)) {
+          const tok2 = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+          const m3 = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.id}?fields=sheets.properties`, {
+            headers: { Authorization: "Bearer " + tok2 } })).json().catch(() => ({}));
+          const sid3 = {}; for (const x of m3.sheets || []) sid3[x.properties.title] = x.properties.sheetId;
+          const rq = [];
+          (b.order || []).forEach((t, i) => { if (sid3[t] != null) rq.push({ updateSheetProperties: {
+            properties: { sheetId: sid3[t], index: i }, fields: "index" } }); });
+          for (const t of b.drop || []) if (sid3[t] != null) rq.push({ deleteSheet: { sheetId: sid3[t] } });
+          if (!rq.length) return json({ ok: true, noop: true });
+          const r3 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.id}:batchUpdate`, {
+            method: "POST", headers: { Authorization: "Bearer " + tok2, "Content-Type": "application/json" },
+            body: JSON.stringify({ requests: rq }) });
+          const j3 = await r3.json().catch(() => ({}));
+          return json(r3.ok ? { ok: true, moved: rq.length } : { error: j3?.error?.message || `HTTP ${r3.status}` }, r3.ok ? 200 : r3.status);
+        }
         if (b.ad || b.adMonth) {
           const kvA = env.CAFE24_TOKEN_KV;
           if (!kvA) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
@@ -489,8 +506,74 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         if (reqs.length) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
           method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
           body: JSON.stringify({ requests: reqs }) });
+        // 6-x 유저 탭 — GA4 일별(활성사용자·새사용자·회원가입). 원본은 손입력이었다.
+        //   첫 구매 사용자(Q~U)는 GA4 세그먼트가 필요해 안 건드린다(이관된 값 유지).
+        //   전환(CVR)=(회원가입+주문건수)/DAU · 구매전환=주문건수/DAU — 원본 수식과 같다.
+        let userNote = "skip";
+        try {
+          const propertyId = env.GA4_PROPERTY_ID && String(env.GA4_PROPERTY_ID).trim() || "333394141";
+          const gtok = await getAccessToken(sa);
+          const base = { dateRanges: [{ startDate: "2024-01-01", endDate: "today" }], dimensions: [{ name: "date" }], limit: 2e5 };
+          const [ua, uj] = await Promise.all([
+            runReport(propertyId, gtok, { ...base, metrics: [{ name: "activeUsers" }, { name: "newUsers" }] }),
+            // 신규 가입 = 가입 완료 페이지(join_result·join_end) 도달 세션 수 — 워커 overview 와 같은 정의다.
+            runReport(propertyId, gtok, { ...base, metrics: [{ name: "sessions" }],
+              dimensionFilter: { orGroup: { expressions: ["join_result", "join_end"].map((v) => ({
+                filter: { fieldName: "pagePath", stringFilter: { matchType: "CONTAINS", value: v } } })) } } })
+          ]);
+          const G = {};
+          for (const r of ua) { const d = r.dimensionValues[0].value;
+            G[`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`] = { dau: +r.metricValues[0].value, nu: +r.metricValues[1].value, join: 0 }; }
+          for (const r of uj) { const d = r.dimensionValues[0].value, k = `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+            if (G[k]) G[k].join = +r.metricValues[0].value; }
+          const UT = "6-4. 유저(일별)";
+          const rr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${UT}'!B1:B3000`)}`,
+            { headers: { Authorization: "Bearer " + tok } });
+          const rj = await rr.json().catch(() => ({}));
+          const col = (rj.values || []).map((x) => String(x[0] || ""));
+          const rowOf = {};
+          col.forEach((v, i) => { const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) rowOf[`${m[1]}-${m[2]}-${m[3]}`] = i + 1; });
+          const data2 = [];
+          for (const [dt, g] of Object.entries(G)) {
+            const row = rowOf[dt]; if (!row) continue;
+            const pd = new Date(Date.parse(dt) - 7 * 864e5).toISOString().slice(0, 10);
+            const pg = G[pd], dd = dayM.get(dt), pdd = dayM.get(pd);
+            const cnt = dd ? dd.cnt : 0, pcnt = pdd ? pdd.cnt : 0;
+            const ret = g.dau - g.nu, pret = pg ? pg.dau - pg.nu : 0;
+            const cvr = g.dau ? (g.join + cnt) / g.dau : "", pcvr = pg && pg.dau ? (pg.join + pcnt) / pg.dau : null;
+            const bcvr = g.dau ? cnt / g.dau : "", pbcvr = pg && pg.dau ? pcnt / pg.dau : null;
+            data2.push({ range: `'${UT}'!C${row}:P${row}`, values: [[
+              g.join, pg ? chg(g.join, pg.join) : "-", g.dau, pg ? chg(g.dau, pg.dau) : "-",
+              g.nu, g.dau ? g.nu / g.dau : "", pg ? chg(g.nu, pg.nu) : "-",
+              ret, g.dau ? ret / g.dau : "", pg ? chg(ret, pret) : "-",
+              cvr, pcvr == null ? "-" : cvr - pcvr, bcvr, pbcvr == null ? "-" : bcvr - pbcvr]] });
+          }
+          for (let i = 0; i < data2.length; i += 400) {
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+              body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: data2.slice(i, i + 400) }) });
+          }
+          const m4 = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`, {
+            headers: { Authorization: "Bearer " + tok } })).json().catch(() => ({}));
+          const us = (m4.sheets || []).find((x) => x.properties.title === UT);
+          if (us) { const S = us.properties.sheetId;
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+              body: JSON.stringify({ requests: [
+                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 2, endColumnIndex: 3 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
+                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 4, endColumnIndex: 5 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
+                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 6, endColumnIndex: 7 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
+                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 9, endColumnIndex: 10 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
+                ...[[3,4],[5,6],[7,9],[10,11],[11,16]].map(([c0, c1]) => ({ repeatCell: {
+                  range: { sheetId: S, startRowIndex: 4, startColumnIndex: c0, endColumnIndex: c1 },
+                  cell: { userEnteredFormat: { numberFormat: { type: "PERCENT", pattern: "0.0%" } } }, fields: "userEnteredFormat.numberFormat" } })),
+                { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 21 } } }
+              ] }) }); }
+          userNote = `${data2.length}일`;
+        } catch (e) { userNote = "실패: " + String(e && e.message || e).slice(0, 120); }
+
         return json({ ok: true, through: days[days.length - 1].date,
-          rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, updated: wj.totalUpdatedCells });
+          rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, 유저: userNote, updated: wj.totalUpdatedCells });
       }
 
       // ===== 공급사 담당자·구분 오버레이 =====
