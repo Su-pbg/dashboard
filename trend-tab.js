@@ -120,9 +120,9 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 `;
 // '저가라인' 은 priceGap(우리가격÷시장가)이 있어야 나오는데 네이버 쇼핑 API 를 못 써서 영원히 안 나온다.
 // 목록에 두면 '0' 칩이 계속 떠서 고장난 것처럼 보인다 — 시장가가 다시 들어오면 되살린다.
-const ACTIONS=['재고확보','시즌 준비','시즌 소싱','소싱','밀기','안 팔림 점검','소싱 검토','지켜보기','유지','패스'];
-const TODO=['재고확보','시즌 준비','시즌 소싱','소싱','밀기','안 팔림 점검'];
-const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','시즌 준비':'시즌 정점이 2개월 안 · 우리 몰에 있음 → 재고·기획전·광고 준비','시즌 소싱':'시즌 정점이 2개월 안 · 우리 몰에 없음 → 지금 들여야 시즌에 맞음','소싱':'뜨는 중 · 우리 몰에 없음','밀기':'뜨는 중 · 우리 상품이 팔리고 있음 → 광고·기획전',
+const ACTIONS=['재고확보','시즌 준비','계절 선소싱','소싱','밀기','안 팔림 점검','소싱 검토','지켜보기','유지','패스'];
+const TODO=['재고확보','시즌 준비','계절 선소싱','소싱','밀기','안 팔림 점검'];
+const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','시즌 준비':'시즌 정점이 2개월 안 · 우리 몰에 있음 → 재고·기획전·광고 준비','계절 선소싱':'시즌 정점이 2개월 안 · 우리 몰에 없음 → 지금 들여야 시즌에 맞음','소싱':'뜨는 중 · 우리 몰에 없음','밀기':'뜨는 중 · 우리 상품이 팔리고 있음 → 광고·기획전',
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
   '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
@@ -226,12 +226,12 @@ function detailHTML(x,i){
   const prods=(x.ourTop||[]).map(p=>`<li><a href="${esc(p.url||('https://www.printbakery.com/product/detail.html?product_no='+p.no))}" target="_blank" rel="noopener">${esc(p.name)}</a> · ${n(p.price)}원 · 30일 ${n(p.q30)}개${p.soldOut?' · <b>품절</b>':''}</li>`).join('')||'<li class="tr-sub">우리 몰에 매칭되는 상품 없음</li>';
   const comp=(x.compTop||[]).map(p=>`<li>${esc(p.name||p.title||'')} ${p.price?'· '+n(p.price)+'원':''}</li>`).join('');
   return `<tr class="tr-detail"><td colspan="99"><div class="tr-dgrid">
-    <div><h4>검색 지수 60일</h4>${bigChart(x.trendSeries,i)}
+    <div><h4>검색지수 추이 60일</h4>${bigChart(x.trendSeries,i)}
       <div class="tr-sub" style="margin-top:6px">최초 ${esc(x.firstSeen||'—')} · 클릭 ${n(x.monthlyClicks)} · CTR ${x.ctr!=null?x.ctr+'%':'—'} · YT ${n(x.yt7d)} · 블로그 ${n(x.blog7d)} · 카페 +${n(x.cafeNew)}</div></div>
-    <div><h4>클릭 연령</h4>${bars(x.ageShare,k=>AGE[k]||k)}
-      <h4 style="margin-top:var(--s3)">월별 지수</h4>${seasonBars(x)}</div>
-    <div><h4>우리 상품</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${prods}</ul>
-      <h4 style="margin-top:var(--s3)">더 보기</h4>
+    <div><h4>연령별 클릭 비중</h4>${bars(x.ageShare,k=>AGE[k]||k)}
+      <h4 style="margin-top:var(--s3)">월별 계절지수</h4>${seasonBars(x)}</div>
+    <div><h4>자사 취급 상품</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${prods}</ul>
+      <h4 style="margin-top:var(--s3)">외부 조회</h4>
       <div class="tr-dig">${digLinks(x.keyword)}</div>
       ${comp?`<h4 style="margin-top:var(--s3)">타사 상위</h4><ul class="tr-prod" style="padding-left:16px;margin:0">${comp}</ul>`
         :`<h4 style="margin-top:var(--s3)">시장가</h4><div class="tr-sub">네이버 쇼핑 상품·가격은 자동으로 못 가져온다 —
@@ -246,7 +246,7 @@ function renderTable(){
   const box=document.getElementById('trTable');
   box.innerHTML=`<div class="tr-scroll"><table class="tr-t"><thead><tr>${CL.map(c=>`<th class="${c.l?'l':''} ${S.sort===c.k?'sorted':''}" data-k="${c.k}">${c.t}${S.sort===c.k?(S.dir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
    <tbody>${shown.map((x,i)=>rowHTML(x,i)+(S.open===x.keyword?detailHTML(x,i):'')).join('')||`<tr><td colspan="99" class="l tr-sub">조건에 맞는 키워드가 없습니다</td></tr>`}</tbody></table></div>
-   <div class="tr-sub" style="margin-top:6px">${shown.length} / ${rows.length} · 행 클릭 = 상세</div>
+   <div class="tr-sub" style="margin-top:6px">${shown.length} / ${rows.length} · 행 선택 시 상세</div>
    ${rows.length>shown.length?'<button class="tr-more" id="trMore">더 보기</button>':''}`;
   // 비어 있는 열은 셀까지 걷어낸다 (헤더만 빼면 줄이 어긋난다)
   const keep=new Set(CL.map(c=>c.k));
@@ -261,7 +261,7 @@ function renderTable(){
 // [2026-10-20] 버튼 9개가 같은 무게로 늘어서 있어서 뭘 먼저 눌러야 할지 안 보였다.
 //   급한 순(재고확보 → 시즌 소싱 → 소싱 검토 → 안 팔림 점검 → 시즌 준비 → 밀기)으로 세우고
 //   참고군(유지·패스·전체)은 흐리게 뒤로 뺀다.
-const URGENT=['재고확보','시즌 소싱','소싱 검토','안 팔림 점검','시즌 준비','밀기'];
+const URGENT=['재고확보','계절 선소싱','소싱 검토','안 팔림 점검','시즌 준비','밀기'];
 function renderActs(){
   const rows=S.data.runs[S.data.runs.length-1].rows; const cnt={}; rows.forEach(r=>cnt[r.action]=(cnt[r.action]||0)+1);
   const el=document.getElementById('trActs');
@@ -335,7 +335,7 @@ function renderRising(){
   }).join('');
   el.innerHTML=`<div class="tr-filters">
       <select id="trBand">${Object.entries(BANDS).map(([k,v])=>`<option value="${k}" ${S.band===k?'selected':''}>${v[2]}</option>`).join('')}</select>
-      <span class="tr-sub">${n(rows.length)}개 · 상승률 = 최근 3일 ÷ 가장 이른 3일</span></div>
+      <span class="tr-sub">${n(rows.length)}건 · 상승률 = 최근 3일 평균 ÷ 기준 3일 평균</span></div>
     <div class="tr-three">${cols}</div>`;
   const sel=document.getElementById('trBand');
   if(sel) sel.onchange=e=>{S.band=e.target.value;renderRising();};
@@ -451,7 +451,7 @@ function heatmap(){
   return `<div class="hm">
     <div class="hm-row hm-head"><div class="hm-n"></div>${MONS.map((m,i)=>`<div class="hm-w ${i===now?'now':''}">${m}</div>`).join('')}</div>
     ${body}
-    <div class="tr-sub" style="margin-top:8px">최근 3년 월별 지수(평균=1) · 세로줄 = 이번 달 · <b>볼 곳은 한 칸 오른쪽</b></div></div>`;
+    <div class="tr-sub" style="margin-top:8px">최근 3년 월별 계절지수(연평균=1) · 음영 = 당월 · <b>판단 기준은 익월</b></div></div>`;
 }
 
 function oppMap(){
@@ -474,7 +474,7 @@ function oppMap(){
     ${rows.map(dot).join('')}${lbl}
     <text x="${W-14}" y="${H-14}" text-anchor="end" class="op-lb">시장 검색 수요 →</text>
     <text x="8" y="22" class="op-lb">↑ 우리 30일 판매</text>
-  </svg><div class="tr-sub">빨간 점 = 월 8,000+ 검색 · 30일 판매 0</div></div>`;
+  </svg><div class="tr-sub">적색 = 월 검색 8,000 이상 · 30일 판매 0</div></div>`;
 }
 
 // ── 이번 주 할 일 ──────────────────────────────────────────────────
@@ -484,9 +484,9 @@ function oppMap(){
 function renderViz(){
   const el=document.getElementById('trViz'); if(!el||!S.data) return;
   const SS=shiftShare(S.data.runs[S.data.runs.length-1].rows);
-  const mkt = SS?`<div class="tr-mkt"><b>시장 ${pc(SS.G)}</b> <span class="tr-sub">전년 대비 · 하락 대부분이 이 몫</span>
-    <div class="tr-sub" style="margin-top:4px">버팀 ${Object.entries(SS.gT).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,g])=>`<b>${esc(t)}</b> ${(g-SS.G)>=0?'+':''}${Math.round((g-SS.G)*100)}p`).join(' · ')}
-      &nbsp;&nbsp;·&nbsp;&nbsp; 역풍 ${Object.entries(SS.gT).sort((a,b)=>a[1]-b[1]).slice(0,2).map(([t,g])=>`<b>${esc(t)}</b> ${Math.round((g-SS.G)*100)}p`).join(' · ')}</div></div>`:'';
+  const mkt = SS?`<div class="tr-mkt"><b>시장 ${pc(SS.G)}</b> <span class="tr-sub">전체효과 — 개별 증감의 기저</span>
+    <div class="tr-sub" style="margin-top:4px">구성효과 + ${Object.entries(SS.gT).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,g])=>`<b>${esc(t)}</b> ${(g-SS.G)>=0?'+':''}${Math.round((g-SS.G)*100)}p`).join(' · ')}
+      &nbsp;&nbsp;·&nbsp;&nbsp; − ${Object.entries(SS.gT).sort((a,b)=>a[1]-b[1]).slice(0,2).map(([t,g])=>`<b>${esc(t)}</b> ${Math.round((g-SS.G)*100)}p`).join(' · ')}</div></div>`:'';
   el.innerHTML=mkt+heatmap();
   const opp=document.getElementById('trOpp'); if(opp) opp.innerHTML=oppMap();
   (opp||el).querySelectorAll('.op-dot').forEach(c=>c.onclick=()=>{S.q=c.dataset.k;S.act='';S.limit=15;
@@ -520,7 +520,7 @@ function renderAction(){
   const burn=T.filter(x=>x.results===0&&(x.organic+x.paid)>=20).sort((a,b)=>(b.organic+b.paid)-(a.organic+a.paid)).slice(0,10);
   const burnHTML=burn.length?`<table class="tr-t"><thead><tr><th>검색어</th><th>광고</th><th>자연</th><th>할 일</th></tr></thead><tbody>`
     +burn.map(x=>`<tr><td><b>${esc(x.term)}</b> ${links(x.term)}</td><td>${n(x.paid)}</td><td>${n(x.organic)}</td>`
-      +`<td>소싱 or 검색어 연결</td></tr>`).join('')+'</tbody></table>':'';
+      +`<td>소싱 또는 검색어 매핑</td></tr>`).join('')+'</tbody></table>':'';
 
   const pick=(acts,why,what)=>rows.filter(r=>acts.includes(r.action)).sort((a,b)=>b.score-a.score).slice(0,8)
     .map(r=>({r, why:why(r), what:what(r), bs:brandsFor(r.keyword)}));
@@ -535,13 +535,13 @@ function renderAction(){
   const peak=r=>r.peakMonth?` · ${MON[r.peakMonth-1]} 정점`:'';
   const have=r=>`${n(r.ourCount||0)}종 · 30일 ${n(r.ourSales30||0)}`;
 
-  el.innerHTML=(burnHTML?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">물건 없음 (${burn.length})</h4>`
-      +`<div class="tr-sub" style="margin:0 0 6px">몰 검색 결과 0건</div>${burnHTML}</div>`:'')
-    + grp('시즌 소싱', pick(['시즌 소싱'],r=>vol(r)+peak(r),r=>'<span class="tr-flat">없음</span>'), '정점 2개월 내')
-    + grp('소싱 검토', pick(['소싱 검토'],vol,r=>'<span class="tr-flat">없음</span>'), '수요 있음 · 보유 0')
-    + grp('재고 확보', pick(['재고확보'],vol,have), '전부 품절')
-    + grp('안 팔림', pick(['안 팔림 점검'],vol,have), '상품·가격·노출 점검')
-    + grp('시즌 준비', pick(['시즌 준비'],r=>vol(r)+peak(r),have), '재고·기획전·광고 당기기')
+  el.innerHTML=(burnHTML?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">검색 유입 대비 미취급 (${burn.length})</h4>`
+      +`<div class="tr-sub" style="margin:0 0 6px">자사몰 검색 결과 0건 — 유입 발생분</div>${burnHTML}</div>`:'')
+    + grp('계절 선소싱', pick(['계절 선소싱'],r=>vol(r)+peak(r),r=>'<span class="tr-flat">없음</span>'), '계절 정점 2개월 내 · 미취급')
+    + grp('소싱 검토', pick(['소싱 검토'],vol,r=>'<span class="tr-flat">없음</span>'), '수요 대비 미취급')
+    + grp('재고 확보', pick(['재고확보'],vol,have), '전 품목 재고 소진')
+    + grp('판매 부진', pick(['안 팔림 점검'],vol,have), '가격 · 노출 · 상세 점검 대상')
+    + grp('시즌 준비', pick(['시즌 준비'],r=>vol(r)+peak(r),have), '취급 중 — 재고·기획전·매체 선집행')
     || '<div class="tr-sub">할 일 없음</div>';
 }
 
@@ -640,7 +640,7 @@ function renderPool(){
   const li=(a,right)=>`<li><span>${esc(a.k)} <span class="t">${esc(a.theme||'')}</span></span><span>${right}</span></li>`;
   el.innerHTML=`<div class="tr-two"><div><h4 class="tr-sub" style="font-weight:600;margin:0 0 6px">신규 (${esc(newest[0]?.first||'')})</h4><ul class="tr-list">${newest.map(a=>li(a,n(a.vol)+'회/월')).join('')}</ul></div>
    <div><h4 class="tr-sub" style="font-weight:600;margin:0 0 6px">월간 검색수가 28일 새 가장 많이 늘어난 키워드</h4><ul class="tr-list">${rising.length?rising.map(a=>li(a,pct(a.g)+' · '+n(a.vol))).join(''):'<li class="tr-sub">기록이 28일 쌓이면 나옵니다</li>'}</ul></div></div>
-   <div class="tr-sub" style="margin-top:8px">${n(arr.length)}개 · 연관어로 매일 확장</div>`;
+   <div class="tr-sub" style="margin-top:8px">${n(arr.length)}건 · 연관검색어 기반 일일 확장</div>`;
 }
 window.loadTrendTab=async function(){
   if(!document.getElementById('trCss')){const s=document.createElement('style');s.id='trCss';s.textContent=CSS;document.head.appendChild(s);
@@ -661,15 +661,15 @@ window.loadTrendTab=async function(){
    <div class="tr-meta"><span>기준 <b>${esc(run.date)}</b> (매일 06:50 갱신)</span><span>키워드 풀 <b>${n(run.poolSize)}</b>개</span><span>오늘 새로 들어옴 <b>${n(run.newToday)}</b>개</span><span>추석(9/14~9/28)은 추세 계산에서 제외</span></div>
    ${errs.length?`<div class="tr-warn">일부 네이버 API 호출이 실패했습니다: ${errs.map(([k,v])=>esc(k)+' '+esc(v).slice(0,80)).join(' / ')}</div>`:''}
    <div class="tr-card"><h2>시장</h2>
-     <p class="tr-lead">전년 대비 · 검색량 가중</p>
+     <p class="tr-lead">전년 동기 대비 · 검색량 가중</p>
      <div id="trViz"></div></div>
    <div class="tr-card"><h2>할 일</h2>
-     <p class="tr-lead">도착은 한 달 뒤</p>
+     <p class="tr-lead">리드타임 1개월 기준 — 익월 수요로 판단</p>
      <div id="trAct"></div></div>
    <div class="tr-card"><h2>기회 맵</h2>
-     <p class="tr-lead">점 = 키워드 · 왼쪽 위 = 수요 있고 우리 약함 · 클릭 시 표 필터</p>
+     <p class="tr-lead">시장 수요 × 자사 실적 · 좌상단 = 수요 대비 점유 부진</p>
      <div id="trOpp"></div></div>
-   <details class="tr-card" id="trExplore"><summary><b>직접 뒤져보기</b> <span class="tr-sub">판정 · 급상승 · 풀</span></summary>
+   <details class="tr-card" id="trExplore"><summary><b>상세 조회</b> <span class="tr-sub">판정 · 급상승 · 키워드 풀</span></summary>
      <div class="tr-acts" id="trActs"></div>
      <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="">
        <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
