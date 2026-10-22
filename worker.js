@@ -116,6 +116,75 @@ var worker_default = {
         return json({ error: "지원하지 않는 메서드" }, 405);
       }
 
+      // ===== 이름 분류 (브랜드 / 재질 / 일반명사) =====
+      // [2026-10-22] 연관검색어는 '같이 검색되는 말' 이라 재질(사이잘)·양식(페르시안)·제품명이
+      //   브랜드와 같은 자격으로 섞여 나온다. 정규식으로는 사이잘과 파펠리나를 못 가른다 —
+      //   둘 다 4글자 한글 고유명사꼴이다. 언어 판단이라 LLM 이 맞는 도구다.
+      //   수동 목록(brand-review.json 152개)을 사람이 관리하던 걸 대체한다.
+      //   이름을 한 번에 묶어 보내므로 하루 1회면 된다(무료 등급 모델당 20건 중 1건).
+      if (request.method === "POST" && url.pathname === "/classify") {
+        if (!env.GEMINI_API_KEY) return json({ error: "GEMINI_API_KEY 없음", code: "nokey" }, 503);
+        let b = {};
+        try { b = await request.json(); } catch (e) { /* 본문 없음 */ }
+        const all = (Array.isArray(b.names) ? b.names : []).map((x) => String(x || "").trim())
+          .filter((x) => x && x.length <= 30).slice(0, 400);
+        if (!all.length) return json({ error: "names 가 비었습니다" }, 400);
+        // 한 번 분류한 이름은 KV 에 남긴다 — 화면이 매번 불러도 Gemini 호출은 신규분만 간다.
+        const kvC = env.CAFE24_TOKEN_KV, CK = "classify:v1";
+        const cache = kvC ? JSON.parse((await kvC.get(CK)) || "{}") : {};
+        const names = all.filter((n) => !cache[n]).slice(0, 120);
+        if (!names.length) return json({ ok: true, cached: true, items: all.map((n) => ({ name: n, kind: cache[n] })) });
+        const prompt = `아래는 한국 리빙·인테리어·아트 쇼핑몰의 검색어에서 뽑은 이름 후보다.
+각각을 셋 중 하나로 분류하라.
+  brand    실제로 존재하는 상품 브랜드·제조사·편집샵 이름 (예: 파펠리나, 웨지우드, FERMOB, 마지스)
+  material 재질·소재·양식·기법·원산지 (예: 사이잘, 페르시안, 히노끼, 본차이나, 라탄, 헤링본)
+  generic  일반명사·제품종류·수식어·지명·인명 (예: 조명, 대용량, 작은방, 이천, 최화정)
+판단이 어려우면 generic 으로 한다. 실존하지 않을 것 같은 이름도 generic 이다.
+이름: ${names.join(", ")}`;
+        const call = (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0, responseMimeType: "application/json",
+              responseSchema: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    name: { type: "STRING" },
+                    kind: { type: "STRING", enum: ["brand", "material", "generic"] },
+                    note: { type: "STRING" }
+                  },
+                  required: ["name", "kind"]
+                }
+              }
+            }
+          })
+        });
+        let model = env.GEMINI_MODEL || "gemini-3.8-flash";
+        let r = await call(model);
+        if (r.status === 404) {                      // 모델명이 내려가면 후속 모델로 한 번 재시도 (receipt 와 같은 함정)
+          const t404 = await r.text();
+          const alt = [...t404.matchAll(/models\/([A-Za-z0-9.\-]+)/g)].map((x) => x[1]).find((n) => n !== model);
+          if (!alt) return json({ error: "Gemini 404", detail: t404.slice(0, 300) }, 502);
+          model = alt; r = await call(model);
+        }
+        if (r.status === 429) return json({ error: "Gemini 한도 초과", code: "quota" }, 429);
+        if (!r.ok) return json({ error: `Gemini ${r.status}`, detail: (await r.text()).slice(0, 300) }, 502);
+        const j = await r.json();
+        const txt = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+        try {
+          const got = JSON.parse(txt);
+          for (const it of got) if (it && it.name && it.kind) cache[it.name] = it.kind;
+          if (kvC) await kvC.put(CK, JSON.stringify(cache));
+          return json({ ok: true, model, n: names.length, items: all.map((n) => ({ name: n, kind: cache[n] || null })) });
+        } catch (e) {
+          return json({ error: "응답 해석 실패", detail: txt.slice(0, 300) }, 502);
+        }
+      }
+
       // ===== 공급사 담당자·구분 오버레이 =====
       // [2026-09-28] supplier-managers.json 은 GitHub Pages 의 정적 파일이라 화면에서 고칠 수 없다.
       // 거래처 LIST 를 사람이 채울 때까지 기다리는 대신, 대시보드에서 입력한 값을 KV 에 얹는다.

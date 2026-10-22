@@ -503,9 +503,12 @@ function renderAction(){
   // [2026-10-22] brand-review.json 으로 거른다. 기계 사전에는 재질·원산지·일반명사가 섞인다 —
   //   사이잘(섬유)·페르시안(양식)·히노끼(편백)는 브랜드가 아니다. material/rejected 는 후보에서 뺀다.
   const REV=S.brev||{}, MAT=REV.material||{}, REJ=new Set(REV.rejected||[]), CONF=REV.confirmed||{};
+  const AUTO=S.cls||{};                     // 워커 /classify 결과 (brand·material·generic)
+  const kindOf=nm=> CONF[nm]?'brand' : (MAT[nm]?'material' : (REJ.has(nm)?'generic' : (AUTO[nm]||null)));
   const byCat={};
   for(const b of bd){
-    if(b.ours||MAT[b.name]||REJ.has(b.name)) continue;
+    const k=kindOf(b.name);
+    if(b.ours||k==='material'||k==='generic') continue;
     for(const c of (b.cats||[])) (byCat[c]=byCat[c]||[]).push(b);
   }
   const brandsFor=kw=>{
@@ -706,7 +709,23 @@ window.loadTrendTab=async function(){
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
   fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();renderAction();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
-  fetch('brand-review.json'+bust()).then(r=>r.json()).then(j=>{S.brev=j;renderAction();}).catch(()=>{});
+  fetch('brand-review.json'+bust()).then(r=>r.json()).then(j=>{
+    S.brev=j; renderAction();
+    // [2026-10-22] 사람이 안 가른 이름은 워커가 Gemini 로 분류한다(결과는 KV 캐시 — 신규분만 호출).
+    //   정규식으로는 사이잘(재질)과 파펠리나(브랜드)를 못 가른다. 사람이 정한 건 모델보다 우선.
+    const run=S.data.runs[S.data.runs.length-1], bd=run.brandDict||[];
+    const known=new Set([...Object.keys(j.confirmed||{}),...Object.keys(j.material||{}),...(j.rejected||[])]);
+    const ask=bd.filter(b=>!b.ours&&!known.has(b.name)).map(b=>b.name).slice(0,200);
+    if(!ask.length) return;
+    fetch(WORKER+'/classify',{method:'POST',cache:'no-store',
+        headers:{'Content-Type':'application/json',...authHeaders()},
+        body:JSON.stringify({names:ask})})
+      .then(r=>r.json())
+      .then(d=>{ if(!d||!d.items) return;
+        S.cls={}; for(const it of d.items) if(it.kind) S.cls[it.name]=it.kind;
+        renderAction(); })
+      .catch(()=>{});   // 한도·혼잡이면 사람 목록만으로 돈다
+  }).catch(()=>{});
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
   // 등급은 22개월 매출 원장이 필요하다. 화면이 먼저 뜬 뒤 붙는다.
