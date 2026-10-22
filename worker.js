@@ -1321,7 +1321,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             ...(daily ? dailyOrderFields(o) : {})
           };
         }).sort((x, y) => x.date.localeCompare(y.date) || String(x.order_id).localeCompare(String(y.order_id)));
-        if (q.get("format") === "csv") {
+        // level=order 는 아래 주문단위 분기로 보낸다 — 여기서 먼저 잡으면 그 분기에 영영 못 간다.
+        if (q.get("format") === "csv" && q.get("level") !== "order") {
           const rows = [["주문일", "주문번호", "상품번호", "상품명", "공급사코드", "공급사명", "수량", "판매가", "할인금액", "공급가액", "부가세", "매출합계", "세율", "주문상태", "결제", "취소", "개인결제창"]];
           for (const r of lines) rows.push([r.date, r.order_id, r.product_no, r.product_name,
             r.supplier_id, r.supplier_name, r.qty,
