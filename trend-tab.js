@@ -3,6 +3,13 @@
 // index.html 은 탭을 처음 열 때 이 파일을 불러와 loadTrendTab() 을 부른다.
 (function(){
 const CSS=`
+.tr-mkt{background:var(--fill);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6}
+details.tr-card>summary{cursor:pointer;font-size:15px;list-style:none;padding:2px 0}
+details.tr-card>summary::-webkit-details-marker{display:none}
+details.tr-card>summary::before{content:'▸ ';color:var(--muted)}
+details.tr-card[open]>summary::before{content:'▾ '}
+details.tr-card[open]>summary{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:10px}
+
 /* 금액 카드 — 개수 말고 돈으로 말한다 */
 .tr-moneys{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:16px 0}
 .tr-money{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
@@ -267,7 +274,8 @@ function renderActs(){
   el.querySelectorAll('.tr-act').forEach(b=>b.onclick=()=>{S.act=b.dataset.a;S.limit=15;renderActs();renderTable();});
 }
 function renderCats(){
-  const c=(S.shop||{}).categories||{}; const el=document.getElementById('trCats');
+  const el=document.getElementById('trCats'); if(!el) return;
+  const c=(S.shop||{}).categories||{};
   const e=Object.entries(c); if(!e.length){el.innerHTML='<div class="tr-sub">쇼핑인사이트 데이터가 아직 없습니다</div>';return;}
   el.innerHTML='<div class="tr-cats">'+e.map(([name,v])=>{const top=Object.entries(v.age||{}).sort((a,b)=>b[1]-a[1])[0];
     return `<div class="tr-cat"><div class="h"><span>${esc(name)}</span><span>${pct(v.growth4w)}</span></div>
@@ -363,6 +371,22 @@ function moneyCards(){
 }
 const nfmt=v=>Number(v||0).toLocaleString('ko-KR');
 
+// 변이할당분석(shift-share). 전년 대비 변화를 전체효과(시장) · 구성효과(카테고리) ·
+//   경쟁효과(그 키워드 고유) 셋으로 쪼갠다. 실측 시장 전체 -27.5% 라 개별 하락의 대부분이
+//   시장 몫이고, '카테고리가 죽었다' 로 읽으면 틀린다. 경쟁효과가 진짜 신호다 —
+//   국립중앙박물관굿즈 -25,206 ↔ 국중박굿즈 +26,409 로 거의 상쇄된다(줄임말로 표기 이동).
+function shiftShare(rows){
+  const ok=rows.filter(r=>r.yoy!=null&&r.monthlySearch&&(1+r.yoy)>0.01)
+               .map(r=>({r, V1:r.monthlySearch, V0:r.monthlySearch/(1+r.yoy), t:r.theme||'-'}));
+  if(!ok.length) return null;
+  const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+  const G=sum(ok,x=>x.V1)/sum(ok,x=>x.V0)-1;
+  const byT={}; for(const x of ok) (byT[x.t]=byT[x.t]||[]).push(x);
+  const gT={}; for(const t in byT) gT[t]=sum(byT[t],x=>x.V1)/sum(byT[t],x=>x.V0)-1;
+  const per={};
+  for(const x of ok) per[x.r.keyword]={G, gT:gT[x.t], comp:x.V0*(x.r.yoy-gT[x.t]), mix:x.V0*(gT[x.t]-G)};
+  return {G, gT, per};
+}
 function heatmap(){
   const rows=S.data.runs[S.data.runs.length-1].rows;
   const by={};
@@ -417,10 +441,13 @@ function oppMap(){
 //   무엇을 / 왜 지금 / 우리 상태 / 어느 브랜드로.
 function renderViz(){
   const el=document.getElementById('trViz'); if(!el||!S.data) return;
-  el.innerHTML=(S.prodsRaw?moneyCards():'')
-    +`<div class="tr-card"><h2>언제 뭐가 뜨나</h2><p class="tr-lead">최근 3년 월별 검색 지수. 세로줄이 이번 달 — 소싱은 한 달 뒤 도착이라 한 칸 오른쪽을 본다.</p>${heatmap()}</div>`
-    +`<div class="tr-card"><h2>기회 맵</h2><p class="tr-lead">왼쪽 위 칸이 '시장은 찾는데 우리는 못 파는' 자리다.</p>${oppMap()}</div>`;
-  el.querySelectorAll('.op-dot').forEach(c=>c.onclick=()=>{S.q=c.dataset.k;S.act='';S.limit=15;
+  const SS=shiftShare(S.data.runs[S.data.runs.length-1].rows);
+  const mkt = SS?`<div class="tr-mkt"><b>시장 전체 ${pc(SS.G)}</b> <span class="tr-sub">전년 대비·검색량 가중. 개별 하락의 대부분이 이 몫이라 '카테고리가 죽었다'로 읽으면 틀린다.</span>
+    <div class="tr-sub" style="margin-top:4px">버티는 곳 ${Object.entries(SS.gT).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,g])=>`<b>${esc(t)}</b> ${(g-SS.G)>=0?'+':''}${Math.round((g-SS.G)*100)}p`).join(' · ')}
+      &nbsp;/&nbsp; 역풍 ${Object.entries(SS.gT).sort((a,b)=>a[1]-b[1]).slice(0,2).map(([t,g])=>`<b>${esc(t)}</b> ${Math.round((g-SS.G)*100)}p`).join(' · ')}</div></div>`:'';
+  el.innerHTML=mkt+heatmap();
+  const opp=document.getElementById('trOpp'); if(opp) opp.innerHTML=oppMap();
+  (opp||el).querySelectorAll('.op-dot').forEach(c=>c.onclick=()=>{S.q=c.dataset.k;S.act='';S.limit=15;
     const q=document.getElementById('trQ'); if(q) q.value=c.dataset.k;
     renderActs();renderTable();document.getElementById('trTable').scrollIntoView({behavior:'smooth',block:'start'});});
   el.querySelectorAll('.hm-row[data-t]').forEach(r=>r.onclick=()=>{S.theme=r.dataset.t;S.act='';S.limit=15;
@@ -591,19 +618,26 @@ window.loadTrendTab=async function(){
   c.innerHTML=`
    <div class="tr-meta"><span>기준 <b>${esc(run.date)}</b> (매일 06:50 갱신)</span><span>키워드 풀 <b>${n(run.poolSize)}</b>개</span><span>오늘 새로 들어옴 <b>${n(run.newToday)}</b>개</span><span>추석(9/14~9/28)은 추세 계산에서 제외</span></div>
    ${errs.length?`<div class="tr-warn">일부 네이버 API 호출이 실패했습니다: ${errs.map(([k,v])=>esc(k)+' '+esc(v).slice(0,80)).join(' / ')}</div>`:''}
-   <div id="trViz"></div>
-   <div class="tr-card"><h2>이번 주 할 일</h2><p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 키워드 판정과 브랜드 사전을 카테고리로 붙인 것이다.</p><div id="trAct"></div></div>
-   <div class="tr-card"><h2>키워드 판정</h2><p class="tr-lead">점수(월간 검색수 × 상승률, 신규 가산) 상위 ${rows.length}개. 처음엔 할 일(재고확보·시즌 준비·시즌 소싱·소싱·밀기·안 팔림 점검)만 보입니다. 상시 수요인데 잘 팔리는 키워드는 '유지'로 빠집니다.</p>
+   <div class="tr-card"><h2>시장이 어떻게 움직이나</h2>
+     <p class="tr-lead">전년 대비 변화를 시장 전체 / 카테고리 / 그 키워드 고유 셋으로 가른 값과, 최근 3년 월별 검색 지수.</p>
+     <div id="trViz"></div></div>
+   <div class="tr-card"><h2>지금 할 일</h2>
+     <p class="tr-lead">무엇을 · 왜 지금 · 우리 상태 · 어느 브랜드로. 지금 정하면 물건은 한 달 뒤 들어온다.</p>
+     <div id="trAct"></div></div>
+   <div class="tr-card"><h2>기회 맵</h2>
+     <p class="tr-lead">점 하나가 키워드다. 왼쪽 위가 '시장은 찾는데 우리는 못 파는' 자리 — 누르면 아래 표가 걸러진다.</p>
+     <div id="trOpp"></div></div>
+   <details class="tr-card" id="trExplore"><summary><b>키워드 뒤져보기</b> <span class="tr-sub">판정 · 급상승 · 풀 전체</span></summary>
      <div class="tr-acts" id="trActs"></div>
-     <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="${esc(S.q)}">
-       <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option ${S.theme===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
-       <label><input type="checkbox" id="trNew" ${S.onlyNew?'checked':''}>신규만</label>
-       <label title="백테스트에서 모멘텀 적중률 46% — 동전던지기보다 낮다. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise" ${S.onlyRising?'checked':''}>최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
-     <div id="trTable"></div></div>
-   <div class="tr-card"><h2>오늘 뜨는 중간·상세 검색어</h2><p class="tr-lead">위 판정표는 검색량 상위만 담겨 중간·상세 구간이 빠진다(실측: 풀 1,200개 중 1천~3천 303개가 0개로 표시됨). 여기는 풀 전체를 일별 기록으로 다시 세운 것이라 <b>매일 순위가 바뀐다</b>.</p><div id="trRise2"></div></div>
-   <div class="tr-card"><h2>몰 내 검색어 <span class="badge" style="font-weight:500">시장 트렌드 아님</span></h2><p class="tr-lead">이건 <b>이미 우리 몰에 온 사람</b>의 수요지 시장 트렌드가 아니다. 위 레이더(외부)와 섞어 읽지 말 것. <b>광고로 들어온 세션은 뺐다</b> — 광고 랜딩은 수요가 아니라 광고가 보여준 것이다(실측 전체 22,811 중 45%가 광고). 결과 건수는 우리 검색 API(<code>api.printbakery.com/v1/search/products</code>)의 total 이다 — 사용자가 보는 그 숫자.</p><div id="trSearch"></div></div>
-   <div class="tr-card"><h2>쇼핑 카테고리 흐름</h2><p class="tr-lead">네이버 쇼핑인사이트 클릭 지수. 4주 추세는 최근 7일 평균 ÷ 직전 28일 평균.</p><div id="trCats"></div></div>
-   <div class="tr-card"><h2>키워드 풀</h2><p class="tr-lead">레이더가 스스로 찾아 쌓는 키워드.</p><div id="trPool"></div></div>
+     <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="">
+       <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+       <label><input type="checkbox" id="trNew">신규만</label>
+       <label title="백테스트에서 모멘텀 적중률 46% — 동전던지기보다 낮다. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise">최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
+     <div id="trTable"></div>
+     <h4 class="tr-sub" style="margin:18px 0 4px">오늘 뜨는 중간·상세 검색어</h4>
+     <div id="trRise2"></div>
+     <h4 class="tr-sub" style="margin:18px 0 4px">키워드 풀</h4>
+     <div id="trPool"></div></details>
    <div class="tr-card tr-foot"><b>읽는 법</b><br>
      월간 검색 = 네이버 검색광고 키워드도구(PC+모바일, 최근 30일) · 검색수 28일 = 그 값이 28일 전 기록보다 몇 % 변했나 ·
      4주 추세 = 검색어 트렌드 최근 7일 ÷ 직전 28일 · 전년 대비 = 최근 28일 ÷ 1년 전 같은 28일 ·
