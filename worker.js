@@ -268,29 +268,71 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const m = d.date.slice(0, 7), x = mon[m] || (mon[m] = { gmv: 0, net: 0, refund: 0, cnt: 0 });
           x.gmv += d.gmv || 0; x.net += d.net || 0; x.refund += d.refund || 0; x.cnt += d.count || 0;
         }
+        // 전표 대조 — /ecrecon 이 매일 쌓는 날짜별 요약(ecrecon:i:{월}:{날짜}, 예전 묶음 ecrecon:idx:{월} 도 같이 읽는다)
+        const kvR = env.CAFE24_TOKEN_KV;
+        const rec = {};
+        if (kvR) {
+          for (let i = 1; i <= 12; i++) {
+            const ym = `${year}-${String(i).padStart(2, "0")}`;
+            const oldIdx = await kvR.get("ecrecon:idx:" + ym);
+            if (oldIdx) for (const [d, v] of Object.entries(JSON.parse(oldIdx))) rec[d] = v?.summary || {};
+            const pre = `ecrecon:i:${ym}:`;
+            let cursor = null, keys = [];
+            do { const l = await kvR.list({ prefix: pre, cursor }); keys.push(...l.keys.map((k) => k.name)); cursor = l.list_complete ? null : l.cursor; } while (cursor);
+            const vals = await Promise.all(keys.map((k) => kvR.get(k)));
+            keys.forEach((k, j) => { if (vals[j]) rec[k.slice(pre.length)] = JSON.parse(vals[j])?.summary || {}; });
+          }
+        }
+        const recOf = (sm) => {
+          if (!sm) return null;
+          const iss = sm.issues || [];
+          return {
+            n: sm.total || 0,
+            miss: sm["미입력"] || 0,
+            bad: (sm["금액불일치"] || 0) + (sm["품목·수량 불일치"] || 0) + (sm["결제유형 확인"] || 0),
+            badAmt: sm.missAmt || 0,
+            pre: iss.filter((x) => /선수금/.test(x.tags || "")).length
+          };
+        };
+        const rmon = {};
+        for (const [d, sm] of Object.entries(rec)) {
+          const r = recOf(sm); if (!r) continue;
+          const m = d.slice(0, 7), x = rmon[m] || (rmon[m] = { n: 0, miss: 0, bad: 0, badAmt: 0, pre: 0, days: 0 });
+          x.n += r.n; x.miss += r.miss; x.bad += r.bad; x.badAmt += r.badAmt; x.pre += r.pre; x.days++;
+        }
+
         const tgt = KPI_TARGET[year] || [];
         const pct = (v, t) => t ? v / t : "";
         const sumRow = { gmv: 0, net: 0, refund: 0, cnt: 0, t: 0 };
+        const rsum = { n: 0, miss: 0, bad: 0, badAmt: 0, pre: 0, days: 0 };
         const mrows = [];
         for (let i = 0; i < 12; i++) {
           const m = `${year}-${String(i + 1).padStart(2, "0")}`, x = mon[m];
           const t = tgt[i] || 0;
           if (x) { sumRow.gmv += x.gmv; sumRow.net += x.net; sumRow.refund += x.refund; sumRow.cnt += x.cnt; sumRow.t += t; }
+          const rr = rmon[m];
+          if (rr) { rsum.n += rr.n; rsum.miss += rr.miss; rsum.bad += rr.bad; rsum.badAmt += rr.badAmt; rsum.pre += rr.pre; rsum.days += rr.days; }
           mrows.push([`${i + 1}월`, t || "", x ? x.gmv : "", x ? pct(x.gmv, t) : "",
-            x ? x.net : "", x ? pct(x.net, t) : "", x ? x.refund : "", x ? x.cnt : ""]);
+            x ? x.net : "", x ? pct(x.net, t) : "", x ? x.refund : "", x ? x.cnt : "",
+            rr ? rr.days : "", rr ? rr.n : "", rr ? rr.pre : "", rr ? rr.miss : "", rr ? rr.badAmt : "", rr ? rr.bad : ""]);
         }
-        mrows.push(["누계", sumRow.t, sumRow.gmv, pct(sumRow.gmv, sumRow.t), sumRow.net, pct(sumRow.net, sumRow.t), sumRow.refund, sumRow.cnt]);
+        mrows.push(["누계", sumRow.t, sumRow.gmv, pct(sumRow.gmv, sumRow.t), sumRow.net, pct(sumRow.net, sumRow.t), sumRow.refund, sumRow.cnt,
+          rsum.days, rsum.n, rsum.pre, rsum.miss, rsum.badAmt, rsum.bad]);
 
         const last = days[days.length - 1].date;
         const head = [
           [`${year} KPI — 주문 기준`],
-          [`카페24 주문 API · 타 조직 개인결제창 제외 · 데일리 슬랙 리포트와 같은 소스`],
+          [`거래액·순매출: 카페24 주문 API · 타 조직 개인결제창 제외 · 데일리 슬랙 리포트와 같은 소스`],
+          [`대조 이후 열(I~N): 이카운트 전표 대조 결과. 대조를 돌린 그날 기준이라 나중에 전표가 붙어도 소급 갱신되지 않는다`],
           [`갱신 ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC · 실적 ${days[0].date} ~ ${last}`],
-          [],
-          ["월", "목표", "거래액(GMV)", "달성율(거래액)", "순매출", "달성율(순매출)", "환불", "주문수"]
+          new Array(14).fill(""),
+          ["월", "목표", "거래액(GMV)", "달성율(거래액)", "순매출", "달성율(순매출)", "환불", "주문수",
+            "대조한 날", "대조 주문", "선수금 건", "미입력 건", "미입력 금액", "불일치 건"]
         ];
-        const daily = [["날짜", "거래액(GMV)", "순매출", "환불", "주문수"],
-          ...days.map((d) => [d.date, d.gmv || 0, d.net || 0, d.refund || 0, d.count || 0])];
+        const daily = [["날짜", "거래액(GMV)", "순매출", "환불", "주문수", "대조 주문", "선수금 건", "미입력 건", "미입력 금액", "불일치 건"],
+          ...days.map((d) => { const r = recOf(rec[d.date]);
+            return [d.date, d.gmv || 0, d.net || 0, d.refund || 0, d.count || 0,
+              r ? r.n : "", r ? r.pre : "", r ? r.miss : "", r ? r.badAmt : "", r ? r.bad : ""]; })];
 
         const have = new Set((mj.sheets || []).map((x) => x.properties.title));
         const want = ["요약", "일별"].filter((t) => !have.has(t));
@@ -306,8 +348,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           body: JSON.stringify({
             valueInputOption: "USER_ENTERED",
             data: [
-              { range: "요약!A1:H18", values: [...head, ...mrows] },
-              { range: "일별!A1:E" + (daily.length), values: daily }
+              { range: "요약!A1:N19", values: [...head, ...mrows] },
+              { range: "일별!A1:J" + (daily.length), values: daily }
             ]
           })
         });
@@ -336,17 +378,17 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         const reqs = [];
         if (sid["요약"] != null) {
           const S = sid["요약"];
-          reqs.push(fmt(S, 5, 18, 1, 3, "#,##0"), fmt(S, 5, 18, 4, 5, "#,##0"), fmt(S, 5, 18, 6, 8, "#,##0"),
-            fmt(S, 5, 18, 3, 4, "0%"), fmt(S, 5, 18, 5, 6, "0%"),
-            bold(S, 0), bold(S, 4), bold(S, 17), freeze(S, 5),
-            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 1, endIndex: 8 } } },
+          reqs.push(fmt(S, 6, 19, 1, 3, "#,##0"), fmt(S, 6, 19, 4, 5, "#,##0"), fmt(S, 6, 19, 6, 8, "#,##0"),
+            fmt(S, 6, 19, 8, 14, "#,##0"), fmt(S, 6, 19, 3, 4, "0%"), fmt(S, 6, 19, 5, 6, "0%"),
+            bold(S, 0), bold(S, 5), bold(S, 18), freeze(S, 6),
+            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 1, endIndex: 14 } } },
             { updateDimensionProperties: { range: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
               properties: { pixelSize: 70 }, fields: "pixelSize" } });
         }
         if (sid["일별"] != null) {
           const S = sid["일별"];
-          reqs.push(fmt(S, 1, daily.length, 1, 5, "#,##0"), bold(S, 0), freeze(S, 1),
-            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 5 } } });
+          reqs.push(fmt(S, 1, daily.length, 1, 10, "#,##0"), bold(S, 0), freeze(S, 1),
+            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 10 } } });
         }
         if (reqs.length) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
           method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
