@@ -27,11 +27,17 @@ const found = {};                                 // name -> {hits, queries(=키
 let used = 0;
 for (let i = 0; i < docs.length && used < CALLS; i += PER, used++) {
   const chunk = docs.slice(i, i + PER);
-  const r = await fetch(`${WORKER}/classify?key=${KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texts: chunk.map(d => d.t) })
-  });
-  const j = await r.json();
+  // Gemini 가 혼잡하면 503 을 돌려준다 — 한도(429)와 달리 일시적이라 몇 초 쉬고 다시 묻는다.
+  let r, j;
+  for (let a = 0; a < 3; a++) {
+    r = await fetch(`${WORKER}/classify?key=${KEY}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts: chunk.map(d => d.t) })
+    });
+    j = await r.json();
+    if (r.ok || j.code === 'quota' || !/50[23]/.test(String(j.detail || j.error || r.status))) break;
+    await new Promise(s => setTimeout(s, 5000 * (a + 1)));
+  }
   if (!r.ok) { console.error(`[중단] ${r.status} ${j.error || ''}`); break; }
   for (const d of j.docs || []) {
     const kw = chunk[d.i]?.kw;
