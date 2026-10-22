@@ -500,8 +500,14 @@ function renderAction(){
   const el=document.getElementById('trAct'); if(!el) return;
   const run=S.data.runs[S.data.runs.length-1];
   const rows=run.rows||[], bd=run.brandDict||[];
+  // [2026-10-22] brand-review.json 으로 거른다. 기계 사전에는 재질·원산지·일반명사가 섞인다 —
+  //   사이잘(섬유)·페르시안(양식)·히노끼(편백)는 브랜드가 아니다. material/rejected 는 후보에서 뺀다.
+  const REV=S.brev||{}, MAT=REV.material||{}, REJ=new Set(REV.rejected||[]), CONF=REV.confirmed||{};
   const byCat={};
-  for(const b of bd){ if(b.ours) continue; for(const c of (b.cats||[])) (byCat[c]=byCat[c]||[]).push(b); }
+  for(const b of bd){
+    if(b.ours||MAT[b.name]||REJ.has(b.name)) continue;
+    for(const c of (b.cats||[])) (byCat[c]=byCat[c]||[]).push(b);
+  }
   const brandsFor=kw=>{
     const k=String(kw).replace(/\s+/g,''); const seen={}, out=[];
     for(const c in byCat){ if(c.includes(k)||k.includes(c)) for(const b of byCat[c]) if(!seen[b.name]){seen[b.name]=1;out.push(b);} }
@@ -511,7 +517,7 @@ function renderAction(){
     //   쓰레기를 보여주느니 비워두는 게 낫다.
     return out.filter(b=>b.search>0).sort((a,b)=>b.search-a.search).slice(0,5);
   };
-  const bchips=bs=>bs.length?bs.map(b=>`<a href="https://search.naver.com/search.naver?query=${encodeURIComponent(b.name)}" target="_blank" rel="noopener" class="tr-pill" style="background:var(--fill);color:var(--ink-2);text-decoration:none" title="${b.search?n(b.search)+' 검색':'검색 수요 미포착'} · ${esc((b.cats||[]).join(' · '))}">${esc(b.name)}</a>`).join(' ')
+  const bchips=bs=>bs.length?bs.map(b=>`<a href="https://search.naver.com/search.naver?query=${encodeURIComponent(b.name)}" target="_blank" rel="noopener" class="tr-pill" style="background:var(--fill);color:var(--ink-2);text-decoration:none" title="${b.search?n(b.search)+' 검색':'검색 수요 미포착'} · ${esc((b.cats||[]).join(' · '))}${CONF[b.name]?' · '+esc(CONF[b.name]):''}">${esc(b.name)}${CONF[b.name]?'<span class="t"> ✓</span>':''}</a>`).join(' ')
     :'<span class="t">—</span>';
 
   // 1) 광고로 데려왔는데 보여줄 게 없다. 가장 급하다.
@@ -700,6 +706,7 @@ window.loadTrendTab=async function(){
   fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
   fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();renderAction();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
+  fetch('brand-review.json'+bust()).then(r=>r.json()).then(j=>{S.brev=j;renderAction();}).catch(()=>{});
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
   // 등급은 22개월 매출 원장이 필요하다. 화면이 먼저 뜬 뒤 붙는다.
