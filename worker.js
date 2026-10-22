@@ -126,6 +126,52 @@ var worker_default = {
         if (!env.GEMINI_API_KEY) return json({ error: "GEMINI_API_KEY 없음", code: "nokey" }, 503);
         let b = {};
         try { b = await request.json(); } catch (e) { /* 본문 없음 */ }
+        // texts 모드 — 유튜브 설명란·블로그 본문처럼 잡글이 섞인 덩어리에서 브랜드 이름만 뽑는다.
+        // [2026-10-22] 설명란 실측: 3개 중 2개가 쿠팡 제휴문구·저작권 고지였다. 정규식 추출기로는
+        //   또 쓰레기가 나온다(블로그 제목 때 그랬다). 보일러플레이트를 버리는 건 언어 판단이라 여기 맡긴다.
+        if (Array.isArray(b.texts) && b.texts.length) {
+          const docs = b.texts.map((x) => String(x || "").slice(0, 1500)).filter(Boolean).slice(0, 30);
+          if (!docs.length) return json({ error: "texts 가 비었습니다" }, 400);
+          const tp = `아래는 한국 리빙·인테리어·아트 관련 유튜브 영상 설명란이다. 각 글에서 **상품 브랜드·제조사·편집샵·작가 이름만** 뽑아라.
+뽑지 않는 것: 제휴 광고 문구(쿠팡 파트너스 등)·저작권 고지·채널 이름·유튜버 이름·해시태그 중 일반명사·플랫폼 이름(인스타그램, 유튜브, 쿠팡)·재질·제품 종류.
+해당 글에 브랜드가 없으면 빈 배열로 둔다. 지어내지 마라.
+${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
+          const tcall = (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: tp }] }],
+              generationConfig: {
+                temperature: 0, responseMimeType: "application/json",
+                responseSchema: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: { i: { type: "INTEGER" }, brands: { type: "ARRAY", items: { type: "STRING" } } },
+                    required: ["i", "brands"]
+                  }
+                }
+              }
+            })
+          });
+          let tm = b.model || env.GEMINI_MODEL || "gemini-3.8-flash";
+          let tr = await tcall(tm);
+          if (tr.status === 404) {
+            const t404 = await tr.text();
+            const alt = [...t404.matchAll(/models\/([A-Za-z0-9.\-]+)/g)].map((x) => x[1]).find((n) => n !== tm);
+            if (!alt) return json({ error: "Gemini 404", detail: t404.slice(0, 300) }, 502);
+            tm = alt; tr = await tcall(tm);
+          }
+          if (tr.status === 429) return json({ error: "Gemini 한도 초과", code: "quota" }, 429);
+          if (!tr.ok) return json({ error: `Gemini ${tr.status}`, detail: (await tr.text()).slice(0, 300) }, 502);
+          const tj = await tr.json();
+          const ttxt = tj?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+          try {
+            return json({ ok: true, model: tm, n: docs.length, docs: JSON.parse(ttxt) });
+          } catch (e) {
+            return json({ error: "응답 해석 실패", detail: ttxt.slice(0, 300) }, 502);
+          }
+        }
         const all = (Array.isArray(b.names) ? b.names : []).map((x) => String(x || "").trim())
           .filter((x) => x && x.length <= 30).slice(0, 400);
         if (!all.length) return json({ error: "names 가 비었습니다" }, 400);
