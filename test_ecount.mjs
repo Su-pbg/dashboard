@@ -190,6 +190,13 @@ truthy('대조 파일로 맵핑 학습 → 바로 저장하지 않고 예비 목
   ctx.__ecount.learn(); const got = Object.fromEntries(S.result.rows.map((r) => [r.key, r.code]));
   eq('옵션 색이 맞는 품목과 짝', got, { V_GJ: 'C_GJ', V_BJ: 'C_BJ' });
   eq('같은 전표의 다른 품목도 선택지로', Object.keys(S.result.rows.find((r) => r.key === 'V_GJ').alts).sort(), ['C_BJ', 'C_GJ']);
+  // 맵핑 불가: 카페24 옵션 1개 전표에 이카운트 품목 2개(세트) — 코드 하나를 억지로 고르지 않는다
+  S.map = {}; S.c24 = { 'X2': [{ variant_code: 'V_SET', product_no: 2, product_name: '선물 세트', option_value: '', qty: 1, sale: 50000 }] };
+  S.ecRows = [{ order: 'X2', code: 'C_A', name: '브랜드 / 컵', qty: 1, price: 0 }, { order: 'X2', code: 'C_B', name: '브랜드 / 포장', qty: 1, price: 0 }];
+  ctx.__ecount.learn(); const mr = S.result.rows.find((r) => r.key === 'V_SET');
+  eq('1:N 옵션은 맵핑 불가', [mr && mr.st, mr && Object.keys(mr.multi).sort()], ['맵핑 불가', ['C_A', 'C_B']]);
+  S.map = { V_SET: { code: '*', multi: ['C_A', 'C_B'], src: 'manual', label: '선물 세트' } };
+  eq("대응표 '*' 는 코드 없음으로", ctx.__ecount.codeOf({ variant_code: 'V_SET', product_no: 2 }), '');
   Object.assign(S, keep); }
 
 // 확정 대기 상품 묶음: 겨자 옵션만 예비 목록에 있어도 같은 상품의 베이지 옵션이 같이 보이고, 앞머리(ARTBHMW)+옵션 낱말로 사전에서 제안

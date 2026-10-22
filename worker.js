@@ -480,10 +480,12 @@ var worker_default = {
             const key = String(c.key || "").trim(); if (!okCode(key)) continue;
             // 담당자가 확정한 값이 있거나, 저장된 값과 같은 코드뿐이면 예비 목록에 둘 필요가 없다
             const cs = {}; for (const [cc, nn] of Object.entries(c.cands || {})) if (okCode(cc) && Number(nn) > 0) cs[cc] = Number(nn);
-            if (!Object.keys(cs).length) continue;
+            const mu = {}; for (const [cc, nn] of Object.entries(c.multi || {})) if (okCode(cc) && Number(nn) > 0) mu[cc] = Number(nn);   // 맵핑 불가(1:N) 근거
+            if (!Object.keys(cs).length && !Object.keys(mu).length) continue;
             if (map[key] && (map[key].src === "manual" || (Object.keys(cs).length === 1 && cs[map[key].code]))) continue;
             const cur = cand[key] || { first: today, cands: {} };
             for (const [cc, nn] of Object.entries(cs)) cur.cands[cc] = (cur.cands[cc] || 0) + nn;
+            if (Object.keys(mu).length) { cur.multi = cur.multi || {}; for (const [cc, nn] of Object.entries(mu)) cur.multi[cc] = (cur.multi[cc] || 0) + nn; }
             cur.label = String(c.label || cur.label || "").slice(0, 160); cur.price = Number(c.price) || cur.price || 0;
             if (c.pno != null && /^\d{1,9}$/.test(String(c.pno))) cur.pno = String(c.pno);
             // 같은 전표에 같이 나온 다른 품목(선택지). 근거(cands)와 따로 둔다.
@@ -515,6 +517,7 @@ var worker_default = {
           if (src === "auto" && map[key] && map[key].src === "manual") { skipped++; continue; }
           map[key] = { code, name: String(e.name || "").slice(0, 120), label: String(e.label || "").slice(0, 160), src,
                        by: String(e.by || "").slice(0, 20), n: Number(e.n) || 0, at: today };
+          if (code === "*" && Array.isArray(e.multi)) map[key].multi = e.multi.filter(okCode).slice(0, 10);   // 맵핑 불가: 그 옵션 전표에 든 이카운트 품목들
           saved++;
         }
         await kv0.put(KEY, JSON.stringify(map));
