@@ -210,8 +210,9 @@ function filtered(rows){
 function rowHTML(x,i){
   // [2026-10-20] 상위 상품을 행에 바로 보여준다. 전엔 행을 눌러야 나와서 훑을 수가 없었다.
   const t1=(x.ourTop||[])[0];
+  const g=ourGrade(x);
   const our=x.ourCount
-    ? `${n(x.ourCount)}개 · <b>${n(x.ourSales30)}</b>개 판매<div class="tr-sub">${t1?esc(String(t1.name).slice(0,22))+(t1.soldOut?' · <b>품절</b>':'')+' · 30일 '+n(t1.q30)+'개':'최저 '+(x.ourMinPrice?n(x.ourMinPrice)+'원':'—')}</div>`
+    ? `${n(x.ourCount)}개 · <b>${n(x.ourSales30)}</b>개 판매<div class="tr-sub">${g||(t1?esc(String(t1.name).slice(0,22)):'—')}</div>`
     : '<span class="tr-flat">없음</span>';
   const fem=x.femaleShare!=null?`${Math.round(x.femaleShare)}%<div class="tr-sub">${AGE[x.topAge]||''}</div>`:'—';
   const shopc=x.shopCategory?`${pct(x.shopGrowth4w)}<div class="tr-sub">${esc(x.shopCategory)}</div>`:'—';
@@ -375,6 +376,48 @@ const nfmt=v=>Number(v||0).toLocaleString('ko-KR');
 //   경쟁효과(그 키워드 고유) 셋으로 쪼갠다. 실측 시장 전체 -27.5% 라 개별 하락의 대부분이
 //   시장 몫이고, '카테고리가 죽었다' 로 읽으면 틀린다. 경쟁효과가 진짜 신호다 —
 //   국립중앙박물관굿즈 -25,206 ↔ 국중박굿즈 +26,409 로 거의 상쇄된다(줄임말로 표기 이동).
+// ── 상품 등급 · 판매 패턴 ──────────────────────────────────────────
+// [2026-10-22] "보유 1,678종" 은 아무 뜻이 없다. 9,562종 중 30일에 하나라도 팔린 건 443종(5%)뿐이라
+//   종수는 거의 노이즈다. 22개월 topItems(2025-01~)로 상품별 월 매출을 복원해 등급과 패턴을 매긴다.
+//   실측: 매출 80% 를 상위 397종(A)이 만든다. 상시 판매는 16종뿐이고 나머지는 가끔·없음이다.
+//   → 같은 '보유 15종' 도 트레이(A 3·상시 3)와 식탁조명(A 0·상시 0)은 전혀 다른 상태다.
+//   한계: topItems 는 하루 상위 10종이라 2026 하반기 커버율이 61~73% 다. 종수는 과소 집계된다.
+let GRADE=null;   // {product_no: {g:'A'|'B'|'C', p:'상시'|'가끔'|'없음'}}
+function buildGrade(daily){
+  const amt={}, mset=new Set();
+  for(const d of daily){
+    const m=d.date.slice(0,7); mset.add(m);
+    for(const t of (d.topItems||[])){
+      const k=t.product_no; if(k==null) continue;
+      (amt[k]=amt[k]||{})[m]=(amt[k][m]||0)+(t.amt||0);
+    }
+  }
+  const months=[...mset].sort(), rec=months.slice(-6);
+  const tot=Object.values(amt).reduce((s,v)=>s+Object.values(v).reduce((a,b)=>a+b,0),0)||1;
+  const rank=Object.entries(amt).sort((a,b)=>
+    Object.values(b[1]).reduce((x,y)=>x+y,0)-Object.values(a[1]).reduce((x,y)=>x+y,0));
+  const out={}; let c=0;
+  for(const [k,v] of rank){
+    c+=Object.values(v).reduce((x,y)=>x+y,0);
+    const r=c/tot, g=r<=0.8?'A':(r<=0.95?'B':'C');
+    const hit=rec.filter(m=>v[m]).length;
+    out[k]={g, p: hit>=5?'상시':(hit?'가끔':'없음')};
+  }
+  return out;
+}
+// 키워드의 우리 상태를 등급으로 요약한다. ourTop 은 상위 3종뿐이라 그 안에서만 센다.
+function ourGrade(x){
+  const tops=x.ourTop||[];
+  if(!GRADE||!tops.length) return '';
+  let A=0,B=0,live=0;
+  for(const t of tops){ const g=GRADE[t.no]; if(!g) continue;
+    if(g.g==='A')A++; else if(g.g==='B')B++; if(g.p==='상시')live++; }
+  const bits=[];
+  if(A) bits.push(`<b>A급 ${A}</b>`);
+  if(B) bits.push(`B급 ${B}`);
+  bits.push(live?`<b>상시 ${live}</b>`:'<span class="tr-flat">상시 0</span>');
+  return bits.join(' · ');
+}
 function shiftShare(rows){
   const ok=rows.filter(r=>r.yoy!=null&&r.monthlySearch&&(1+r.yoy)>0.01)
                .map(r=>({r, V1:r.monthlySearch, V0:r.monthlySearch/(1+r.yoy), t:r.theme||'-'}));
@@ -660,6 +703,15 @@ window.loadTrendTab=async function(){
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
   fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
+  // 등급은 22개월 매출 원장이 필요하다. 화면이 먼저 뜬 뒤 붙는다.
+  Promise.all([
+    fetch('revenue-daily.json'+bust()).then(r=>r.json()).catch(()=>({daily:[]})),
+    fetch('revenue-daily-archive.json'+bust()).then(r=>r.ok?r.json():{daily:[]}).catch(()=>({daily:[]})),
+  ]).then(([cur,arc])=>{
+    const seen={}; for(const d of [...(arc.daily||[]),...(cur.daily||[])]) seen[d.date]=d;
+    GRADE=buildGrade(Object.keys(seen).sort().map(k=>seen[k]));
+    renderTable(); renderAction();
+  }).catch(()=>{});
   fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
     S.prodsRaw=Object.values(j.products||{});          // 금액 카드는 품절·미진열도 봐야 한다
     S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
