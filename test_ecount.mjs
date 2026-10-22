@@ -189,6 +189,7 @@ truthy('대조 파일로 맵핑 학습 → 바로 저장하지 않고 예비 목
   S.ecRows = [{ order: 'X1', code: 'C_BJ', name: '브랜드 / 타원 트레이 (중) 3-2 [베이지] [30x18.5]', qty: 1, price: 0 }, { order: 'X1', code: 'C_GJ', name: '브랜드 / 타원 트레이 (중) 3-2 [겨자] [30x18.5]', qty: 1, price: 0 }];
   ctx.__ecount.learn(); const got = Object.fromEntries(S.result.rows.map((r) => [r.key, r.code]));
   eq('옵션 색이 맞는 품목과 짝', got, { V_GJ: 'C_GJ', V_BJ: 'C_BJ' });
+  eq('같은 전표의 다른 품목도 선택지로', Object.keys(S.result.rows.find((r) => r.key === 'V_GJ').alts).sort(), ['C_BJ', 'C_GJ']);
   Object.assign(S, keep); }
 
 // 확정 대기 상품 묶음: 겨자 옵션만 예비 목록에 있어도 같은 상품의 베이지 옵션이 같이 보이고, 앞머리(ARTBHMW)+옵션 낱말로 사전에서 제안

@@ -417,6 +417,8 @@ var worker_default = {
             for (const [cc, nn] of Object.entries(cs)) cur.cands[cc] = (cur.cands[cc] || 0) + nn;
             cur.label = String(c.label || cur.label || "").slice(0, 160); cur.price = Number(c.price) || cur.price || 0;
             if (c.pno != null && /^\d{1,9}$/.test(String(c.pno))) cur.pno = String(c.pno);
+            // 같은 전표에 같이 나온 다른 품목(선택지). 근거(cands)와 따로 둔다.
+            for (const [cc, nn] of Object.entries(c.alts || {})) if (okCode(cc) && Number(nn) > 0 && !cs[cc]) { cur.alts = cur.alts || {}; cur.alts[cc] = (cur.alts[cc] || 0) + Number(nn); }
             cur.names = Object.assign(cur.names || {}, Object.fromEntries(Object.entries(c.names || {}).filter(([cc]) => okCode(cc)).map(([cc, nm]) => [cc, String(nm || "").slice(0, 120)])));
             cur.at = today; cand[key] = cur; added++;
           }

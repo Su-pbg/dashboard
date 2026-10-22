@@ -167,6 +167,7 @@ function learn(){
     const E=Object.keys(ecBy[o]).filter(c=>ecBy[o][c]>0);
     if(E.length) orders.push({o,C:Object.keys(C),E});
   }
+  const co={}; for(const x of orders) for(const k of x.C) for(const c of x.E) (co[k] ||= {})[c]=(co[k][c]||0)+1;   // 같은 전표에 같이 나온 품목 전부(선택지)
   // 근거 모으기: 이미 저장된 대응표 + 이번에 찾은 것으로 소거하며 반복
   const ev={}, how={};
   const known=k=>{ const s=ev[k]; if(s){ const top=Object.entries(s).sort((a,b)=>b[1]-a[1]); if(top.length===1) return top[0][0]; } return S.map[k]?S.map[k].code:null; };
@@ -203,7 +204,7 @@ function learn(){
     else if(!saved) st='새로 연결';
     else if(saved.code===top[0][0]) st='저장됨과 같음';
     else st='저장됨과 다름';
-    rows.push({key:k,...label[k],code:top[0][0],ecname:ecName[top[0][0]]||'',ecprice:ecPrice[top[0][0]]||0,n:top[0][1],cands:top.map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0})),how:[...how[k]].join('·'),st,saved});
+    rows.push({key:k,...label[k],alts:co[k]||{},code:top[0][0],ecname:ecName[top[0][0]]||'',ecprice:ecPrice[top[0][0]]||0,n:top[0][1],cands:top.map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0})),how:[...how[k]].join('·'),st,saved});
   }
   // 연결 못한 옵션: 주문에 이카운트 품목이 남아 있는데 짝을 못 찾은 것만(재고2 파일이면 위탁 아닌 품목은 애초에 이카운트에 없다)
   const un={};
@@ -213,7 +214,7 @@ function learn(){
   }
   // 후보는 금액이 같은 것 → 같이 나온 주문 수 순
   const sortC=(price,arr)=>arr.sort((a,b)=>((b.price===price&&price>0)-(a.price===price&&price>0))||b.n-a.n);
-  const unmatched=Object.values(un).map(u=>({...u,st:S.map[u.key]?'저장됨':'미연결',cands:sortC(u.price,Object.entries(u.cands).map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0}))),saved:S.map[u.key]}));
+  const unmatched=Object.values(un).map(u=>({...u,alts:co[u.key]||{},st:S.map[u.key]?'저장됨':'미연결',cands:sortC(u.price,Object.entries(u.cands).map(([c,v])=>({code:c,n:v,name:ecName[c]||'',price:ecPrice[c]||0}))),saved:S.map[u.key]}));
   for(const r of rows) sortC(r.price,r.cands);
   const ecOrders=Object.keys(ecBy).length, both=orders.length;
   S.result={rows,unmatched,ecOrders,both,ecName,ecPrice};
@@ -261,11 +262,12 @@ async function reloadMap(){ const d=await getJSON(`${WORKER}/ecmap`); S.map=d.ma
 function candsFromResult(R){
   const out=[];
   for(const r of R.rows){ if(!(r.st==='새로 연결'||r.st==='저장됨과 다름'||r.st==='확인 필요')) continue;
-    out.push({key:r.key,pno:r.pno,label:`${r.name}${r.opt?' / '+r.opt:''}`,price:r.price||0,cands:Object.fromEntries(r.cands.map(c=>[c.code,c.n])),names:Object.fromEntries(r.cands.map(c=>[c.code,ecProd(c.name)]))}); }
+    out.push({key:r.key,pno:r.pno,label:`${r.name}${r.opt?' / '+r.opt:''}`,price:r.price||0,cands:Object.fromEntries(r.cands.map(c=>[c.code,c.n])),alts:r.alts||{},names:namesOf(R,[...r.cands.map(c=>c.code),...Object.keys(r.alts||{})])}); }
   for(const u of R.unmatched){ if(u.st!=='미연결'||!u.cands.length) continue;
-    out.push({key:u.key,pno:u.pno,label:`${u.name}${u.opt?' / '+u.opt:''}`,price:u.price||0,cands:Object.fromEntries(u.cands.map(c=>[c.code,c.n])),names:Object.fromEntries(u.cands.map(c=>[c.code,ecProd(c.name)]))}); }
+    out.push({key:u.key,pno:u.pno,label:`${u.name}${u.opt?' / '+u.opt:''}`,price:u.price||0,cands:Object.fromEntries(u.cands.map(c=>[c.code,c.n])),alts:u.alts||{},names:namesOf(R,[...u.cands.map(c=>c.code),...Object.keys(u.alts||{})])}); }
   return out;
 }
+const namesOf=(R,codes)=>Object.fromEntries(codes.map(c=>[c,ecProd(R.ecName[c]||'')]));
 // 품목 사전: 파일에 나온 모든 코드→품명·정가(선수금 제외). 옵션 제안에 쓴다.
 const dictFromResult=R=>Object.fromEntries(Object.entries(R.ecName||{}).filter(([c,nm])=>nm&&!ADV_CODES.has(c)).map(([c,nm])=>[c,{name:ecProd(nm),price:(R.ecPrice||{})[c]||0}]));
 async function postCands(R){
@@ -1424,7 +1426,8 @@ function render(){
 }
 function candCard(){
   const q=S.qc.trim().toLowerCase();
-  const all=Object.entries(S.cand).map(([key,v])=>{ const cs=Object.entries(v.cands||{}).sort((a,b)=>b[1]-a[1]); return {key,...v,cs,top:cs[0]?cs[0][0]:'',single:cs.length===1}; });
+  const all=Object.entries(S.cand).map(([key,v])=>{ const cs=Object.entries(v.cands||{}).sort((a,b)=>b[1]-a[1]); const alts=Object.entries(v.alts||{}).filter(([c])=>!(v.cands||{})[c]).sort((a,b)=>b[1]-a[1]); return {key,...v,cs,alts,top:cs[0]?cs[0][0]:'',single:cs.length===1&&!alts.length}; });
+  const autoN=Object.values(S.map).filter(v=>v.src!=='manual').length;
   // 상품명 안에도 ' / ' 가 있을 수 있어('[… / 선물 포장 제공]타원 트레이') 마지막 ' / ' 에서 가른다
   const optOf=label=>{ const i=String(label||'').lastIndexOf(' / '); return i<0?'':label.slice(i+3); };
   const prodOf=label=>{ const i=String(label||'').lastIndexOf(' / '); return i<0?String(label||''):label.slice(0,i); };
@@ -1457,7 +1460,7 @@ function candCard(){
     }
     return {rows,vs,prefix};
   };
-  const chip=(x,c)=>`<a href="#" data-a="cpick" data-k="${esc(x.key)}" data-c="${esc(c[0])}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${c[0]===x.top?'var(--up-soft)':'var(--fill)'};border-radius:8px;padding:4px 8px;font-size:12px"><b>${esc(c[0])}</b><span style="flex:1">${esc((x.names||{})[c[0]]||(S.dict[c[0]]||{}).name||'')}</span><span class="ec-sub" style="margin:0;white-space:nowrap">${n(c[1])}건</span>${warn(optOf(x.label),c[0])?'<span class="ec-badge ec-warn" title="카페24 옵션 낱말(색·크기)이 이카운트 품명에 없습니다">옵션 확인</span>':''}${S.map[x.key]&&S.map[x.key].code===c[0]?'<span class="ec-badge ec-info">저장된 값</span>':''}</a>`;
+  const chip=(x,c,alt)=>`<a href="#" data-a="cpick" data-k="${esc(x.key)}" data-c="${esc(c[0])}" style="display:flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);background:${c[0]===x.top?'var(--up-soft)':'var(--fill)'};${alt?'opacity:.8;':''}border-radius:8px;padding:4px 8px;font-size:12px"><b>${esc(c[0])}</b><span style="flex:1">${esc((x.names||{})[c[0]]||(S.dict[c[0]]||{}).name||'')}</span><span class="ec-sub" style="margin:0;white-space:nowrap">${alt?'같은 전표 ':''}${n(c[1])}건</span>${warn(optOf(x.label),c[0])?'<span class="ec-badge ec-warn" title="카페24 옵션 낱말(색·크기)이 이카운트 품명에 없습니다">옵션 확인</span>':''}${S.map[x.key]&&S.map[x.key].code===c[0]?'<span class="ec-badge ec-info">저장된 값</span>':''}</a>`;
   const glist=Object.values(groups).filter(g=>!q||[g.title,...g.items.map(x=>x.key+' '+x.cs.map(c=>c[0]).join(' '))].join(' ').toLowerCase().includes(q)).sort((a,b)=>b.at.localeCompare(a.at)||a.title.localeCompare(b.title));
   const body=glist.slice(0,80).map(g=>{ const {rows,vs,prefix}=rowsOf(g); const confirmable=rows.filter(r=>r.code&&!(r.saved&&r.saved.code===r.code&&!r.cand)).length;
     return `<tr style="background:var(--fill)"><td colspan="6" class="l" style="padding:10px 12px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:14px">${esc(g.title)}</b>
@@ -1466,7 +1469,7 @@ function candCard(){
         <button class="ec-dl" data-a="cdropprod" data-p="${esc(g.pno||g.title)}">이 상품 후보 버리기</button></div></td></tr>`+
       rows.map(r=>`<tr data-prod="${esc(g.pno||g.title)}"><td class="l" style="padding-left:24px">${esc(r.opt||'(옵션 없음)')}${r.display==='F'||r.selling==='F'?' <span class="ec-sub" style="display:inline">진열·판매 안 함</span>':''}</td><td>${esc(r.key)}</td>
         <td>${r.cand&&r.cand.price?n(r.cand.price)+'원':'—'}${r.custom?`<div class="ec-sub">자체코드 ${esc(r.custom)}</div>`:''}</td>
-        <td class="l" style="min-width:360px">${r.cand?`<div style="display:flex;flex-direction:column;gap:4px">${r.cand.cs.slice(0,5).map(c=>chip(r.cand,c)).join('')}</div>`
+        <td class="l" style="min-width:360px">${r.cand?`<div style="display:flex;flex-direction:column;gap:4px">${r.cand.cs.slice(0,5).map(c=>chip(r.cand,c)).join('')}${r.cand.alts.slice(0,8).map(c=>chip(r.cand,c,true)).join('')}</div>`
           :r.saved?`<span class="ec-badge ec-info">저장됨</span> <b>${esc(r.saved.code)}</b> <span class="ec-sub" style="display:inline">${esc(r.saved.name||'')}</span>`
           :r.proposed?`<span class="ec-badge ec-warn">제안</span> <b>${esc(r.code)}</b> <span class="ec-sub" style="display:inline">${esc((S.dict[r.code]||{}).name||'')}</span>${warn(r.opt,r.code)?' <span class="ec-badge ec-warn">옵션 확인</span>':''}`
           :`<span class="ec-sub" style="margin:0">주문에 안 나옴 · 사전에 맞는 품목 없음</span>`}</td>
@@ -1474,10 +1477,11 @@ function candCard(){
         <td style="white-space:nowrap"><input class="ec-in" data-a="ccode" data-k="${esc(r.key)}" data-label="${esc(r.label)}" value="${esc(r.code||'')}" placeholder="품목코드" style="width:150px"> <button class="go" data-a="cconfirm" data-k="${esc(r.key)}" style="height:34px">확정</button>${r.cand?` <button class="ec-dl" data-a="cdrop" data-k="${esc(r.key)}">버리기</button>`:''}</td></tr>`).join('');
   }).join('');
   return `<div class="ec-card"><h2>확정 대기 <span class="ec-sub" style="display:inline;margin-left:6px">예비 목록 ${n(all.length)}건 · 상품 ${n(Object.keys(groups).length)}개</span></h2>
-    <p class="ec-lead">매일 판매 입력 대조에 올린 이카운트 파일(품목별)에서 찾은 짝이 상품 단위로 쌓입니다. 주문에 안 나온 옵션도 같은 상품이면 같이 보이고, 형제 옵션 코드의 앞머리(분류+브랜드)와 옵션 낱말로 품목 사전에서 <b>제안</b>합니다. 보고 <b>확정</b>하거나 <b>버리기</b>로 지워 주세요. 확정한 값은 담당자 값으로 저장되고 자동 학습이 덮어쓰지 않습니다.</p>
+    <p class="ec-lead">매일 판매 입력 대조에 올린 이카운트 파일(품목별)에서 찾은 짝이 상품 단위로 쌓입니다. 후보 아래 '같은 전표'는 그 옵션이 든 전표에 같이 있던 다른 품목들이에요(전표에 품목이 여러 개면 그중에서 고르세요). 주문에 안 나온 옵션도 같은 상품이면 같이 보이고, 형제 옵션 코드의 앞머리(분류+브랜드)와 옵션 낱말로 품목 사전에서 <b>제안</b>합니다. 보고 <b>확정</b>하거나 <b>버리기</b>로 지워 주세요. 확정한 값은 담당자 값으로 저장되고 자동 학습이 덮어쓰지 않습니다.</p>
     <div class="ec-row"><input class="ec-in" id="ecCandQ" value="${esc(S.qc)}" placeholder="상품명·옵션코드·품목코드 검색" style="width:260px"><span class="ec-sub" style="margin:0">품목 사전 ${n(Object.keys(S.dict).length)}개</span><span style="flex:1"></span>
       ${singles?`<button class="go" data-a="cconfirmall" style="height:36px">후보가 하나뿐인 ${n(singles)}건 모두 확정</button>`:''}
-      ${all.length?`<button class="ec-dl" data-a="cdropall" style="height:36px;color:var(--down)" title="예비 목록만 비웁니다(대응표는 그대로). 파일을 다시 올리면 새로 쌓입니다">예비 목록 모두 비우기</button>`:''}</div>
+      ${all.length?`<button class="ec-dl" data-a="cdropall" style="height:36px;color:var(--down)" title="예비 목록만 비웁니다(대응표는 그대로). 파일을 다시 올리면 새로 쌓입니다">예비 목록 모두 비우기</button>`:''}
+      ${autoN?`<button class="ec-dl" data-a="cbackall" style="height:36px" title="자동으로 들어간 대응을 대응표에서 빼서 여기서 다시 확인합니다. 담당자 확정 값은 그대로">자동 대응 ${n(autoN)}건 확정 대기로 보내기</button>`:''}</div>
     <div class="ec-scroll"><table class="ec-t"><thead><tr><th class="l">옵션</th><th>옵션코드</th><th>카페24 판매가</th><th class="l">이카운트 품목코드 후보 (누르면 채워짐)</th><th>본 날짜</th><th>확정 · 버리기</th></tr></thead><tbody>
       ${body||`<tr><td colspan="6" class="ec-sub">${q?'찾은 것이 없습니다':'확정 기다리는 짝이 없습니다 — 판매 입력 대조에 품목별 파일을 올리면 여기 쌓입니다'}</td></tr>`}</tbody></table></div>
     ${glist.length>80?`<div class="ec-sub">상품 80개까지만 보입니다 — 검색으로 좁혀 주세요</div>`:''}</div>`;
@@ -1638,6 +1642,13 @@ function wire(root){
     if(a==='cdrop'){ t.disabled=true; try{ await candAct([t.dataset.k],''); render(); }catch(err){ flash('지우지 못했습니다: '+err.message,true); } return; }
     if(a==='cdropall'){ const ks=Object.keys(S.cand||{}); if(!ks.length) return; if(!confirm(`예비 목록 ${ks.length}건을 모두 비울까요? 대응표(확정된 값)는 그대로 둡니다.`)) return; t.disabled=true;
       try{ await candAct(ks,''); flash(`예비 목록 ${n(ks.length)}건을 비웠습니다.`); }catch(err){ flash('비우지 못했습니다: '+err.message,true); } return; }
+    if(a==='cbackall'){ const ks=Object.entries(S.map).filter(([k,v])=>v.src!=='manual'); if(!ks.length) return;
+      if(!confirm(`자동으로 들어간 대응 ${ks.length}건을 대응표에서 빼고 확정 대기로 보낼까요?\n담당자 확정 값은 그대로 둡니다. 되돌리려면 확정 대기에서 다시 확정하면 됩니다.`)) return; t.disabled=true;
+      try{ const cand=ks.map(([k,v])=>({key:k,label:v.label||'',cands:{[v.code]:Math.max(1,v.n||1)},names:v.name?{[v.code]:v.name}:{}}));
+        for(let i=0;i<ks.length;i+=500) await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({remove:ks.slice(i,i+500).map(([k])=>k)})});
+        for(let i=0;i<cand.length;i+=500) await getJSON(`${WORKER}/ecmap`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cand:cand.slice(i,i+500)})});
+        await reloadMap(); flash(`${n(ks.length)}건을 확정 대기로 보냈습니다. 대응표 ${n(Object.keys(S.map).length)}건`); }
+      catch(err){ flash('보내지 못했습니다: '+err.message,true); } return; }
     if(a==='cconfirmall'){ const ks=Object.entries(S.cand).filter(([k,v])=>Object.keys(v.cands||{}).length===1); if(!ks.length) return;
       if(!confirm(`후보가 하나뿐인 ${ks.length}건을 모두 담당자 값으로 저장할까요?`)) return; t.disabled=true;
       try{ let saved=0; for(const [k,v] of ks){ const d=await candAct([k],Object.keys(v.cands)[0]); saved+=d.saved||0; } flash(`${n(saved)}건 확정했습니다. 대응표 ${n(Object.keys(S.map).length)}건`); }catch(err){ flash('저장하지 못했습니다: '+err.message,true); } return; }
