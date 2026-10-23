@@ -445,8 +445,52 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           });
         }
 
+        // 1-1 자사몰 GMV(연도별) — 1-2 와 같은 열 구조, MoM 대신 YoY
+        const yKeys = [...new Set(mKeys.map((k) => k.slice(0, 4)))].sort();
+        const yRoll = (src) => { const m = {};
+          for (const [k, v] of Object.entries(src)) { const y = k.slice(0, 4), x = m[y] || (m[y] = blank());
+            x.gmv += v.gmv; x.cnt += v.cnt; x.net += v.net; x.refund += v.refund; x.disc += v.disc; x.cpn += v.cpn; x.point += v.point; }
+          return m; };
+        const yearM = yRoll(monM);
+        const adY = {};
+        for (const [k, v] of Object.entries(adMo)) { const y = k.slice(0, 4), x = adY[y] || (adY[y] = { c: 0, t: 0, sku: 0 });
+          x.c += v.c || 0; x.t += v.t || 0; x.sku += v.sku || 0; }
+        const yearly = [[], ["📌자사몰: GMV(연도별)"], WIDE3, WIDE4("YoY"),
+          ...yKeys.map((k, i) => { const pk = i > 0 ? yKeys[i - 1] : null;
+            return wideRow(`${k}년`, yearM[k], pk ? yearM[pk] : null, adY[k] || z, pk ? (adY[pk] || z) : z); })];
+
+        // 5-1/5-2 카테고리별 — 이관된 과거 행은 안 건드리고 우리 구간만 채운다(카테고리는 2026-06-24 부터 수집).
+        const CATS = ["아트", "라이프(TOTAL)", "테이블웨어", "홈데코", "가구", "패브릭", "프레그런스", "가전·디지털", "스테이셔너리", "패션·뷰티", "펫", "푸드"];
+        const norm = (x) => String(x || "").replace(/[\s\/]/g, "").replace(/·/g, "");
+        const catRoll = (keyOf) => { const m = {};
+          for (const d of days) { const k = keyOf(d.date), b = m[k] || (m[k] = {});
+            for (const c of d.categories || []) {
+              const nm = c.name || "", mid = nm.startsWith("라이프 · ") ? nm.slice(5) : null;
+              const put2 = (g) => { const x = b[g] || (b[g] = { amt: 0, net: 0, qty: 0, ord: 0, sku: /* @__PURE__ */ new Set() });
+                x.amt += c.amt || 0; x.net += c.net || 0; x.qty += c.qty || 0; x.ord += c.orders || 0;
+                for (const pp of c.products || []) x.sku.add(pp.pno); };
+              if (nm === "아트") put2("아트");
+              if (mid) { put2("라이프(TOTAL)"); const hit = CATS.find((t) => norm(t) === norm(mid)); if (hit) put2(hit); }
+            } }
+          return m; };
+        const catMon = catRoll((dt) => dt.slice(0, 7));
+        const catWk = catRoll((dt) => `${dt.slice(0, 7)}-W${weekNo(dt)}`);
+        const catCells = (tab, bucket, labelOf, cols, step) => {
+          const out = [];
+          for (const [k, b] of Object.entries(bucket)) {
+            if (!Object.keys(b).length) continue;      // 카테고리가 없는 기간은 건드리지 않는다(이관된 과거를 지우면 안 된다)
+            const row = labelOf(k); if (!row) continue;
+            const vals = [];
+            CATS.forEach((c) => { const x = b[c];
+              if (step === 8) vals.push(x ? x.amt : "", "", "", x ? x.ord : "", x ? x.net : "", x && x.ord ? x.amt / x.ord : "", x ? x.sku.size : "", "");
+              else vals.push(x ? x.amt : "", "", x ? x.ord : "", x ? x.net : "", x && x.ord ? x.amt / x.ord : "", x ? x.sku.size : "", ""); });
+            out.push({ range: `'${tab}'!C${row}:${cols}${row}`, values: [vals] });
+          }
+          return out;
+        };
+
         // 탭 만들기 / 내가 임의로 만들었던 탭 지우기
-        const T = { s: "0. 요약", m: "1-2. 자사몰 GMV(월별)", w: "1-3. 자사몰 GMV(주별)", d: "1-4. 자사몰 GMV(일별)" };
+        const T = { s: "0. 요약", y: "1-1. 자사몰 GMV(연도별)", m: "1-2. 자사몰 GMV(월별)", w: "1-3. 자사몰 GMV(주별)", d: "1-4. 자사몰 GMV(일별)" };
         const have = /* @__PURE__ */ new Map((mj.sheets || []).map((x) => [x.properties.title, x.properties.sheetId]));
         const reqs0 = [];
         for (const t of Object.values(T)) if (!have.has(t)) reqs0.push({ addSheet: { properties: { title: t, gridProperties: { rowCount: 2200, columnCount: 40 } } } });
@@ -461,7 +505,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         const wr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
           method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
           body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: [
-            put(T.s, kpi, 24), put(T.m, monthly, 33), put(T.w, weekly, 23), put(T.d, daily, 33)] }) });
+            put(T.s, kpi, 24), put(T.y, yearly, 33), put(T.m, monthly, 33), put(T.w, weekly, 23), put(T.d, daily, 33)] }) });
         const wj = await wr.json().catch(() => ({}));
         if (!wr.ok) return json({ error: wj?.error?.message || `HTTP ${wr.status}`, saEmail: sa.client_email }, wr.status);
 
@@ -489,7 +533,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             nf(S, 4, n, 29, 30, "0%"), nf(S, 4, n, 32, 33, "0%"),
             boldRow(S, 1), boldRow(S, 2), boldRow(S, 3), fr(S, 4),
             { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 33 } } }); };
-        wideFmt(T.m, monthly.length); wideFmt(T.d, daily.length);
+        wideFmt(T.m, monthly.length); wideFmt(T.d, daily.length); wideFmt(T.y, yearly.length);
         if (sid[T.w] != null) { const S = sid[T.w], n = weekly.length;
           reqs.push(nf(S, 4, n, 1, 2, "#,##0"), nf(S, 4, n, 4, 5, "#,##0"), nf(S, 4, n, 7, 8, "#,##0"),
             nf(S, 4, n, 10, 13, "#,##0"), nf(S, 4, n, 14, 15, "#,##0"), nf(S, 4, n, 17, 21, "#,##0"),
@@ -506,6 +550,31 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         if (reqs.length) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
           method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
           body: JSON.stringify({ requests: reqs }) });
+        // 5-1/5-2 카테고리별 — B열 라벨로 행을 찾아 우리 구간만 덮는다
+        let catNote = "skip";
+        try {
+          const readB = async (tab) => {
+            const r5 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${tab}'!B1:B400`)}`,
+              { headers: { Authorization: "Bearer " + tok } });
+            const j5 = await r5.json().catch(() => ({}));
+            const map = {};
+            (j5.values || []).forEach((x, i) => { const v = String(x[0] || "").trim(); if (v) map[v] = i + 1; });
+            return map;
+          };
+          const bm = await readB("5-1. 카테고리별 GMV(월별)");
+          const bw = await readB("5-2. 카테고리별 GMV(주별)");
+          const mLabel = (k) => bm[`${k}-01`] || bm[k] || null;
+          const wLab2 = (k) => { const l = `${k.slice(0, 4)}년 ${+k.slice(5, 7)}월 ${k.slice(-1)}주차`; return bw[l] || bw[l.replace("주차", "주")] || null; };
+          const cells = [...catCells("5-1. 카테고리별 GMV(월별)", catMon, mLabel, "CT", 8),
+                         ...catCells("5-2. 카테고리별 GMV(주별)", catWk, wLab2, "CH", 7)];
+          for (let i = 0; i < cells.length; i += 300) {
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+              body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: cells.slice(i, i + 300) }) });
+          }
+          catNote = `월 ${Object.keys(catMon).length} · 주 ${Object.keys(catWk).length} → ${cells.length}행`;
+        } catch (e) { catNote = "실패: " + String(e && e.message || e).slice(0, 120); }
+
         // 6-x 유저 탭 — GA4 일별(활성사용자·새사용자·회원가입). 원본은 손입력이었다.
         //   첫 구매 사용자(Q~U)는 GA4 세그먼트가 필요해 안 건드린다(이관된 값 유지).
         //   전환(CVR)=(회원가입+주문건수)/DAU · 구매전환=주문건수/DAU — 원본 수식과 같다.
@@ -573,7 +642,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         } catch (e) { userNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
         return json({ ok: true, through: days[days.length - 1].date,
-          rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, 유저: userNote, updated: wj.totalUpdatedCells });
+          rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, 유저: userNote, 카테고리: catNote, updated: wj.totalUpdatedCells });
       }
 
       // ===== 공급사 담당자·구분 오버레이 =====
