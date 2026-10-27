@@ -736,11 +736,11 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             const sheetsPost = (rq) => fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
               method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ requests: rq }) });
             if (String((g[rateRow] || [])[2] || "").trim() !== "실적(매출)") {
-              await sheetsPost([{ insertDimension: { range: { sheetId: SID, dimension: "ROWS", startIndex: rateRow, endIndex: rateRow + 3 }, inheritFromBefore: true } },
-                { copyPaste: { source: { sheetId: SID, startRowIndex: tr, endRowIndex: tr + 1, startColumnIndex: 1, endColumnIndex: 20 },
-                  destination: { sheetId: SID, startRowIndex: rateRow, endRowIndex: rateRow + 2, startColumnIndex: 1, endColumnIndex: 20 }, pasteType: "PASTE_FORMAT" } },
-                { copyPaste: { source: { sheetId: SID, startRowIndex: rateRow - 1, endRowIndex: rateRow, startColumnIndex: 1, endColumnIndex: 20 },
-                  destination: { sheetId: SID, startRowIndex: rateRow + 2, endRowIndex: rateRow + 3, startColumnIndex: 1, endColumnIndex: 20 }, pasteType: "PASTE_FORMAT" } }]);
+              // B열 '매출액' 은 세로 병합이라 서식 붙여넣기(copyPaste)는 거부된다 → 끼워 넣고(윗줄 서식 상속) 숫자 서식만 바꾼다.
+              const ri = await sheetsPost([{ insertDimension: { range: { sheetId: SID, dimension: "ROWS", startIndex: rateRow, endIndex: rateRow + 3 }, inheritFromBefore: true } },
+                { repeatCell: { range: { sheetId: SID, startRowIndex: rateRow, endRowIndex: rateRow + 2, startColumnIndex: 3, endColumnIndex: 20 },
+                  cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } }]);
+              if (!ri.ok) { const je = await ri.json().catch(() => ({})); return json({ error: "요약 줄 끼워 넣기 실패: " + (je?.error?.message || ri.status) }, 500); }
               g = await readTab(T.s, "Z", 200);
             }
             const r7 = rateRow + 1, r8 = rateRow + 2, r9 = rateRow + 3, Y = +kpiYear;
@@ -756,7 +756,12 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             let yr0 = ""; const rowsBy0 = {};
             g.forEach((r, i) => { if (i < r9) return; if (r[1]) yr0 = String(r[1]).replace("년", "").trim(); const lab = String(r[2] || "").trim();
               if (/^\d{4}$/.test(yr0) && lab) rowsBy0[`${yr0}|${lab}`] = i + 1; });
-            const act = head.map((lab) => { const rr = lab && rowsBy0[`${Y}|${lab}`]; return rr ? `=J${rr}` : ""; });
+            // 월 = 아래 요약표 J(=1-2 매출) · 분기·합계 = 그 달들의 합(아래 표에 분기·합계 줄이 없을 수 있다)
+            const act = head.map((lab) => {
+              if (/^\d+월$/.test(lab)) { const rr = rowsBy0[`${Y}|${lab}`]; return rr ? `=J${rr}` : ""; }
+              if (QM[lab]) return `=SUM(${QM[lab].map((m) => `${monthCol[m]}${r7}`).join(",")})`;
+              if (lab === "합계") return `=SUM(${Object.values(monthCol).map((c) => `${c}${r7}`).join(",")})`;
+              return ""; });
             writes.push({ range: `'${T.s}'!C${rateRow}:T${r9}`, values: [
               ["달성율", ...head.map((lab, j) => lab ? `=IFERROR(${L(j)}${r7}/${L(j)}${tr + 1},"")` : "")],
               ["실적(매출)", ...act],
