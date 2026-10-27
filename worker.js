@@ -280,6 +280,32 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const j3 = await r3.json().catch(() => ({}));
           return json(r3.ok ? { ok: true, moved: rq.length } : { error: j3?.error?.message || `HTTP ${r3.status}` }, r3.ok ? 200 : r3.status);
         }
+        // [2026-10-27] 원본 시트 탭을 서식째 통째로 복제: POST {id, rebuildFrom:원본ID}
+        //   원본 탭마다 copyTo → 값으로 굳히기(수식이 지워질 옛 탭을 가리키지 않게) → 같은 이름의 옛 탭 삭제 → 이름·순서 원본대로.
+        //   SA 가 원본을 읽을 수 있어야 한다. 그 뒤 GET /kpisheet 가 계산 칸만 덮는다.
+        if (b.rebuildFrom) {
+          const tokR = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+          const H = { Authorization: "Bearer " + tokR, "Content-Type": "application/json" };
+          const ms = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.rebuildFrom}?fields=sheets.properties`, { headers: H })).json().catch(() => ({}));
+          if (!ms.sheets) return json({ error: "원본을 못 읽습니다 — SA 공유 확인", detail: ms?.error?.message, saEmail: sa.client_email }, 403);
+          const md = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.id}?fields=sheets.properties`, { headers: H })).json().catch(() => ({}));
+          const old = (md.sheets || []).map((x) => x.properties);
+          const copies = [];
+          for (const sh of ms.sheets) {
+            const r8 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.rebuildFrom}/sheets/${sh.properties.sheetId}:copyTo`, {
+              method: "POST", headers: H, body: JSON.stringify({ destinationSpreadsheetId: b.id }) });
+            const j8 = await r8.json().catch(() => ({}));
+            if (!r8.ok) return json({ error: `복제 실패: ${sh.properties.title}`, detail: j8?.error?.message, done: copies.length }, r8.status);
+            copies.push({ title: sh.properties.title, sid: j8.sheetId });
+          }
+          const rq = [
+            ...copies.map((c) => ({ copyPaste: { source: { sheetId: c.sid }, destination: { sheetId: c.sid }, pasteType: "PASTE_VALUES" } })),
+            ...old.map((o) => ({ deleteSheet: { sheetId: o.sheetId } })),
+            ...copies.map((c, i) => ({ updateSheetProperties: { properties: { sheetId: c.sid, title: c.title, index: i }, fields: "title,index" } }))];
+          const r9 = await fetch(`https://sheets.googleapis.com/v4:batchUpdate`.replace("v4:", `v4/spreadsheets/${b.id}:`), { method: "POST", headers: H, body: JSON.stringify({ requests: rq }) });
+          const j9 = await r9.json().catch(() => ({}));
+          return json(r9.ok ? { ok: true, copied: copies.length, removed: old.length } : { error: j9?.error?.message || `HTTP ${r9.status}` }, r9.ok ? 200 : r9.status);
+        }
         if (b.ad || b.adMonth) {
           const kvA = env.CAFE24_TOKEN_KV;
           if (!kvA) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
@@ -582,67 +608,101 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           return out;
         };
 
-        // 탭 만들기 / 내가 임의로 만들었던 탭 지우기
+        // [2026-10-27] 원본 KPI_Dashboard 의 탭을 서식째 그대로 쓴다(한 번 POST /kpisheet {id, rebuildFrom} 로 복제).
+        //   여기서는 B열 라벨로 행을 찾아 우리가 계산하는 칸만 덮는다. 열 위치·서식·2024 행은 원본 그대로,
+        //   우리 값이 빈 칸("")이면 원래 값을 둔다(배송비·네이버포인트·광고·상품수 같은 손입력 칸).
         const T = { s: "0. 요약", y: "1-1. 자사몰 GMV(연도별)", m: "1-2. 자사몰 GMV(월별)", w: "1-3. 자사몰 GMV(주별)", d: "1-4. 자사몰 GMV(일별)" };
-        const have = /* @__PURE__ */ new Map((mj.sheets || []).map((x) => [x.properties.title, x.properties.sheetId]));
-        const reqs0 = [];
-        for (const t of Object.values(T)) if (!have.has(t)) reqs0.push({ addSheet: { properties: { title: t, gridProperties: { rowCount: 2200, columnCount: 40 } } } });
-        for (const t of ["요약", "일별"]) if (have.has(t)) reqs0.push({ deleteSheet: { sheetId: have.get(t) } });
-        if (reqs0.length) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
-          method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-          body: JSON.stringify({ requests: reqs0 }) });
-
-        const pad = (rows, w) => rows.map((r) => { const a2 = r.slice(); while (a2.length < w) a2.push(""); return a2; });
         const cA1 = (n) => { let t2 = "", k = n - 1; do { t2 = String.fromCharCode(65 + (k % 26)) + t2; k = Math.floor(k / 26) - 1; } while (k >= 0); return t2; };
-        const put = (tab, rows, w) => ({ range: `'${tab}'!A1:${cA1(w)}${rows.length}`, values: pad(rows, w) });
-        const wr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
-          method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-          body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: [
-            put(T.s, kpi, 24), put(T.y, yearly, 33), put(T.m, monthly, 33), put(T.w, weekly, 23), put(T.d, daily, 33)] }) });
-        const wj = await wr.json().catch(() => ({}));
-        if (!wr.ok) return json({ error: wj?.error?.message || `HTTP ${wr.status}`, saEmail: sa.client_email }, wr.status);
-
-        // 서식
-        const m2 = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`, {
-          headers: { Authorization: "Bearer " + tok } })).json().catch(() => ({}));
-        const sid = {}; for (const x of m2.sheets || []) sid[x.properties.title] = x.properties.sheetId;
-        const nf = (sheetId, sr, er, sc, ec, pattern) => ({ repeatCell: {
-          range: { sheetId, startRowIndex: sr, endRowIndex: er, startColumnIndex: sc, endColumnIndex: ec },
-          cell: { userEnteredFormat: { numberFormat: { type: pattern === "0%" ? "PERCENT" : "NUMBER", pattern } } },
-          fields: "userEnteredFormat.numberFormat" } });
-        const boldRow = (sheetId, r) => ({ repeatCell: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1 },
-          cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" } });
-        const fr = (sheetId, n) => ({ updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: n } }, fields: "gridProperties.frozenRowCount" } });
-        const reqs = [];
-        const wideFmt = (t, n) => { const S = sid[t]; if (S == null) return;
-          reqs.push(nf(S, 4, n, 1, 2, "#,##0"), nf(S, 4, n, 3, 4, "#,##0"), nf(S, 4, n, 5, 6, "#,##0"),
-            nf(S, 4, n, 7, 10, "#,##0"), nf(S, 4, n, 11, 12, "#,##0"), nf(S, 4, n, 13, 17, "#,##0"),
-            nf(S, 4, n, 18, 19, "#,##0"), nf(S, 4, n, 22, 23, "#,##0"), nf(S, 4, n, 25, 26, "#,##0"),
-            nf(S, 4, n, 28, 29, "#,##0"), nf(S, 4, n, 31, 32, "#,##0"),
-            nf(S, 4, n, 19, 20, "0.0"), nf(S, 4, n, 23, 24, "0.0"),
-            nf(S, 4, n, 2, 3, "0%"), nf(S, 4, n, 4, 5, "0%"), nf(S, 4, n, 6, 7, "0%"),
-            nf(S, 4, n, 10, 11, "0.0%"), nf(S, 4, n, 12, 13, "0%"), nf(S, 4, n, 17, 18, "0%"),
-            nf(S, 4, n, 20, 22, "0%"), nf(S, 4, n, 24, 25, "0%"), nf(S, 4, n, 26, 28, "0%"),
-            nf(S, 4, n, 29, 30, "0%"), nf(S, 4, n, 32, 33, "0%"),
-            boldRow(S, 1), boldRow(S, 2), boldRow(S, 3), fr(S, 4),
-            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 33 } } }); };
-        wideFmt(T.m, monthly.length); wideFmt(T.d, daily.length); wideFmt(T.y, yearly.length);
-        if (sid[T.w] != null) { const S = sid[T.w], n = weekly.length;
-          reqs.push(nf(S, 4, n, 1, 2, "#,##0"), nf(S, 4, n, 4, 5, "#,##0"), nf(S, 4, n, 7, 8, "#,##0"),
-            nf(S, 4, n, 10, 13, "#,##0"), nf(S, 4, n, 14, 15, "#,##0"), nf(S, 4, n, 17, 21, "#,##0"),
-            nf(S, 4, n, 2, 4, "0%"), nf(S, 4, n, 5, 7, "0%"), nf(S, 4, n, 8, 10, "0%"),
-            nf(S, 4, n, 13, 14, "0.0%"), nf(S, 4, n, 15, 17, "0%"), nf(S, 4, n, 21, 23, "0%"),
-            boldRow(S, 1), boldRow(S, 2), boldRow(S, 3), fr(S, 4),
-            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 23 } } }); }
-        if (sid[T.s] != null) { const S = sid[T.s], n = kpi.length;
-          reqs.push(nf(S, 4, 5, 2, 20, "#,##0"), nf(S, 5, 6, 2, 20, "0%"),
-            nf(S, 14, n, 2, 3, "#,##0"), nf(S, 14, n, 6, 7, "#,##0"), nf(S, 14, n, 8, 9, "#,##0"),
-            nf(S, 14, n, 3, 4, "0%"), nf(S, 14, n, 7, 8, "0%"), nf(S, 14, n, 9, 10, "0%"),
-            boldRow(S, 1), boldRow(S, 3), boldRow(S, 11), boldRow(S, 12), boldRow(S, 13),
-            { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 24 } } }); }
-        if (reqs.length) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
-          method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-          body: JSON.stringify({ requests: reqs }) });
+        const ser2date = (n) => new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5).toISOString().slice(0, 10);
+        const readTab = async (tab, lastCol, rows = 3000) => {
+          const r6 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${tab}'!A1:${lastCol}${rows}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`,
+            { headers: { Authorization: "Bearer " + tok } });
+          const j6 = await r6.json().catch(() => ({}));
+          if (!r6.ok) throw new Error(`${tab} 읽기 실패: ${j6?.error?.message || r6.status}`);
+          return j6.values || [];
+        };
+        const mergeRow = (cur, mine) => mine.map((v, i) => (v === "" || v === "-" || v == null ? (cur[i] ?? (v === "-" ? "-" : "")) : v));
+        const writes = [];
+        const labelKey = (v, kind) => {
+          if (v == null || v === "") return null;
+          if (kind === "d") return typeof v === "number" ? ser2date(v) : (String(v).match(/^(\d{4}-\d{2}-\d{2})/) || [])[1] || null;
+          if (kind === "m") { if (typeof v === "number") return ser2date(v).slice(0, 7);
+            const m7 = String(v).match(/^(\d{4})[-.년\s]*(\d{1,2})/); return m7 ? `${m7[1]}-${String(+m7[2]).padStart(2, "0")}` : null; }
+          return String(v).trim();
+        };
+        // tab: 탭 이름 · kind: 라벨 종류 · mine: 라벨키 → [C열부터의 값들] · lastCol: 마지막 열
+        const fillTab = async (tab, kind, mine, width) => {
+          const lastCol = cA1(2 + width);
+          const grid = await readTab(tab, lastCol);
+          let n = 0;
+          grid.forEach((row, i) => { if (i < 4) return;
+            const k = labelKey(row[1], kind), vals = k && mine[k]; if (!vals) return;
+            const cur = row.slice(2, 2 + width);
+            writes.push({ range: `'${tab}'!C${i + 1}:${lastCol}${i + 1}`, values: [mergeRow(cur, vals)] }); n++; });
+          return n;
+        };
+        const mapOf = (keys, rowOf) => { const o = {}; keys.forEach((k, i) => { o[k] = rowOf(k, i).slice(1); }); return o; };
+        // 1-4 일별 · 1-2 월별 · 1-1 연도별 은 wideRow(32칸) — 원본 C~AH 와 같은 순서다.
+        const dMine = mapOf(dKeys, (k, i) => { const pk = i >= 7 ? dKeys[i - 7] : null;
+          return wideRow(k, dayM.get(k), pk ? dayM.get(pk) : null, (AD.ad || {})[k] || z, pk ? ((AD.ad || {})[pk] || z) : z); });
+        const mMine = mapOf(mKeys, (k, i) => { const pk = i > 0 ? mKeys[i - 1] : null;
+          return wideRow(k, monM[k], pk ? monM[pk] : null, adMo[k] || z, pk ? (adMo[pk] || z) : z); });
+        const wMine = {}; weekly.slice(4).forEach((r) => { wMine[r[0]] = r.slice(1); });
+        const yMine = {}; yearly.slice(4).forEach((r) => { yMine[r[0]] = r.slice(1); });
+        const filled = {
+          일별: await fillTab(T.d, "d", dMine, 32), 월별: await fillTab(T.m, "m", mMine, 32),
+          주별: await fillTab(T.w, "s", wMine, 22), 연도별: await fillTab(T.y, "s", yMine, 32) };
+        // 0. 요약 — 달성율 행(목표는 시트 5행 값 그대로) + 아래 요약표의 자사몰 GMV·매출(D·J)과 그에 딸린 비중·합계·YoY
+        {
+          const g = await readTab(T.s, "Z", 200);
+          const at = (r, c) => (g[r - 1] || [])[c - 1];
+          const head = (g[3] || []).slice(3, 19).map((x) => String(x || "").trim());   // D4:S4 = 합계·1월…Q4
+          const colOf = (lab) => lab === "합계" ? null : (/^Q\d$/.test(lab) ? lab : +lab.replace("월", ""));
+          let tr = g.findIndex((r) => String(r[1] || "").trim() === "매출액");
+          if (tr >= 0) {
+            const tgtRow = g[tr], rateRow = tr + 2;
+            const rates = head.map((lab, j) => { const t = Number(tgtRow[3 + j]) || 0, a2 = lab ? actOf(colOf(lab)) : null;
+              return t && a2 ? a2.net / t : ""; });
+            writes.push({ range: `'${T.s}'!D${rateRow}:S${rateRow}`, values: [mergeRow((g[rateRow - 1] || []).slice(3, 19), rates)] });
+          }
+          let yr = "";
+          const rowsBy = {};
+          g.forEach((r, i) => { if (i < 16) return; if (r[1]) yr = String(r[1]).replace("년", "").trim(); const lab = String(r[2] || "").trim();
+            if (/^\d{4}$/.test(yr) && lab) rowsBy[`${yr}|${lab}`] = i; });
+          const num = (v) => (typeof v === "number" ? v : Number(v) || 0);
+          const upd = {};
+          for (const [key, i] of Object.entries(rowsBy)) {
+            const [y, lab] = key.split("|"); if (y < "2025") continue;
+            const x = sumRowOf(y, lab === "합계" ? null : colOf(lab)); if (!x) continue;
+            upd[key] = { i, d: x.gmv, j: x.net };
+          }
+          const val = (key, col) => { const u = upd[key]; const i = rowsBy[key]; if (i == null) return null;
+            if (u && col === "D") return u.d; if (u && col === "J") return u.j;
+            return num((g[i] || [])[{ D: 3, F: 5, J: 9 }[col]]); };
+          for (const [key, u] of Object.entries(upd)) {
+            const [y, lab] = key.split("|"), pk = `${+y - 1}|${lab}`;
+            const d = u.d, f = num((g[u.i] || [])[5]), h = d + f;
+            const ph = rowsBy[pk] != null ? (val(pk, "D") || 0) + (val(pk, "F") || 0) : null, pj = rowsBy[pk] != null ? val(pk, "J") : null;
+            writes.push({ range: `'${T.s}'!D${u.i + 1}:K${u.i + 1}`, values: [[d, h ? d / h : "", f || (g[u.i] || [])[5] || "", h ? f / h : "", h,
+              ph ? chg(h, ph) : "-", u.j, pj ? chg(u.j, pj) : "-"]] });
+          }
+          filled.요약 = Object.keys(upd).length;
+          // 달성율 기준 설명은 셀 메모로(디자인은 그대로)
+          if (tr >= 0) { const S5 = (mj.sheets || []).find((x) => x.properties.title === T.s);
+            if (S5) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+              body: JSON.stringify({ requests: [{ updateCells: { range: { sheetId: S5.properties.sheetId, startRowIndex: tr + 1, endRowIndex: tr + 2, startColumnIndex: 2, endColumnIndex: 3 },
+                rows: [{ values: [{ note: "달성율 = 매출 ÷ 목표\n매출 = 슬랙봇 매출총액 − 타팀 개인결제창 − 선수금 미완납(처리완료 전)\n매일 아침 자동 갱신" }] }], fields: "note" } }] }) }); }
+        }
+        let wj = { totalUpdatedCells: 0 };
+        for (let i = 0; i < writes.length; i += 500) {
+          const wr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+            method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+            body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: writes.slice(i, i + 500) }) });
+          const j7 = await wr.json().catch(() => ({}));
+          if (!wr.ok) return json({ error: j7?.error?.message || `HTTP ${wr.status}`, saEmail: sa.client_email, filled }, wr.status);
+          wj.totalUpdatedCells += j7.totalUpdatedCells || 0;
+        }
         // 5-1/5-2 카테고리별 — B열 라벨로 행을 찾아 우리 구간만 덮는다
         let catNote = "skip";
         try {
@@ -715,27 +775,11 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
               body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: data2.slice(i, i + 400) }) });
           }
-          const m4 = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`, {
-            headers: { Authorization: "Bearer " + tok } })).json().catch(() => ({}));
-          const us = (m4.sheets || []).find((x) => x.properties.title === UT);
-          if (us) { const S = us.properties.sheetId;
-            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
-              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-              body: JSON.stringify({ requests: [
-                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 2, endColumnIndex: 3 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
-                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 4, endColumnIndex: 5 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
-                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 6, endColumnIndex: 7 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
-                { repeatCell: { range: { sheetId: S, startRowIndex: 4, startColumnIndex: 9, endColumnIndex: 10 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
-                ...[[3,4],[5,6],[7,9],[10,11],[11,16]].map(([c0, c1]) => ({ repeatCell: {
-                  range: { sheetId: S, startRowIndex: 4, startColumnIndex: c0, endColumnIndex: c1 },
-                  cell: { userEnteredFormat: { numberFormat: { type: "PERCENT", pattern: "0.0%" } } }, fields: "userEnteredFormat.numberFormat" } })),
-                { autoResizeDimensions: { dimensions: { sheetId: S, dimension: "COLUMNS", startIndex: 0, endIndex: 21 } } }
-              ] }) }); }
           userNote = `${data2.length}일`;
         } catch (e) { userNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
         return json({ ok: true, through: days[days.length - 1].date,
-          기준: { 타팀제외월: adj.ttMonths.sort(), 타팀백필필요: adj.ttMissing.sort(), 선수금대조월: adj.advMonths.sort(), 선수금미완납: adj.advOrders, 선수금미완납금액: adj.advNet }, rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, 유저: userNote, 카테고리: catNote, updated: wj.totalUpdatedCells });
+          기준: { 타팀제외월: adj.ttMonths.sort(), 타팀백필필요: adj.ttMissing.sort(), 선수금대조월: adj.advMonths.sort(), 선수금미완납: adj.advOrders, 선수금미완납금액: adj.advNet }, rows: filled, 유저: userNote, 카테고리: catNote, updated: wj.totalUpdatedCells });
       }
 
       // ===== 공급사 담당자·구분 오버레이 =====
