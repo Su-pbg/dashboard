@@ -374,7 +374,11 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const arr = j.orders || []; pages++; scanned += arr.length;
           for (const o of arr) {
             const its = o.items || [];
-            if (!its.length || !its.every((it) => isExcludedPaywin(it.product_name || it.product_name_default || ""))) continue;
+            // isExcludedPaywin 은 '/' 가 있어야만 뺀다 → 'HQ 개인결제창'·'PB'S 개인결제창' 처럼 '/' 없는 타 조직 건이 남는다.
+            //   slackbot(revenue-daily 9월~)은 이것도 뺀다(8월 실측 3,233만 = CLAUDE.md 수치). 여기선 팀 접두로도 뺀다.
+            const other = (nm) => isExcludedPaywin(nm) || (nm.indexOf("개인결제") >= 0 && !PAYWIN_KEEP.test(nm)
+              && /^\s*(COM|HQ|IP|PB'?S|PBG결제|커뮤니티|판교|운영기획팀|저작권사업팀)/i.test(nm));
+            if (!its.length || !its.every((it) => other(it.product_name || it.product_name_default || ""))) continue;
             if (o.paid !== "T") continue;
             const dt = String(o.order_date || "").slice(0, 10), a = o.actual_order_amount || {};
             const x = out[dt] || (out[dt] = { net: 0, gmv: 0, cnt: 0, ids: [] });
