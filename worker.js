@@ -611,7 +611,10 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         // [2026-10-27] 원본 KPI_Dashboard 의 탭을 서식째 그대로 쓴다(한 번 POST /kpisheet {id, rebuildFrom} 로 복제).
         //   여기서는 B열 라벨로 행을 찾아 우리가 계산하는 칸만 덮는다. 열 위치·서식·2024 행은 원본 그대로,
         //   우리 값이 빈 칸("")이면 원래 값을 둔다(배송비·네이버포인트·광고·상품수 같은 손입력 칸).
-        const T = { s: "0. 요약", y: "1-1. 자사몰 GMV(연도별)", m: "1-2. 자사몰 GMV(월별)", w: "1-3. 자사몰 GMV(주별)", d: "1-4. 자사몰 GMV(일별)" };
+        // 원본 탭 이름엔 ':' 가 들어 있다('1-1. 자사몰: GMV(연도별)'). 엑셀 경유 이관본엔 없다 → 공백·':' 빼고 맞춘다.
+        const tabNames = (mj.sheets || []).map((x) => x.properties.title);
+        const tabOf = (t) => tabNames.find((x) => x.replace(/[:\s]/g, "") === t.replace(/[:\s]/g, "")) || t;
+        const T = { s: tabOf("0. 요약"), y: tabOf("1-1. 자사몰 GMV(연도별)"), m: tabOf("1-2. 자사몰 GMV(월별)"), w: tabOf("1-3. 자사몰 GMV(주별)"), d: tabOf("1-4. 자사몰 GMV(일별)") };
         const cA1 = (n) => { let t2 = "", k = n - 1; do { t2 = String.fromCharCode(65 + (k % 26)) + t2; k = Math.floor(k / 26) - 1; } while (k >= 0); return t2; };
         const ser2date = (n) => new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5).toISOString().slice(0, 10);
         const readTab = async (tab, lastCol, rows = 3000) => {
