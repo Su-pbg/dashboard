@@ -763,11 +763,14 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               if (lab === "합계") return `=SUM(${Object.values(monthCol).map((c) => `${c}${r7}`).join(",")})`;
               return ""; });
             writes.push({ range: `'${T.s}'!C${rateRow}:T${r9}`, values: [
-              ["달성율", ...head.map((lab, j) => lab ? `=IFERROR(${L(j)}${r7}/${L(j)}${tr + 1},"")` : "")],
+              ["달성율", ...head.map((lab, j) => lab ? `=IF(${L(j)}${r7}="","",IFERROR(${L(j)}${r7}/${L(j)}${tr + 1},""))` : "")],
               ["실적(매출)", ...act],
               ["선수금 미완납", ...head.map(advF)],
-              ["달성율(선수금 제외)", ...head.map((lab, j) => lab ? `=IFERROR((${L(j)}${r7}-${L(j)}${r8})/${L(j)}${tr + 1},"")` : "")]] });
-            await sheetsPost([{ updateCells: { range: { sheetId: SID, startRowIndex: rateRow - 1, endRowIndex: rateRow, startColumnIndex: 2, endColumnIndex: 3 },
+              ["달성율(선수금 제외)", ...head.map((lab, j) => lab ? `=IF(${L(j)}${r7}="","",IFERROR((${L(j)}${r7}-${L(j)}${r8})/${L(j)}${tr + 1},""))` : "")]] });
+            // 달성율 두 줄은 % (원본 Q4 칸은 서식이 비어 있어 소수로 보였다)
+            const pct = (r) => ({ repeatCell: { range: { sheetId: SID, startRowIndex: r - 1, endRowIndex: r, startColumnIndex: 3, endColumnIndex: 20 },
+              cell: { userEnteredFormat: { numberFormat: { type: "PERCENT", pattern: "0%" } } }, fields: "userEnteredFormat.numberFormat" } });
+            await sheetsPost([pct(rateRow), pct(r9), { updateCells: { range: { sheetId: SID, startRowIndex: rateRow - 1, endRowIndex: rateRow, startColumnIndex: 2, endColumnIndex: 3 },
               rows: [{ values: [{ note: "달성율 = 실적(매출) ÷ 목표 — 선수금 포함\n실적(매출) = 슬랙봇 매출총액 − 타팀 개인결제창\n선수금 미완납 = '선수금' 탭에서 처리완료 전 금액(이카운트 대조 2026-09~)\n달성율(선수금 제외) = (실적 − 선수금 미완납) ÷ 목표\n매일 아침 자동 갱신" }] }], fields: "note" } }]);
           }
           // '선수금' 탭 — 이카운트 대조에서 선수금 표시가 붙은 주문 전부(처리완료 포함). 0. 요약 수식이 이걸 읽는다.
