@@ -44,7 +44,7 @@ async function verifyToken(env, tok) {
 __name(verifyToken, "verifyToken");
 var worker_default = {
   // [2026-10-27] KPI 시트 자동 갱신 — Cloudflare 크론(06~10시 KST, 20분마다).
-  //   slackbot 이 revenue-daily.json 을 새로 올리면(updatedAt 이 바뀌면) 바로 시트를 다시 쓴다.
+  //   slackbot 이 revenue-daily.json 을 새로 올리면(ETag 가 바뀌면) 바로 시트를 다시 쓴다.
   //   07시가 지나도 그날 한 번도 안 돌았으면 그냥 한 번 돈다(선수금 처리완료 반영 등 안전망).
   async scheduled(event, env, ctx) {
     const kv = env.CAFE24_TOKEN_KV;
@@ -52,8 +52,13 @@ var worker_default = {
     const SHEET = "1YAm7ec7C0nw7g3n0MVcM5T625OEW60V-ORLxghmz8QQ";
     const kst = new Date(Date.now() + 9 * 3600 * 1e3), today = kst.toISOString().slice(0, 10), hour = kst.getUTCHours();
     const last = JSON.parse((await kv.get("kpisheet:last")) || "{}");
+    // [2026-10-27] 바뀌었는지만 본다 — 파일(1MB)을 다 받지 않고 앞 100바이트만(Range) 받아 updatedAt 을 비교한다.
+    //   ETag 는 GitHub Pages 가 레포의 다른 파일이 바뀔 때도(봇 커밋) 바뀌어서 쓰지 않는다. updatedAt 은 파일 맨 앞에 있다.
     let src = "";
-    try { src = (await (await fetch("https://su-pbg.github.io/dashboard/revenue-daily.json?ts=" + Date.now())).json()).updatedAt || ""; } catch (e) { }
+    try {
+      const h = await fetch("https://su-pbg.github.io/dashboard/revenue-daily.json?ts=" + Date.now(), { headers: { Range: "bytes=0-99" } });
+      src = ((await h.text()).match(/"updatedAt"\s*:\s*"([^"]+)"/) || [])[1] || "";
+    } catch (e) { }
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     if (!fresh && !due) return;
     const r = await worker_default.fetch(new Request(`https://kpi.local/kpisheet?id=${SHEET}&key=${encodeURIComponent(env.DASHBOARD_KEY)}`), env);
