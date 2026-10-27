@@ -573,10 +573,13 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             return { at, added };
           };
           // 줄(행) 늘리기 공통: B열 이름으로 찾고, 없으면 마지막 줄의 서식·수식을 복사해 아래에 붙인다
+          // 이름 비교는 앞뒤 공백·겹친 공백을 무시한다(카페24 이름에 '유영국 '·'프린트베이커리  printbakery' 처럼 공백이 섞여 있다).
+          //   '(공급사 없음)'·'(브랜드 없음)' 같은 자리표시는 줄을 만들지 않는다.
+          const nm = (x) => String(x ?? "").replace(/\s+/g, " ").trim();
           const rowsOf = async (t, names) => {
             const b = await get(t, "B1:B3000"); const at = {}; let lastR = 4;
-            b.forEach((r, i) => { const v = String(r[0] ?? "").trim(); if (i >= 4 && v) { at[v] = at[v] || i + 1; lastR = i + 1; } });
-            const miss = names.filter((x) => !at[x]);
+            b.forEach((r, i) => { const v = nm(r[0]); if (i >= 4 && v) { at[v] = at[v] || i + 1; lastR = i + 1; } });
+            const miss = [...new Set(names.map(nm))].filter((x) => x && !/^\(.+ 없음\)$/.test(x) && !at[x]);
             if (miss.length) { growRows(t, lastR + miss.length + 1);
               copyRow(t, lastR, lastR + 1, miss.length, "PASTE_FORMAT"); copyRow(t, lastR, lastR + 1, miss.length, "PASTE_FORMULA");
               miss.forEach((x, i) => { at[x] = lastR + 1 + i; vals.push({ range: `'${t}'!B${lastR + 1 + i}`, values: [[x]] }); }); }
@@ -587,7 +590,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             for (const k of keys) { const c = at[k]; if (!c) continue;
               const amt = [], qty = []; for (let r = 5; r <= rows.lastR; r++) { amt.push([""]); qty.push([""]); }
               const m = srcOf(k) || {};
-              for (const [nm, v] of Object.entries(m)) { const r = rows.at[nm]; if (!r) continue; amt[r - 5] = [v.sale]; qty[r - 5] = [v.qty]; }
+              for (const [k2, v] of Object.entries(m)) { const r = rows.at[nm(k2)]; if (!r) continue;
+                amt[r - 5] = [(Number(amt[r - 5][0]) || 0) + v.sale]; qty[r - 5] = [(Number(qty[r - 5][0]) || 0) + v.qty]; }
               vals.push({ range: `'${t}'!${cA1(c)}5:${cA1(c)}${rows.lastR}`, values: amt }, { range: `'${t}'!${cA1(c + 1)}5:${cA1(c + 1)}${rows.lastR}`, values: qty }); } };
           // ---------- 4-1 공급사(월) — 블록 4칸: 거래액·건수·YoY·MoM ----------
           {
