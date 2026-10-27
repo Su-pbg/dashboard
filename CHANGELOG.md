@@ -30,7 +30,7 @@
   GET 은 **1-4 일별의 원천 숫자 열(C·E·J·K·M·O·P·R)만** 값으로 넣고, 나머지는 원본 수식이 계산한다(1-3·1-2·1-1·0. 요약 모두 수식).
   수식이 걸린 칸은 덮지 않는다(protectedWrite). 1-3 주별 매출(P)만 원본식(GMV+배송비−할인−쿠폰) 대신 1-4 매출 합으로 바꿨다.
 - (이전) GET /kpisheet 는 B열 라벨로 행을 찾아 계산 칸만 덮는다. 우리 값이 빈 칸이면 원래 값을 둔다(배송비·N포인트·광고·상품수). 기준 설명은 0. 요약 '달성율' 셀 메모.
-- 자동 갱신: 워커 `scheduled`(크론 `*/20 21-23,0-1 * * *` = 06~10시 KST 20분마다). revenue-daily.json `updatedAt` 이 바뀌면 바로, 07시 이후 그날 안 돌았으면 한 번. 결과는 KV `kpisheet:last`.
+- 자동 갱신: 워커 `scheduled`(크론 `*/10 22-23,0 * * *` + `0 1 * * *` = 07:00~10:00 KST 10분마다 — 처음엔 06~10시 20분마다였다). 확인은 revenue-daily.json 앞 100바이트(Range)의 updatedAt 만 본다. revenue-daily.json `updatedAt` 이 바뀌면 바로, 07시 이후 그날 안 돌았으면 한 번. 결과는 KV `kpisheet:last`.
 
 ## 2026-10-22 — 맵핑 불가(1:N)
 배포: `worker.js` (wrangler) + `ecount-tab.js` (Pages)

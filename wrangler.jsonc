@@ -9,8 +9,9 @@
   // 다시 번들하면 esbuild 의 __name 헬퍼가 깨져서 배포가 거부된다(ReferenceError).
   "no_bundle": true,
   "observability": { "enabled": true },
-  // KPI 시트 자동 갱신 (worker.js scheduled 참조) — 06~10시 KST 20분마다
-  "triggers": { "crons": ["*/20 21-23,0-1 * * *"] },
+  // KPI 시트 자동 갱신 (worker.js scheduled 참조) — 07:00~10:00 KST 10분마다
+  //   slackbot 이 revenue-daily.json 을 올리는 시각(실측 07:19~09:34)만 덮는다. 확인은 파일 앞 100바이트라 자주 봐도 부하 없음.
+  "triggers": { "crons": ["*/10 22-23,0 * * *", "0 1 * * *"] },
   "kv_namespaces": [
     { "binding": "CAFE24_TOKEN_KV", "id": "58e3e3a76f9d408ea0536cdac1b3c783" }
   ]
