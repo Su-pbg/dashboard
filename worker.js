@@ -43,6 +43,23 @@ async function verifyToken(env, tok) {
 }
 __name(verifyToken, "verifyToken");
 var worker_default = {
+  // [2026-10-27] KPI 시트 자동 갱신 — Cloudflare 크론(06~10시 KST, 20분마다).
+  //   slackbot 이 revenue-daily.json 을 새로 올리면(updatedAt 이 바뀌면) 바로 시트를 다시 쓴다.
+  //   07시가 지나도 그날 한 번도 안 돌았으면 그냥 한 번 돈다(선수금 처리완료 반영 등 안전망).
+  async scheduled(event, env, ctx) {
+    const kv = env.CAFE24_TOKEN_KV;
+    if (!kv || !env.DASHBOARD_KEY) return;
+    const SHEET = "1YAm7ec7C0nw7g3n0MVcM5T625OEW60V-ORLxghmz8QQ";
+    const kst = new Date(Date.now() + 9 * 3600 * 1e3), today = kst.toISOString().slice(0, 10), hour = kst.getUTCHours();
+    const last = JSON.parse((await kv.get("kpisheet:last")) || "{}");
+    let src = "";
+    try { src = (await (await fetch("https://su-pbg.github.io/dashboard/revenue-daily.json?ts=" + Date.now())).json()).updatedAt || ""; } catch (e) { }
+    const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
+    if (!fresh && !due) return;
+    const r = await worker_default.fetch(new Request(`https://kpi.local/kpisheet?id=${SHEET}&key=${encodeURIComponent(env.DASHBOARD_KEY)}`), env);
+    const body = await r.text();
+    await kv.put("kpisheet:last", JSON.stringify({ src, day: today, at: kst.toISOString().slice(0, 16), ok: /"ok":true/.test(body), res: body.slice(0, 600) }));
+  },
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
     try {
@@ -312,6 +329,39 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         return json({ ok: true, tab, wrote: wj.totalUpdatedCells });
       }
 
+      // [2026-10-27] KPI 매출 기준 = 슬랙봇 매출총액(net) − 타 조직 개인결제창 − 선수금 미완납 (Su).
+      //   slackbot 은 개인결제창 제외를 2026-09-01 주문부터만 한다(소급 안 함). 그 전 달은 여기서 한 달씩 세어 KV 에 둔다.
+      //   GET /kpisheet?paywin=YYYY-MM → KV kpitt:{YYYY-MM} = { "YYYY-MM-DD": {net, gmv, cnt, ids[]} }
+      //   주문 단위로 뺀다: 품목이 전부 타 조직 개인결제창인 주문만(정상 상품이 섞이면 남긴다 — CLAUDE.md 규칙과 같다).
+      if (url.pathname === "/kpisheet" && /^\d{4}-\d{2}$/.test(q.get("paywin") || "")) {
+        const ym = q.get("paywin"), kvP = env.CAFE24_TOKEN_KV;
+        if (!kvP) return json({ error: "KV 가 연결돼 있지 않습니다" }, 503);
+        if (ym >= "2026-09") return json({ ok: true, ym, skipped: "slackbot 이 이미 뺀다" });
+        const tok = await getCafe24AccessToken(env);
+        if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+        const last = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+        const out = {}; let pages = 0, truncated = false, scanned = 0;
+        const n0 = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+        for (let p2 = 0; p2 < ORDER_MAX_PAGES; p2++) {
+          const j = await cafe24Get(env.CAFE24_MALL_ID, tok,
+            `orders?start_date=${ym}-01&end_date=${ym}-${String(last).padStart(2, "0")}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p2 * ORDER_PAGE}&embed=items`, false, env);
+          const arr = j.orders || []; pages++; scanned += arr.length;
+          for (const o of arr) {
+            const its = o.items || [];
+            if (!its.length || !its.every((it) => isExcludedPaywin(it.product_name || it.product_name_default || ""))) continue;
+            if (o.paid !== "T") continue;
+            const dt = String(o.order_date || "").slice(0, 10), a = o.actual_order_amount || {};
+            const x = out[dt] || (out[dt] = { net: 0, gmv: 0, cnt: 0, ids: [] });
+            x.net += n0(o.payment_amount); x.gmv += n0(a.order_price_amount) + n0(a.shipping_fee); x.cnt++; x.ids.push(o.order_id);
+          }
+          if (arr.length < ORDER_PAGE) break;
+          if (p2 === ORDER_MAX_PAGES - 1) truncated = true;
+        }
+        await kvP.put("kpitt:" + ym, JSON.stringify(out));
+        const tot = Object.values(out).reduce((a2, x) => ({ net: a2.net + x.net, cnt: a2.cnt + x.cnt }), { net: 0, cnt: 0 });
+        return json({ ok: true, ym, scanned, pages, truncated, excludedOrders: tot.cnt, excludedNet: tot.net });
+      }
+
       if (url.pathname === "/kpisheet") {
         const sa = JSON.parse(env.GA_SA_KEY);
         const id = q.get("id");
@@ -332,6 +382,49 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         for (const d of [...arc, ...cur]) if (d && d.date) byDate.set(d.date, d);
         const days = [...byDate.values()].sort((a2, b2) => a2.date.localeCompare(b2.date));
         if (!days.length) return json({ error: "revenue-daily 데이터가 없습니다" }, 400);
+        // [2026-10-27] 매출 기준 보정 — 위 paywin 주석 참조. net 만 고친다(GMV 는 거래액이라 그대로).
+        //   ① 타 조직 개인결제창(2026-08 이전): KV kpitt:{월}. 주문 건수·GMV 도 같이 뺀다(주문 자체가 이커머스 것이 아니다).
+        //   ② 선수금 미완납: 이카운트 대조 결과에 '선수금' 표시가 있고 공유 메모에서 처리완료(done)가 아닌 주문.
+        //      금액은 대조 결과의 카페24 실결제(paid). 주문일(주문번호 앞 8자리)의 매출에서 뺀다.
+        //      대조를 돌린 날짜만 알 수 있다 — 대조 전 기간의 선수금은 못 뺀다(adj.advNote 로 알린다).
+        const kvK = env.CAFE24_TOKEN_KV;
+        const adj = { tt: {}, adv: {}, ttMonths: [], ttMissing: [], advOrders: 0, advNet: 0, advMonths: [] };
+        if (kvK) {
+          const mons = [...new Set(days.map((d) => d.date.slice(0, 7)))];
+          await Promise.all(mons.filter((m) => m < "2026-09").map(async (m) => {
+            const r = await kvK.get("kpitt:" + m);
+            if (!r) { adj.ttMissing.push(m); return; }
+            adj.ttMonths.push(m); Object.assign(adj.tt, JSON.parse(r)); }));
+          const getJ2 = async (k, d) => { const r = await kvK.get(k); return r ? JSON.parse(r) : d; };
+          const listMeta = async (prefix, withVal) => { const out = []; let cursor;
+            do { const l = await kvK.list({ prefix, cursor }); out.push(...l.keys); cursor = l.list_complete ? null : l.cursor; } while (cursor);
+            return out; };
+          const hasAdv2 = (t) => String(t || "").split(" · ").some((x) => /^선수금(?! 정산)/.test(x));
+          await Promise.all(mons.filter((m) => m >= "2026-09").map(async (m) => {
+            const idx = await getJ2("ecrecon:idx:" + m, {});
+            const ik = await listMeta(`ecrecon:i:${m}:`);
+            const iv = await Promise.all(ik.map((k) => kvK.get(k.name)));
+            ik.forEach((k, i) => { if (iv[i]) idx[k.name.slice(`ecrecon:i:${m}:`.length)] = JSON.parse(iv[i]); });
+            if (!Object.keys(idx).length) return;
+            adj.advMonths.push(m);
+            const notes = await getJ2("ecrecon:note:" + m, {});
+            for (const k of await listMeta(`ecrecon:n:${m}:`)) notes[k.name.slice(`ecrecon:n:${m}:`.length)] = k.metadata || {};
+            const seen = new Set();
+            for (const v of Object.values(idx)) for (const x of ((v.summary || {}).issues || [])) {
+              if (!x || seen.has(x.o) || !hasAdv2(x.tags) || (notes[x.o] || {}).done) continue;
+              seen.add(x.o);
+              const o8 = String(x.o).slice(0, 8), dt = `${o8.slice(0, 4)}-${o8.slice(4, 6)}-${o8.slice(6, 8)}`;
+              const amt = Number(x.paid) || 0;
+              adj.adv[dt] = (adj.adv[dt] || 0) + amt; adj.advOrders++; adj.advNet += amt;
+            } }));
+        }
+        for (const d of days) {
+          const t = adj.tt[d.date], a = adj.adv[d.date] || 0;
+          if (!t && !a) continue;
+          d.raw = { net: d.net, gmv: d.gmv, count: d.count };
+          if (t) { d.net = (d.net || 0) - t.net; d.gmv = (d.gmv || 0) - t.gmv; d.count = Math.max(0, (d.count || 0) - t.cnt); }
+          if (a) d.net = (d.net || 0) - a;
+        }
 
         // 한 줄치 지표 — 일·주·월 공통
         const blank = () => ({ gmv: 0, cnt: 0, ship: null, disc: 0, cpn: 0, net: 0, point: 0, dep: 0, npay: null, refund: 0 });
@@ -425,9 +518,9 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           : (typeof c === "number" ? (tgt[c - 1] || 0) : Q[c].reduce((a2, i) => a2 + (tgt[i - 1] || 0), 0));
         const actOf = (c) => c == null ? sumOf(kpiYear, [1,2,3,4,5,6,7,8,9,10,11,12])
           : (typeof c === "number" ? mv(kpiYear, c) : sumOf(kpiYear, Q[c]));
-        const kpi = [[], ["📌KPI"], ["구분", "", `${kpiYear}년`], ["", "", ...kpiCols.map((c) => c[0])],
+        const kpi = [[], ["📌KPI", "", "달성율 = 매출 ÷ 목표 · 매출 = 슬랙봇 매출총액 − 타팀 개인결제창 − 선수금 미완납(처리완료 전)"], ["구분", "", `${kpiYear}년`], ["", "", ...kpiCols.map((c) => c[0])],
           ["매출액", "전체", ...kpiCols.map((c) => tgtOf(c[1]) || "")],
-          ["", "달성율", ...kpiCols.map((c) => { const t = tgtOf(c[1]), a2 = actOf(c[1]); return t && a2 ? a2.gmv / t : ""; })],
+          ["", "달성율", ...kpiCols.map((c) => { const t = tgtOf(c[1]), a2 = actOf(c[1]); return t && a2 ? a2.net / t : ""; })],
           ["", "아트", ...kpiCols.map(() => "")], ["", "달성율", ...kpiCols.map(() => "")],
           ["", "라이프", ...kpiCols.map(() => "")], ["", "달성율", ...kpiCols.map(() => "")],
           [], ["📌요약"],
@@ -642,7 +735,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         } catch (e) { userNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
         return json({ ok: true, through: days[days.length - 1].date,
-          rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, 유저: userNote, 카테고리: catNote, updated: wj.totalUpdatedCells });
+          기준: { 타팀제외월: adj.ttMonths.sort(), 타팀백필필요: adj.ttMissing.sort(), 선수금대조월: adj.advMonths.sort(), 선수금미완납: adj.advOrders, 선수금미완납금액: adj.advNet }, rows: { 요약: kpi.length, 월별: monthly.length, 주별: weekly.length, 일별: daily.length }, 유저: userNote, 카테고리: catNote, updated: wj.totalUpdatedCells });
       }
 
       // ===== 공급사 담당자·구분 오버레이 =====
