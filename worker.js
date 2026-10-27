@@ -42,6 +42,71 @@ async function verifyToken(env, tok) {
   return safeEqual(sig, await hmacHex(env.DASH_SECRET, exp));
 }
 __name(verifyToken, "verifyToken");
+// [2026-10-27] KPI 시트 — 손입력이던 탭을 자동으로 채운다(Su). 원본 시트가 사람이 넣던 칸만 채우고, 나머지는 원본 수식이 계산한다.
+//   · 4-1 공급사(월) · 4-2 공급사(주) · 3 브랜드(월): 카페24 주문을 한 달씩 스캔(kpiScanMonth) → KV kpifeed:{월}.
+//     거래액 = 판매가×수량(정가, 취소·반품 품목 제외) · 거래 건수 = 수량. 원본(카페24 상품/공급사 판매통계 엑셀)과 같은 정의 — 2026-09 대조로 확인.
+//     새 달/주가 오면 오른쪽에 블록(열)을 원본 서식 그대로 늘리고, 처음 보는 공급사·브랜드는 아래에 줄을 늘린다.
+//   · cf. 엠디별: 4-1·4-2 를 SUMIF 하는 원본 수식. 새 달/주 줄만 늘리고 참조 열을 옮긴다.
+//   · 6-4 유저(일별): 회원가입·DAU·새 사용자 = GA4 '봇·어뷰징 제외'(대시보드 기본값) — 2026-10-20 부터(그 전은 원본 손입력 그대로).
+//     첫 구매 사용자 거래액·건수 = 카페24 주문 first_order='T' — 2026-10-19 부터.
+//   · 1-4·6-4 일별, 1-3·6-3 주별 줄이 모자라면 원본 마지막 줄을 복사해 늘린다(수식 포함, 범위 참조는 새 기간으로 옮긴다).
+var KPI_EXT_FROM = { month: "2026-10", week: "2026-10-15", user: "2026-10-20", fb: "2026-10-19" };
+var kpiWeekNo = (d) => Math.min(5, Math.floor((+String(d).slice(8, 10) - 1) / 7) + 1);
+var kpiWeekKey = (d) => `${String(d).slice(0, 7)}-W${kpiWeekNo(d)}`;
+var kpiWeekLabel = (k, suffix = "주차") => `${k.slice(0, 4)}년 ${+k.slice(5, 7)}월 ${k.slice(-1)}${suffix}`;
+async function kpiScanMonth(env, ym) {
+  const tok = await getCafe24AccessToken(env);
+  if (!tok) throw new Error("cafe24 인증 실패");
+  const mallId = env.CAFE24_MALL_ID, kv = env.CAFE24_TOKEN_KV;
+  const last = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+  const n0 = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+  const out = { ym, sup: {}, supW: {}, brand: {}, fb: {}, pno: {}, orders: 0, truncated: false, at: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16) };
+  const add = (m, k, sale, net, qty) => { const x = m[k] || (m[k] = { sale: 0, net: 0, qty: 0 }); x.sale += sale; x.net += net; x.qty += qty; };
+  for (let p = 0; p < ORDER_MAX_PAGES; p++) {
+    const j = await cafe24Get(mallId, tok, `orders?start_date=${ym}-01&end_date=${ym}-${String(last).padStart(2, "0")}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=items`, false, env);
+    const arr = j.orders || [];
+    for (const o of arr) {
+      if (o.paid !== "T") continue;
+      out.orders++;
+      const dt = String(o.order_date || "").slice(0, 10), wk = kpiWeekKey(dt);
+      let osale = 0, onet = 0, oqty = 0;
+      for (const it of o.items || []) {
+        if (isCanceledStatus(it.order_status)) continue;
+        const qty = n0(it.quantity), sale = (n0(it.product_price) + n0(it.option_price)) * qty;
+        const net = sale - (n0(it.additional_discount_price) + n0(it.coupon_discount_price) + n0(it.app_item_discount_amount) + n0(it.market_discount_amount));
+        const sn = it.supplier_name || "(공급사 없음)";
+        add(out.sup, sn, sale, net, qty);
+        add(out.supW[wk] || (out.supW[wk] = {}), sn, sale, net, qty);
+        add(out.pno, String(it.product_no), sale, net, qty);
+        osale += sale; onet += net; oqty += qty;
+      }
+      if (o.first_order === "T" && oqty > 0) { const x = out.fb[dt] || (out.fb[dt] = { sale: 0, net: 0, pay: 0, cnt: 0 });
+        x.sale += osale; x.net += onet; x.pay += n0(o.payment_amount); x.cnt++; }
+    }
+    if (arr.length < ORDER_PAGE) break;
+    if (p === ORDER_MAX_PAGES - 1) out.truncated = true;
+  }
+  // 브랜드 — 주문 품목엔 브랜드가 없다 → 상품(100개씩)의 brand_code + 브랜드 목록(KV 하루)
+  let brands = null; try { const v = await kv.get("cafe24:brands:v1"); brands = v ? JSON.parse(v) : null; } catch (e) { }
+  if (!brands) { brands = {};
+    for (let p = 0; p < 20; p++) { const b = await cafe24Get(mallId, tok, `brands?limit=100&offset=${p * 100}`, false, env);
+      const arr = b.brands || []; for (const x of arr) brands[x.brand_code] = x.brand_name; if (arr.length < 100) break; }
+    try { await kv.put("cafe24:brands:v1", JSON.stringify(brands), { expirationTtl: 86400 }); } catch (e) { } }
+  const pmap = JSON.parse((await kv.get("kpifeed:pbrand")) || "{}");
+  const need = Object.keys(out.pno).filter((x) => !(x in pmap));
+  for (let i = 0; i < need.length && i < 1500; i += 100) {
+    const j = await cafe24Get(mallId, tok, `products?product_no=${need.slice(i, i + 100).join(",")}&limit=100&fields=product_no,brand_code`, false, env);
+    for (const p of j.products || []) pmap[String(p.product_no)] = p.brand_code || "";
+    for (const x of need.slice(i, i + 100)) if (!(x in pmap)) pmap[x] = "";
+  }
+  await kv.put("kpifeed:pbrand", JSON.stringify(pmap));
+  for (const [pno, v] of Object.entries(out.pno)) add(out.brand, brands[pmap[pno]] || "(브랜드 없음)", v.sale, v.net, v.qty);
+  delete out.pno;
+  await kv.put("kpifeed:" + ym, JSON.stringify(out));
+  return out;
+}
+__name(kpiScanMonth, "kpiScanMonth");
+
 var worker_default = {
   // [2026-10-27] KPI 시트 자동 갱신 — Cloudflare 크론(06~10시 KST, 20분마다).
   //   slackbot 이 revenue-daily.json 을 새로 올리면(ETag 가 바뀌면) 바로 시트를 다시 쓴다.
@@ -60,10 +125,31 @@ var worker_default = {
       src = ((await h.text()).match(/"updatedAt"\s*:\s*"([^"]+)"/) || [])[1] || "";
     } catch (e) { }
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
-    if (!fresh && !due) return;
-    const r = await worker_default.fetch(new Request(`https://kpi.local/kpisheet?id=${SHEET}&key=${encodeURIComponent(env.DASHBOARD_KEY)}`), env);
-    const body = await r.text();
-    await kv.put("kpisheet:last", JSON.stringify({ src, day: today, at: kst.toISOString().slice(0, 16), ok: /"ok":true/.test(body), res: body.slice(0, 600) }));
+    // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
+    let job = JSON.parse((await kv.get("kpijob")) || "null");
+    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "ext", "sheet"], log: [], at: kst.toISOString().slice(0, 16) }; }
+    const KEY = encodeURIComponent(env.DASHBOARD_KEY), call = async (path) => { const r = await worker_default.fetch(new Request("https://kpi.local" + path + (path.includes("?") ? "&" : "?") + "key=" + KEY), env); return (await r.text()).slice(0, 300); };
+    const step = job.todo[0];
+    try {
+      if (step === "users") {
+        const U = JSON.parse((await kv.get("kpiusers:v1")) || "{}"); const yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
+        const missing = []; for (let d = KPI_EXT_FROM.user; d <= yest; d = new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10)) if (!U[d] || d >= new Date(kst.getTime() - 3 * 864e5).toISOString().slice(0, 10)) missing.push(d);
+        for (const d of missing.slice(0, 3)) job.log.push("users " + d + " " + (await call("/kpisheet?feed=users&date=" + d)).slice(0, 80));
+        if (missing.length <= 3) job.todo.shift();
+      } else if (step === "scan") {
+        const yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10), ms = [yest.slice(0, 7)];
+        if (+yest.slice(8, 10) <= 5) { const pm = new Date(Date.UTC(+yest.slice(0, 4), +yest.slice(5, 7) - 2, 1)).toISOString().slice(0, 7); ms.unshift(pm); }
+        const ym = ms.find((m) => !(job.scanned || []).includes(m));
+        job.log.push("scan " + ym + " " + (await call("/kpisheet?feed=scan&ym=" + ym)).slice(0, 80));
+        (job.scanned = job.scanned || []).push(ym);
+        if (ms.every((m) => job.scanned.includes(m))) job.todo.shift();
+      } else if (step === "ext") { job.log.push("ext " + (await call(`/kpisheet?id=${SHEET}&part=ext`))); job.todo.shift(); }
+      else if (step === "sheet") { const body = await call(`/kpisheet?id=${SHEET}`); job.log.push("sheet " + body.slice(0, 120)); job.todo.shift();
+        await kv.put("kpisheet:last", JSON.stringify({ src: job.src, day: today, at: kst.toISOString().slice(0, 16), ok: /"ok":true/.test(body), res: body.slice(0, 600) })); }
+    } catch (e) { job.log.push(step + " 실패 " + String(e && e.message || e).slice(0, 120)); job.fail = (job.fail || 0) + 1; if (job.fail > 3) job.todo.shift(); }
+    if (!job.todo.length) job.done = true;
+    job.log = job.log.slice(-30);
+    await kv.put("kpijob", JSON.stringify(job));
   },
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -380,6 +466,212 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         return json({ ok: true, tab, wrote: wj.totalUpdatedCells });
       }
 
+      // ===== KPI 시트 확장 탭 (2026-10-27) — 위 kpiScanMonth 주석 참조 =====
+      //   GET /kpisheet?feed=scan&ym=YYYY-MM   카페24 한 달 스캔 → KV kpifeed:{월}
+      //   GET /kpisheet?feed=users&date=YYYY-MM-DD   GA4(봇·어뷰징 제외) 하루 → KV kpiusers:v1
+      //   GET /kpisheet?id=…&part=ext   시트의 확장 탭(6-4·4-1·4-2·3·엠디별·일/주 줄 늘리기)을 채운다
+      if (url.pathname === "/kpisheet" && q.get("feed") === "scan" && /^\d{4}-\d{2}$/.test(q.get("ym") || "")) {
+        try { const o = await kpiScanMonth(env, q.get("ym"));
+          const top = (m, n = 8) => Object.entries(m).sort((a2, b2) => b2[1].sale - a2[1].sale).slice(0, n).map(([k, v]) => [k, v.sale, v.net, v.qty]);
+          return json({ ok: true, ym: o.ym, orders: o.orders, truncated: o.truncated, sup: top(o.sup), brand: top(o.brand), weeks: Object.keys(o.supW), fbDays: Object.keys(o.fb).length,
+            fbSample: Object.entries(o.fb).slice(0, 40) });
+        } catch (e) { return json({ error: String(e.message || e) }, 500); }
+      }
+      if (url.pathname === "/kpisheet" && q.get("feed") === "users" && /^\d{4}-\d{2}-\d{2}$/.test(q.get("date") || "")) {
+        const d = q.get("date"), kvU = env.CAFE24_TOKEN_KV;
+        const r = await worker_default.fetch(new Request(`https://kpi.local/?bs=${d}&be=${d}&as=${d}&ae=${d}&autoExclLowEngagement=1&key=${encodeURIComponent(env.DASHBOARD_KEY)}`), env);
+        const o = await r.json().catch(() => ({}));
+        const k = {}; for (const x of o.kpis || []) k[x.label] = x.after;
+        const dau = o.usersInRange && o.usersInRange.after;
+        if (dau == null) return json({ error: "GA4 응답에 활성 사용자가 없습니다", keys: Object.keys(o) }, 502);
+        const all = JSON.parse((await kvU.get("kpiusers:v1")) || "{}");
+        all[d] = { dau, nu: k["신규 방문자"] ?? null, join: k["신규 가입"] ?? null };
+        await kvU.put("kpiusers:v1", JSON.stringify(all));
+        return json({ ok: true, date: d, ...all[d] });
+      }
+      if (url.pathname === "/kpisheet" && q.get("part") === "ext") {
+        const sa = JSON.parse(env.GA_SA_KEY), id = q.get("id"), kvE = env.CAFE24_TOKEN_KV;
+        if (!id) return json({ error: "id 가 필요합니다" }, 400);
+        const tok = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+        const SH = `https://sheets.googleapis.com/v4/spreadsheets/${id}`, HJ = { Authorization: "Bearer " + tok, "Content-Type": "application/json" };
+        const meta = await (await fetch(`${SH}?fields=sheets.properties`, { headers: HJ })).json().catch(() => ({}));
+        if (!meta.sheets) return json({ error: "시트를 못 읽습니다", detail: meta?.error?.message, saEmail: sa.client_email }, 403);
+        const P = {}; for (const s of meta.sheets) P[s.properties.title] = s.properties;
+        const tabOf = (t) => Object.keys(P).find((x) => x.replace(/[:\s]/g, "") === t.replace(/[:\s]/g, "")) || t;
+        const cA1 = (n) => { let t2 = "", k = n - 1; do { t2 = String.fromCharCode(65 + (k % 26)) + t2; k = Math.floor(k / 26) - 1; } while (k >= 0); return t2; };
+        const cNum = (a) => a.split("").reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+        const ser2date = (n) => new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5).toISOString().slice(0, 10);
+        const date2ser = (d) => Math.round((Date.parse(d + "T00:00:00Z") - Date.UTC(1899, 11, 30)) / 864e5);
+        const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+        const dayLabel = (d) => `${d}(${DOW[new Date(d + "T00:00:00Z").getUTCDay()]})`;
+        const dayRow = (d) => 5 + Math.round((Date.parse(d + "T00:00:00Z") - Date.parse("2024-01-01T00:00:00Z")) / 864e5);   // 1-4·6-4 일별은 2024-01-01 = 5행
+        const addDays = (d, n) => new Date(Date.parse(d + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+        const get = async (tab, rng, render = "UNFORMATTED_VALUE") => {
+          const r = await fetch(`${SH}/values/${encodeURIComponent(`'${tab}'!${rng}`)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: HJ });
+          const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(`${tab} 읽기: ${j?.error?.message || r.status}`); return j.values || []; };
+        const reqs = [], vals = [];
+        const flush = async () => {
+          if (reqs.length) { const r = await fetch(`${SH}:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ requests: reqs.splice(0) }) });
+            if (!r.ok) throw new Error("batchUpdate: " + (await r.text()).slice(0, 300)); }
+          for (let i = 0; i < vals.length; i += 500) { const r = await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ,
+            body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: vals.slice(i, i + 500) }) });
+            if (!r.ok) throw new Error("values: " + (await r.text()).slice(0, 300)); }
+          vals.length = 0; };
+        const growCols = (tab, need) => { const p = P[tab]; if (p.gridProperties.columnCount < need) {
+          reqs.push({ appendDimension: { sheetId: p.sheetId, dimension: "COLUMNS", length: need - p.gridProperties.columnCount + 6 } });
+          p.gridProperties.columnCount = need + 6; } };
+        const growRows = (tab, need) => { const p = P[tab]; if (p.gridProperties.rowCount < need) {
+          reqs.push({ appendDimension: { sheetId: p.sheetId, dimension: "ROWS", length: need - p.gridProperties.rowCount + 20 } });
+          p.gridProperties.rowCount = need + 20; } };
+        const copyCols = (tab, c0, w, dst) => reqs.push({ copyPaste: { source: { sheetId: P[tab].sheetId, startColumnIndex: c0 - 1, endColumnIndex: c0 - 1 + w },
+          destination: { sheetId: P[tab].sheetId, startColumnIndex: dst - 1, endColumnIndex: dst - 1 + w }, pasteType: "PASTE_NORMAL" } });
+        const copyRow = (tab, r0, dst, n = 1, type = "PASTE_NORMAL") => reqs.push({ copyPaste: { source: { sheetId: P[tab].sheetId, startRowIndex: r0 - 1, endRowIndex: r0 },
+          destination: { sheetId: P[tab].sheetId, startRowIndex: dst - 1, endRowIndex: dst - 1 + n }, pasteType: type } });
+        const kst = new Date(Date.now() + 9 * 3600e3), yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
+        const note = {};
+        const monthsTo = (from, to) => { const o = []; let [y, m] = from.split("-").map(Number); const [ty, tm] = to.split("-").map(Number);
+          while (y < ty || (y === ty && m <= tm)) { o.push(`${y}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; y++; } } return o; };
+        const months = monthsTo(KPI_EXT_FROM.month, yest.slice(0, 7));
+        const feedMonths = monthsTo(KPI_EXT_FROM.fb.slice(0, 7), yest.slice(0, 7));
+        const feed = {}; for (const m of feedMonths) { const v = await kvE.get("kpifeed:" + m); feed[m] = v ? JSON.parse(v) : null; }
+        const weeks = []; for (let d = KPI_EXT_FROM.week; d <= yest; d = addDays(d, 1)) { const k = kpiWeekKey(d); if (!weeks.includes(k)) weeks.push(k); }
+        const val = (x) => (x ? x.sale : "");
+        try {
+          // ---------- 일별 줄 늘리기 (1-4 · 6-4) — 원본 마지막 줄을 복사(수식 포함), 날짜 라벨만 새로 ----------
+          for (const t0 of ["1-4. 자사몰 GMV(일별)", "6-4. 유저(일별)"]) {
+            const t = tabOf(t0); const colB = await get(t, "B1:B3000");
+            let lastR = 0, lastD = ""; colB.forEach((r, i) => { const m = String(r[0] || "").match(/^(\d{4}-\d{2}-\d{2})/); if (m) { lastR = i + 1; lastD = m[1]; } });
+            if (lastD && lastD < yest) { const n = Math.round((Date.parse(yest) - Date.parse(lastD)) / 864e5) + 7;   // 일주일치 여유
+              growRows(t, lastR + n + 1); copyRow(t, lastR, lastR + 1, n);
+              for (let i = 1; i <= n; i++) vals.push({ range: `'${t}'!B${lastR + i}`, values: [[dayLabel(addDays(lastD, i))]] });
+              note[t0] = `+${n}일`; }
+          }
+          await flush();
+          // ---------- 6-4 유저(일별): C 회원가입 · E DAU · G 새 사용자 · Q·R 첫 구매 ----------
+          {
+            const t = tabOf("6-4. 유저(일별)"), U = JSON.parse((await kvE.get("kpiusers:v1")) || "{}");
+            const tr = dayRow(addDays(KPI_EXT_FROM.user, -1));   // 원본 마지막 손입력 줄(수식 원본)
+            const r0 = dayRow(KPI_EXT_FROM.user), r1 = dayRow(yest);
+            if (r1 >= r0) copyRow(t, tr, r0, r1 - r0 + 1, "PASTE_FORMULA");
+            await flush();
+            let nU = 0, nF = 0;
+            for (let d = KPI_EXT_FROM.fb; d <= yest; d = addDays(d, 1)) { const r = dayRow(d);
+              const u = U[d], fbv = (feed[d.slice(0, 7)] || { fb: {} }).fb[d];
+              if (d >= KPI_EXT_FROM.user) { vals.push({ range: `'${t}'!C${r}`, values: [[u && u.join != null ? u.join : ""]] },
+                { range: `'${t}'!E${r}`, values: [[u ? u.dau : ""]] }, { range: `'${t}'!G${r}`, values: [[u && u.nu != null ? u.nu : ""]] }); if (u) nU++; }
+              if (feed[d.slice(0, 7)]) { vals.push({ range: `'${t}'!Q${r}:R${r}`, values: [[fbv ? fbv.sale : 0, fbv ? fbv.cnt : 0]] }); nF++; } }
+            note["6-4"] = `유저 ${nU}일 · 첫구매 ${nF}일`;
+            await flush();
+          }
+          // ---------- 블록(열) 늘리기 공통: 3행 라벨로 블록을 찾고, 없으면 마지막 블록을 복사해 오른쪽에 붙인다 ----------
+          const blocks = async (t, w, keyOf, labelOf, wanted) => {
+            const h = (await get(t, "A3:ZZ3"))[0] || []; const at = {}; let lastC = 0;
+            h.forEach((x, i) => { const k = keyOf(x); if (k) { at[k] = i + 1; lastC = Math.max(lastC, i + 1); } });
+            const added = [];
+            for (const k of wanted) if (!at[k]) { const dst = lastC + w; growCols(t, dst + w); copyCols(t, lastC, w, dst);
+              vals.push({ range: `'${t}'!${cA1(dst)}3`, values: [[labelOf(k)]] }); at[k] = dst; lastC = dst; added.push(k); }
+            return { at, added };
+          };
+          // 줄(행) 늘리기 공통: B열 이름으로 찾고, 없으면 마지막 줄의 서식·수식을 복사해 아래에 붙인다
+          const rowsOf = async (t, names) => {
+            const b = await get(t, "B1:B3000"); const at = {}; let lastR = 4;
+            b.forEach((r, i) => { const v = String(r[0] ?? "").trim(); if (i >= 4 && v) { at[v] = at[v] || i + 1; lastR = i + 1; } });
+            const miss = names.filter((x) => !at[x]);
+            if (miss.length) { growRows(t, lastR + miss.length + 1);
+              copyRow(t, lastR, lastR + 1, miss.length, "PASTE_FORMAT"); copyRow(t, lastR, lastR + 1, miss.length, "PASTE_FORMULA");
+              miss.forEach((x, i) => { at[x] = lastR + 1 + i; vals.push({ range: `'${t}'!B${lastR + 1 + i}`, values: [[x]] }); }); }
+            return { at, lastR: lastR + miss.length, miss };
+          };
+          const monthKey = (x) => (typeof x === "number" && x > 40000 ? ser2date(x).slice(0, 7) : null);
+          const fillBlocks = (t, rows, at, keys, srcOf) => {
+            for (const k of keys) { const c = at[k]; if (!c) continue;
+              const amt = [], qty = []; for (let r = 5; r <= rows.lastR; r++) { amt.push([""]); qty.push([""]); }
+              const m = srcOf(k) || {};
+              for (const [nm, v] of Object.entries(m)) { const r = rows.at[nm]; if (!r) continue; amt[r - 5] = [v.sale]; qty[r - 5] = [v.qty]; }
+              vals.push({ range: `'${t}'!${cA1(c)}5:${cA1(c)}${rows.lastR}`, values: amt }, { range: `'${t}'!${cA1(c + 1)}5:${cA1(c + 1)}${rows.lastR}`, values: qty }); } };
+          // ---------- 4-1 공급사(월) — 블록 4칸: 거래액·건수·YoY·MoM ----------
+          {
+            const t = tabOf("4-1. 공급사별 GMV(월별)"), ms = months.filter((m) => feed[m]);
+            const names = [...new Set(ms.flatMap((m) => Object.keys(feed[m].sup)))];
+            const rows = await rowsOf(t, names); await flush();
+            const { at, added } = await blocks(t, 4, monthKey, (k) => date2ser(k + "-01"), ms); await flush();
+            fillBlocks(t, rows, at, ms, (k) => feed[k].sup);
+            for (const k of ms) { const py = at[`${+k.slice(0, 4) - 1}${k.slice(4)}`], c = at[k]; if (!py || !c) continue;   // YoY = 작년 같은 달(2025 블록은 3칸이라 복사로는 안 맞는다)
+              const f = []; for (let r = 5; r <= rows.lastR; r++) f.push([`=(${cA1(c)}${r}-${cA1(py)}${r})/${cA1(py)}${r}`]);
+              vals.push({ range: `'${t}'!${cA1(c + 2)}5:${cA1(c + 2)}${rows.lastR}`, values: f }); }
+            note["4-1"] = `${ms.join(",")} · 새 블록 ${added.length} · 새 공급사 ${rows.miss.length}`;
+            await flush();
+          }
+          // ---------- 4-2 공급사(주) — 블록 3칸: 거래액·건수·WoW ----------
+          {
+            const t = tabOf("4-2. 공급사별 GMV(주별)");
+            const wkOf = (k) => (feed[k.slice(0, 7)] || { supW: {} }).supW[k];
+            const ws2 = weeks.filter((k) => feed[k.slice(0, 7)]);
+            const names = [...new Set(ws2.flatMap((k) => Object.keys(wkOf(k) || {})))];
+            const rows = await rowsOf(t, names); await flush();
+            const wKey = (x) => { const m = String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/); return m ? `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}` : null; };
+            const { at, added } = await blocks(t, 3, wKey, (k) => kpiWeekLabel(k), ws2); await flush();
+            fillBlocks(t, rows, at, ws2, wkOf);
+            note["4-2"] = `${ws2.join(",")} · 새 블록 ${added.length} · 새 공급사 ${rows.miss.length}`;
+            await flush();
+          }
+          // ---------- 3 브랜드(월) — 블록 3칸: 거래액·건수·MoM ----------
+          {
+            const t = tabOf("3. 브랜드(작가)별 GMV"), ms = months.filter((m) => feed[m]);
+            const names = [...new Set(ms.flatMap((m) => Object.keys(feed[m].brand)))];
+            const rows = await rowsOf(t, names); await flush();
+            const { at, added } = await blocks(t, 3, monthKey, (k) => date2ser(k + "-01"), ms); await flush();
+            fillBlocks(t, rows, at, ms, (k) => feed[k].brand);
+            note["3"] = `${ms.join(",")} · 새 블록 ${added.length} · 새 브랜드 ${rows.miss.length}`;
+            await flush();
+          }
+          // ---------- cf. 엠디별 — 달/주 줄 늘리기: 마지막 줄 복사 후 4-1/4-2 참조 열을 새 블록으로 옮긴다 ----------
+          for (const [t0, src0, kind] of [["cf. 엠디별(월별)", "4-1. 공급사별 GMV(월별)", "m"], ["cf. 엠디별(주별)", "4-2. 공급사별 GMV(주별)", "w"]]) {
+            const t = tabOf(t0), src = tabOf(src0);
+            const h = (await get(src, "A3:ZZ3"))[0] || [], at = {};
+            h.forEach((x, i) => { const k = kind === "m" ? monthKey(x) : ((String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/) || []).length ? (() => { const m = String(x).match(/^(\d{4})년\s*(\d+)월\s*(\d)주/); return `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}`; })() : null); if (k) at[k] = i + 1; });
+            const g = await get(t, "A1:CZ200", "FORMULA");
+            let lastR = 0, lastK = null; g.forEach((r, i) => { const x = r[1]; const k = kind === "m" ? monthKey(x) : (() => { const m = String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/); return m ? `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}` : null; })(); if (k && i >= 4) { lastR = i + 1; lastK = k; } });
+            if (!lastK || !at[lastK]) { note[t0] = "기준 줄 없음"; continue; }
+            const want = (kind === "m" ? months : weeks).filter((k) => k > lastK && at[k]);
+            const tmpl = g[lastR - 1]; const n = want.length;
+            if (n) { growRows(t, lastR + n + 1); copyRow(t, lastR, lastR + 1, n, "PASTE_FORMAT"); await flush(); }
+            want.forEach((k, i) => { const delta = at[k] - at[lastK];
+              const row = tmpl.map((v, j) => { if (j === 1) return kind === "m" ? date2ser(k + "-01") : kpiWeekLabel(k);
+                if (typeof v !== "string" || !v.startsWith("=")) return v ?? "";
+                return v.replace(new RegExp(`(${src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'!)([A-Z]+):([A-Z]+)`, "g"), (all, pre, a, b) => (a === b && a !== "C" ? `${pre}${cA1(cNum(a) + delta)}:${cA1(cNum(a) + delta)}` : all))
+                  .replace(/([A-Z]+)(\d+)(?![\d:(])/g, (all, col, r) => (+r === lastR ? `${col}${lastR + 1 + i}` : all)); });
+              vals.push({ range: `'${t}'!A${lastR + 1 + i}:${cA1(row.length)}${lastR + 1 + i}`, values: [row] }); });
+            note[t0] = n ? `+${n}줄 (${want.join(",")})` : "변경 없음";
+            await flush();
+          }
+          // ---------- 주별 줄 늘리기 (1-3 자사몰 · 6-3 유저) — 마지막 줄 복사, 일별 범위 참조는 새 주의 날짜 줄로 ----------
+          for (const t0 of ["1-3. 자사몰 GMV(주별)", "6-3. 유저(주별)"]) {
+            const t = tabOf(t0), g = await get(t, "A1:AZ400", "FORMULA");
+            const wk = (x) => { const m = String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/); return m ? `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}` : null; };
+            let lastR = 0, lastK = null; g.forEach((r, i) => { const k = wk(r[1]); if (k && i >= 4) { lastR = i + 1; lastK = k; } });
+            if (!lastK) { note[t0] = "기준 줄 없음"; continue; }
+            const want = weeks.concat(yest > KPI_EXT_FROM.week ? [kpiWeekKey(yest)] : []).filter((k, i, a) => a.indexOf(k) === i && k > lastK);
+            const wkDays = (k) => { const y = k.slice(0, 7), w = +k.slice(-1), s = (w - 1) * 7 + 1;
+              const last = new Date(Date.UTC(+y.slice(0, 4), +y.slice(5, 7), 0)).getUTCDate(); const e = w === 5 ? last : Math.min(last, s + 6);
+              return [dayRow(`${y}-${String(s).padStart(2, "0")}`), dayRow(`${y}-${String(e).padStart(2, "0")}`)]; };
+            const [ta, tb] = wkDays(lastK), tmpl = g[lastR - 1];
+            if (want.length) { growRows(t, lastR + want.length + 1); copyRow(t, lastR, lastR + 1, want.length, "PASTE_FORMAT"); await flush(); }
+            want.forEach((k, i) => { const [na, nb] = wkDays(k), R = lastR + 1 + i;
+              const row = tmpl.map((v, j) => { if (j === 1) return kpiWeekLabel(k, "주");
+                if (typeof v !== "string" || !v.startsWith("=")) return v ?? "";
+                const keep = [];   // 다른 탭 참조(!A1:B2)는 잠시 빼 두고, 같은 탭 참조만 한 줄씩 내린다
+                let f = v.replace(/'[^']+'!\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?/g, (all) => { const m = all.match(/^(.*!)([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+                  keep.push(m && +m[3] === ta && +m[5] === tb ? `${m[1]}${m[2]}${na}:${m[4]}${nb}` : all); return `\u0000${keep.length - 1}\u0000`; });
+                f = f.replace(/(^|[^A-Z$\u0000])([A-Z]{1,2})(\d+)(?![\d(])/g, (all, pre, col, r) => (+r >= 5 && +r <= lastR ? `${pre}${col}${+r + 1 + i}` : all));
+                return f.replace(/\u0000(\d+)\u0000/g, (all, n) => keep[+n]); });
+              vals.push({ range: `'${t}'!A${R}:${cA1(row.length)}${R}`, values: [row] }); });
+            note[t0] = want.length ? `+${want.length}줄 (${want.join(",")})` : "변경 없음";
+            await flush();
+          }
+        } catch (e) { return json({ error: String(e.message || e), note }, 500); }
+        return json({ ok: true, yest, note });
+      }
       // [2026-10-27] KPI 매출 기준 = 슬랙봇 매출총액(net) − 타 조직 개인결제창 − 선수금 미완납 (Su).
       //   slackbot 은 개인결제창 제외를 2026-09-01 주문부터만 한다(소급 안 함). 그 전 달은 여기서 한 달씩 세어 KV 에 둔다.
       //   GET /kpisheet?paywin=YYYY-MM → KV kpitt:{YYYY-MM} = { "YYYY-MM-DD": {net, gmv, cnt, ids[]} }
@@ -820,51 +1112,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           catNote = `월 ${Object.keys(catMon).length} · 주 ${Object.keys(catWk).length} → ${cells.length}행`;
         } catch (e) { catNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
-        // 6-x 유저 탭 — GA4 일별(활성사용자·새사용자·회원가입). 원본은 손입력이었다.
-        //   첫 구매 사용자(Q~U)는 GA4 세그먼트가 필요해 안 건드린다(이관된 값 유지).
-        //   전환(CVR)=(회원가입+주문건수)/DAU · 구매전환=주문건수/DAU — 원본 수식과 같다.
-        let userNote = "skip";
-        try {
-          const propertyId = env.GA4_PROPERTY_ID && String(env.GA4_PROPERTY_ID).trim() || "333394141";
-          const gtok = await getAccessToken(sa);
-          const base = { dateRanges: [{ startDate: "2024-01-01", endDate: "today" }], dimensions: [{ name: "date" }], limit: 2e5 };
-          const [ua, uj] = await Promise.all([
-            runReport(propertyId, gtok, { ...base, metrics: [{ name: "activeUsers" }, { name: "newUsers" }] }),
-            // 신규 가입 = 가입 완료 페이지(join_result·join_end) 도달 세션 수 — 워커 overview 와 같은 정의다.
-            runReport(propertyId, gtok, { ...base, metrics: [{ name: "sessions" }],
-              dimensionFilter: { orGroup: { expressions: ["join_result", "join_end"].map((v) => ({
-                filter: { fieldName: "pagePath", stringFilter: { matchType: "CONTAINS", value: v } } })) } } })
-          ]);
-          const G = {};
-          for (const r of ua) { const d = r.dimensionValues[0].value;
-            G[`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`] = { dau: +r.metricValues[0].value, nu: +r.metricValues[1].value, join: 0 }; }
-          for (const r of uj) { const d = r.dimensionValues[0].value, k = `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
-            if (G[k]) G[k].join = +r.metricValues[0].value; }
-          const UT = "6-4. 유저(일별)";
-          const rr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${UT}'!B1:B3000`)}`,
-            { headers: { Authorization: "Bearer " + tok } });
-          const rj = await rr.json().catch(() => ({}));
-          const col = (rj.values || []).map((x) => String(x[0] || ""));
-          const rowOf = {};
-          col.forEach((v, i) => { const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) rowOf[`${m[1]}-${m[2]}-${m[3]}`] = i + 1; });
-          const data2 = [];
-          for (const [dt, g] of Object.entries(G)) {
-            const row = rowOf[dt]; if (!row) continue;
-            const pd = new Date(Date.parse(dt) - 7 * 864e5).toISOString().slice(0, 10);
-            const pg = G[pd], dd = dayM.get(dt), pdd = dayM.get(pd);
-            const cnt = dd ? dd.cnt : 0, pcnt = pdd ? pdd.cnt : 0;
-            const ret = g.dau - g.nu, pret = pg ? pg.dau - pg.nu : 0;
-            const cvr = g.dau ? (g.join + cnt) / g.dau : "", pcvr = pg && pg.dau ? (pg.join + pcnt) / pg.dau : null;
-            const bcvr = g.dau ? cnt / g.dau : "", pbcvr = pg && pg.dau ? pcnt / pg.dau : null;
-            data2.push({ range: `'${UT}'!C${row}:P${row}`, values: [[
-              g.join, pg ? chg(g.join, pg.join) : "-", g.dau, pg ? chg(g.dau, pg.dau) : "-",
-              g.nu, g.dau ? g.nu / g.dau : "", pg ? chg(g.nu, pg.nu) : "-",
-              ret, g.dau ? ret / g.dau : "", pg ? chg(ret, pret) : "-",
-              cvr, pcvr == null ? "-" : cvr - pcvr, bcvr, pbcvr == null ? "-" : bcvr - pbcvr]] });
-          }
-          await protectedWrite(data2);
-          userNote = `${data2.length}일`;
-        } catch (e) { userNote = "실패: " + String(e && e.message || e).slice(0, 120); }
+        // 6-x 유저 탭은 part=ext 가 채운다(2026-10-27). 여기서는 안 건드린다.
+        const userNote = "part=ext";
 
         return json({ ok: true, through: days[days.length - 1].date,
           기준: { 타팀제외월: adj.ttMonths.sort(), 타팀백필필요: adj.ttMissing.sort(), 선수금대조월: adj.advMonths.sort(), 선수금미완납: adj.advOrders, 선수금미완납금액: adj.advNet }, rows: filled, 유저: userNote, 카테고리: catNote, updated: wj.totalUpdatedCells });
