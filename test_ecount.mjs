@@ -158,7 +158,16 @@ eq('대조 상태', [O1, O2, O3, O4, O5].map((id) => row(id).st), ['정상', '�
 eq('환불 전 예상 금액 비교', [row(O2).expect, row(O2).ecTot], [13000, 23000]);
 truthy('대조 결과에 이카운트 품명 저장', (() => { const rr = E.reconRows ? E.reconRows() : null; return true; })());
 eq('선수금·퀵·정산 전표 표시', row(O1).tags, '선수금(완납) · 퀵 · 선수금 정산 전표 10/20');
-eq('파일 기간 (전표 10/14~10/20, 시작 2일 전부터)', [E.covered('2026-10-12'), E.covered('2026-10-11'), E.covered('2026-10-20')], [true, false, true]);
+eq('파일 기간 (전표 10/14~10/20): 여유 구간은 판매 전표가 있는 날짜만', [E.covered('2026-10-13'), E.covered('2026-10-13', D.orders), E.covered('2026-10-12'), E.covered('2026-10-11'), E.covered('2026-10-20')], [true, true, false, false, true]);
+// 2026-10-26 사고 재현: 10/23~25 전표 파일에 10/22 주문의 반품 전표 1줄 → 10/22 는 기간 밖. 판매 전표가 있어도 결제 주문의 절반이 안 되면 기간 밖.
+{ const keep = D.ec;
+  D.ec = [{ order: '20261022-0000151', vday: '20261024', total: -416000 }, { order: '20261023-0000001', vday: '20261023', total: 10000 }, { order: '20261025-0000001', vday: '20261025', total: 10000 }];
+  const many = Array.from({ length: 20 }, (_, i) => ({ order_id: `20261022-00000${String(i).padStart(2, '0')}`, paid: 'Y', canceled: 'N' }));
+  const r1 = [E.covered('2026-10-22'), E.covered('2026-10-22', many)];
+  D.ec.push({ order: '20261022-0000016', vday: '20261023', total: 604635 });
+  const r2 = [E.covered('2026-10-22'), E.covered('2026-10-22', many), E.covered('2026-10-22', many.slice(0, 2))];
+  eq('반품 전표만 있는 여유 구간 날짜는 기간 밖', [...r1, ...r2], [false, false, true, false, true]);
+  D.ec = keep; }
 
 // 다시 올리기 · 파일 취소: 올린 파일 옆에 버튼이 보이고, 취소하면 이 파일로 남긴 날짜를 워커 undo 로 되돌리고 화면을 비운다
 try {
@@ -173,9 +182,9 @@ try {
 D.date = '2026-10-01'; E.compute();
 truthy('기간 밖 날짜는 전부 파일 기간 밖', D.rows.length > 0 && D.rows.every((r) => ['파일 기간 밖', '취소', '입금대기', '개인결제창', '카페24에 없음'].includes(r.st)));
 D.date = DATE;
-// 연말연초: 12/28~01/03 파일이면 12/26 주문까지만 기간 안
-D.ec = [{ order: '20261229-0000001', vday: '20261228', total: 1 }, { order: '20261231-0000001', vday: '20270103', total: 1 }];
-eq('연말연초 기간', [E.covered('2026-12-26'), E.covered('2026-12-25'), E.covered('2027-01-03'), E.covered('2026-07-01')], [true, false, true, false]);
+// 연말연초: 12/28~01/03 파일이면 12/26 주문까지 여유 구간. 12/27 은 판매 전표가 있어 기간 안, 12/26 은 없어 기간 밖
+D.ec = [{ order: '20261227-0000001', vday: '20261228', total: 1 }, { order: '20261229-0000001', vday: '20261228', total: 1 }, { order: '20261231-0000001', vday: '20270103', total: 1 }];
+eq('연말연초 기간', [E.covered('2026-12-27'), E.covered('2026-12-26'), E.covered('2026-12-25'), E.covered('2027-01-03'), E.covered('2026-07-01')], [true, false, false, true, false]);
 
 // 대조 파일로 맵핑 자동 학습: O2 의 품목 EC002 는 저장돼 있고, 가짜 품목 EC009 ↔ 상품3(O3) 은 새로 연결돼 저장 요청
 let posted = null; const prevFetch = ctx.fetch; ctx.fetch = async (u, opt) => { if (String(u).includes('/ecmap') && opt && opt.method === 'POST') posted = JSON.parse(opt.body); return prevFetch(u, opt); };

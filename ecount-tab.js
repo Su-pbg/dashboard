@@ -868,8 +868,16 @@ function reconRows(){
 }
 // 파일이 덮는 기간 — 이카운트 판매조회·판매현황은 '전표 날짜'로 뽑는다. 그 기간에 들어갈 주문(주말 주문 월요일 입력 고려해 시작 2일 전부터)만
 // 파일에 없으면 미입력이다. 그보다 옛 주문은 이미 그 전에 입력됐을 수 있어 '파일 기간 밖'(문제 아님)으로 둔다. (2026-10-14: 옛 날짜가 전부 미입력으로 저장된 사고)
-function ecRange(){ const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(); return vd.length?{lo:ymdAdd(vd[0],-2),hi:vd[vd.length-1]}:null; }
-function covered(date){ const R=ecRange(); if(!R) return true; const d=ymd(date); return d>=R.lo&&d<=R.hi; }
+function ecRange(){ const vd=(D.ec||[]).map(r=>r.vday).filter(Boolean).sort(); return vd.length?{lo:ymdAdd(vd[0],-2),vlo:vd[0],hi:vd[vd.length-1]}:null; }
+// 전표 시작 2일 전~전날(여유 구간)은 날짜만으로 덮였다고 보지 않는다 — 그 날짜 주문의 '판매 전표(합계 > 0)'가 파일에 실제로 있어야 하고,
+//   카페24 주문을 알면 결제된 주문의 절반 이상이 파일에 있어야 한다. 반품·정산 전표 한 줄만 있는 날짜는 기간 밖이다.
+//   (2026-10-26 사고: 10/23~25 전표 파일에 10/22 주문의 반품 전표 1줄이 있어 10/22 가 기간 안으로 잡혔고, 결제 주문 16건이 전부 미입력으로 저장됐다)
+function covered(date,orders){
+  const R=ecRange(); if(!R) return true; const d=ymd(date); if(d<R.lo||d>R.hi) return false; if(d>=R.vlo) return true;
+  const sold=new Set((D.ec||[]).filter(r=>r.order.startsWith(d)&&r.total>0).map(r=>r.order)); if(!sold.size) return false;
+  if(!orders) return true;
+  const live=orders.filter(o=>{ const ls=D.lines[o.order_id]||[]; return o.paid==='Y'&&o.canceled!=='Y'&&!(ls.length&&ls.every(l=>l.paywin==='Y')); }); return !live.length||sold.size*2>=live.length;
+}
 function buildSummary(rows){
   const sm={total:rows.length,missAmt:0,issues:[]};   // issues = 전표입력공유용, 짧게
   for(const r of rows){ sm[r.st]=(sm[r.st]||0)+1; if(r.st==='미입력') sm.missAmt+=r.paid||0;
@@ -882,7 +890,7 @@ async function saveRecon(){
   if(!D.ec||!D.orders.length) return;
   const date=D.date, pre=ymd(date); if(!D.ec.some(r=>r.order.startsWith(pre))){ D.reconSaved='nodate'; return; }
   let rows=reconRows(), file=D.ecFile;
-  if(!covered(date)){
+  if(!covered(date,D.orders)){
     // 기간 밖 날짜: 저장된 결과가 있을 때만, 이 파일에 있는 주문 줄만 바꿔 합친다. 없으면 저장하지 않는다.
     let old=null; try{ old=(await getJSON(`${WORKER}/ecrecon?date=${date}`)).day; }catch(e){}
     if(!old){ if(D.date===date){ D.reconSaved='skip-old'; render(); } return; }
@@ -1031,7 +1039,7 @@ function compute(){
       }
       // 파일 기간 밖 날짜는 그 주문의 원래 전표가 파일에 없을 수 있다(나중 반품·정산 전표만 있음) → 금액·품목을 판단하지 않는다.
       //   반품·정산 표시는 tags 로 남고, 저장된 결과에는 attachLater 가 붙인다.
-      else if(!covered(D.date)) r.st='파일 기간 밖';
+      else if(!covered(D.date,D.orders)) r.st='파일 기간 밖';
       else if(!e) r.st='미입력';
       else{
         // 환불이 끝난 부분취소는 카페24 결제액이 이미 줄어 있고 이카운트도 반품 전표가 합쳐져 그대로 비교하면 맞는다(9/29 0039 등 확인).
@@ -1284,7 +1292,7 @@ function renderRecon(){
     <p class="ec-lead">이카운트 판매현황(품목별) 또는 판매조회 엑셀을 올리면 그 날짜 카페24 주문과 맞춰 봅니다. 파일은 브라우저에서만 읽습니다.</p>
     ${dateRow(true)}
     ${D.fdates&&D.fdates.length>1?`<details ${D.batch||Object.keys(D.fres||{}).length||Object.values(D.fsel||{}).filter(Boolean).length>1?'open':''} style="background:var(--fill);border-radius:var(--r-ctrl);padding:var(--s3) var(--s4);margin-top:var(--s3)"><summary style="cursor:pointer;font-size:14px;font-weight:700">파일에 날짜가 ${n(D.fdates.length)}개 있습니다 — 여러 날짜 한 번에 대조</summary>
-      <div class="ec-row" style="margin-top:6px"><span class="ec-sub" style="margin:0">체크한 날짜를 한 번에 대조해 대조 현황에 남깁니다. 전표 기간보다 옛 주문(반품·정산 전표만 있는 날짜)은 빼 두었습니다 — 그 전표는 이전 결과에 자동으로 붙습니다.</span></div>
+      <div class="ec-row" style="margin-top:6px"><span class="ec-sub" style="margin:0">체크한 날짜를 한 번에 대조해 대조 현황에 남깁니다. 전표 기간보다 옛 주문(반품·정산 전표만 있는 날짜)은 빼 두었습니다 — 그 전표는 이전 결과에 자동으로 붙습니다. 전표 시작 전 이틀은 그 날짜 주문의 판매 전표가 파일에 있을 때만 기간 안입니다.</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px">${D.fdates.map(x=>{ const r=D.fres&&D.fres[x.d];
         return `<label style="font-size:12px;display:flex;gap:4px;align-items:center;${x.inR?'':'color:var(--muted)'}"><input type="checkbox" data-a="fsel" data-d="${x.d}" ${D.fsel[x.d]?'checked':''} ${D.batch?'disabled':''}>${esc(x.d.slice(5).replace('-','/'))} <span class="ec-sub" style="display:inline;margin:0">${n(x.n)}건</span>
           ${r?`<span class="ec-badge ${r.saved==='skip-old'?'ec-info':r.saved&&!String(r.saved).startsWith('fail')&&r.saved!=='nodate'?'ec-ok':'ec-bad'}">${r.saved==='skip-old'?'기간 밖 · 저장 안 함':r.saved==='nodate'?'파일에 없음':String(r.saved).startsWith('fail')?'저장 실패':ST_ORDER.filter(k=>r.st[k]&&k!=='정상'&&k!=='파일 기간 밖').map(k=>k+' '+r.st[k]).join(' · ')||'모두 정상'}</span>`:''}</label>`; }).join('')}</div>
