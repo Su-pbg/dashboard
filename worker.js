@@ -280,6 +280,26 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const j3 = await r3.json().catch(() => ({}));
           return json(r3.ok ? { ok: true, moved: rq.length } : { error: j3?.error?.message || `HTTP ${r3.status}` }, r3.ok ? 200 : r3.status);
         }
+        // [2026-10-27] 원본 수식 되살리기: POST {id, formulasFrom:원본ID, tab, r0, r1}
+        //   rebuildFrom 은 값으로 굳혀서 수식이 없다. 탭 이름이 원본과 같아진 뒤 원본 수식을 그대로 다시 써 넣는다(행 구간씩).
+        if (b.formulasFrom && b.tab) {
+          const tokF = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+          const HF = { Authorization: "Bearer " + tokF, "Content-Type": "application/json" };
+          const ms2 = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.formulasFrom}?fields=sheets.properties`, { headers: HF })).json().catch(() => ({}));
+          const sp = (ms2.sheets || []).map((x) => x.properties).find((x) => x.title === b.tab);
+          if (!sp) return json({ error: "원본에 탭이 없습니다: " + b.tab }, 404);
+          const nC = sp.gridProperties.columnCount, nR = sp.gridProperties.rowCount;
+          const r0 = Math.max(1, b.r0 || 1), r1 = Math.min(nR, b.r1 || nR);
+          const cL = (n) => { let t2 = "", k = n - 1; do { t2 = String.fromCharCode(65 + (k % 26)) + t2; k = Math.floor(k / 26) - 1; } while (k >= 0); return t2; };
+          const rg = `'${b.tab}'!A${r0}:${cL(nC)}${r1}`;
+          const src = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.formulasFrom}/values/${encodeURIComponent(rg)}?valueRenderOption=FORMULA&dateTimeRenderOption=SERIAL_NUMBER`, { headers: HF })).json().catch(() => ({}));
+          const vals = (src.values || []).map((r) => r.map((v) => (v == null ? "" : v)));
+          if (!vals.length) return json({ ok: true, tab: b.tab, r0, r1, rows: 0, nR });
+          const wF = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.id}/values/${encodeURIComponent(`'${b.tab}'!A${r0}`)}?valueInputOption=USER_ENTERED`, {
+            method: "PUT", headers: HF, body: JSON.stringify({ values: vals }) });
+          const jF = await wF.json().catch(() => ({}));
+          return json(wF.ok ? { ok: true, tab: b.tab, r0, r1, rows: vals.length, nR, cells: jF.updatedCells } : { error: jF?.error?.message || `HTTP ${wF.status}` }, wF.ok ? 200 : wF.status);
+        }
         // [2026-10-27] 원본 시트 탭을 서식째 통째로 복제: POST {id, rebuildFrom:원본ID}
         //   원본 탭마다 copyTo → 값으로 굳히기(수식이 지워질 옛 탭을 가리키지 않게) → 같은 이름의 옛 탭 삭제 → 이름·순서 원본대로.
         //   SA 가 원본을 읽을 수 있어야 한다. 그 뒤 GET /kpisheet 가 계산 칸만 덮는다.
@@ -418,7 +438,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         //      금액은 대조 결과의 카페24 실결제(paid). 주문일(주문번호 앞 8자리)의 매출에서 뺀다.
         //      대조를 돌린 날짜만 알 수 있다 — 대조 전 기간의 선수금은 못 뺀다(adj.advNote 로 알린다).
         const kvK = env.CAFE24_TOKEN_KV;
-        const adj = { tt: {}, adv: {}, ttMonths: [], ttMissing: [], advOrders: 0, advNet: 0, advMonths: [] };
+        const adj = { tt: {}, adv: {}, advList: [], ttMonths: [], ttMissing: [], advOrders: 0, advNet: 0, advMonths: [] };
         if (kvK) {
           const mons = [...new Set(days.map((d) => d.date.slice(0, 7)))];
           await Promise.all(mons.filter((m) => m < "2026-09").map(async (m) => {
@@ -441,10 +461,13 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             for (const k of await listMeta(`ecrecon:n:${m}:`)) notes[k.name.slice(`ecrecon:n:${m}:`.length)] = k.metadata || {};
             const seen = new Set();
             for (const v of Object.values(idx)) for (const x of ((v.summary || {}).issues || [])) {
-              if (!x || seen.has(x.o) || !hasAdv2(x.tags) || (notes[x.o] || {}).done) continue;
+              if (!x || seen.has(x.o) || !hasAdv2(x.tags)) continue;
               seen.add(x.o);
               const o8 = String(x.o).slice(0, 8), dt = `${o8.slice(0, 4)}-${o8.slice(4, 6)}-${o8.slice(6, 8)}`;
-              const amt = Number(x.paid) || 0;
+              const amt = Number(x.paid) || 0, nt = notes[x.o] || {};
+              const kind = String(x.tags || "").split(" · ").find((t) => /^선수금(?! 정산)/.test(t)) || "선수금";
+              adj.advList.push({ dt, o: x.o, amt, kind, ast: nt.ast || "", done: !!nt.done });
+              if (nt.done) continue;
               adj.adv[dt] = (adj.adv[dt] || 0) + amt; adj.advOrders++; adj.advNet += amt;
             } }));
         }
@@ -453,7 +476,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           if (!t && !a) continue;
           d.raw = { net: d.net, gmv: d.gmv, count: d.count };
           if (t) { d.net = (d.net || 0) - t.net; d.gmv = (d.gmv || 0) - t.gmv; d.count = Math.max(0, (d.count || 0) - t.cnt); }
-          if (a) d.net = (d.net || 0) - a;
+          // 선수금은 매출에서 빼지 않는다(2026-10-27 Su) — '선수금' 탭 + 0. 요약 수식으로 넣고 빼고 본다.
         }
 
         // 한 줄치 지표 — 일·주·월 공통
@@ -630,6 +653,39 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         };
         const mergeRow = (cur, mine) => mine.map((v, i) => (v === "" || v === "-" || v == null ? (cur[i] ?? (v === "-" ? "-" : "")) : v));
         const writes = [];
+        // 수식 칸 보호: 지금 시트에 수식이 걸린 칸은 우리 값 대신 그 수식을 다시 쓴다(원본 수식이 계산하게).
+        //   force[탭] = 강제로 값을 넣을 열(원천 숫자 열). null 이면 그 탭은 전부 우리가 쓴 그대로.
+        const colNum = (a) => a.split("").reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+        const fGrid = {};
+        const formulaGrid = async (tab) => {
+          if (fGrid[tab]) return fGrid[tab];
+          const r6 = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${tab}'!A1:DZ3000`)}?valueRenderOption=FORMULA`,
+            { headers: { Authorization: "Bearer " + tok } });
+          const j6 = await r6.json().catch(() => ({}));
+          return (fGrid[tab] = j6.values || []);
+        };
+        const protectedWrite = async (data, force = {}) => {
+          const out = [];
+          for (const d of data) {
+            const m = d.range.match(/^'(.+)'!([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+            if (!m || force[m[1]] === null) { out.push(d); continue; }
+            const tab = m[1], c0 = colNum(m[2]), r0 = +m[3], fc = new Set((force[tab] || []).map(colNum));
+            const grid = await formulaGrid(tab);
+            out.push({ range: d.range, values: d.values.map((row, i) => row.map((v, j) => {
+              const cur = (grid[r0 - 1 + i] || [])[c0 - 1 + j];
+              return (typeof cur === "string" && cur.startsWith("=") && !fc.has(c0 + j)) ? cur : v; })) });
+          }
+          let n = 0;
+          for (let i = 0; i < out.length; i += 500) {
+            const wr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+              body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: out.slice(i, i + 500) }) });
+            const j7 = await wr.json().catch(() => ({}));
+            if (!wr.ok) throw new Error(j7?.error?.message || `HTTP ${wr.status}`);
+            n += j7.totalUpdatedCells || 0;
+          }
+          return n;
+        };
         const labelKey = (v, kind) => {
           if (v == null || v === "") return null;
           if (kind === "d") return typeof v === "number" ? ser2date(v) : (String(v).match(/^(\d{4}-\d{2}-\d{2})/) || [])[1] || null;
@@ -656,60 +712,80 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           return wideRow(k, monM[k], pk ? monM[pk] : null, adMo[k] || z, pk ? (adMo[pk] || z) : z); });
         const wMine = {}; weekly.slice(4).forEach((r) => { wMine[r[0]] = r.slice(1); });
         const yMine = {}; yearly.slice(4).forEach((r) => { yMine[r[0]] = r.slice(1); });
-        const filled = {
-          일별: await fillTab(T.d, "d", dMine, 32), 월별: await fillTab(T.m, "m", mMine, 32),
-          주별: await fillTab(T.w, "s", wMine, 22), 연도별: await fillTab(T.y, "s", yMine, 32) };
+        // 1-4 일별에만 원천 숫자를 넣는다. 1-3 주별·1-2 월별·1-1 연도별·0. 요약은 원본 수식이 1-4 를 합쳐 계산한다.
+        const filled = { 일별: await fillTab(T.d, "d", dMine, 32) };
+        // 1-3 주별 '매출'(P) 원본 수식은 GMV+배송비−할인−쿠폰 이라 1-4 매출과 기준이 다르다 → 1-4 매출(M) 합으로 바꾼다.
+        {
+          const gw = await formulaGrid(T.w); let nW = 0;
+          gw.forEach((row, i) => { const f = String(row[2] || "");
+            const mm = f.match(/^=sum\('([^']+)'!C(\d+):C(\d+)\)$/i);
+            if (i >= 4 && mm) { writes.push({ range: `'${T.w}'!P${i + 1}:P${i + 1}`, values: [[`=sum('${mm[1]}'!M${mm[2]}:M${mm[3]})`]] }); nW++; } });
+          filled.주별매출 = nW;
+        }
         // 0. 요약 — 달성율 행(목표는 시트 5행 값 그대로) + 아래 요약표의 자사몰 GMV·매출(D·J)과 그에 딸린 비중·합계·YoY
         {
-          const g = await readTab(T.s, "Z", 200);
-          const at = (r, c) => (g[r - 1] || [])[c - 1];
-          const head = (g[3] || []).slice(3, 19).map((x) => String(x || "").trim());   // D4:S4 = 합계·1월…Q4
+          let g = await readTab(T.s, "Z", 200);
+          const head = (g[3] || []).slice(3, 20).map((x) => String(x || "").trim());   // D4:T4 = 합계·1월…Q4
           const colOf = (lab) => lab === "합계" ? null : (/^Q\d$/.test(lab) ? lab : +lab.replace("월", ""));
           let tr = g.findIndex((r) => String(r[1] || "").trim() === "매출액");
-          if (tr >= 0) {
-            const tgtRow = g[tr], rateRow = tr + 2;
-            const rates = head.map((lab, j) => { const t = Number(tgtRow[3 + j]) || 0, a2 = lab ? actOf(colOf(lab)) : null;
-              return t && a2 ? a2.net / t : ""; });
-            writes.push({ range: `'${T.s}'!D${rateRow}:S${rateRow}`, values: [mergeRow((g[rateRow - 1] || []).slice(3, 19), rates)] });
+          const S5 = (mj.sheets || []).find((x) => x.properties.title === T.s);
+          if (tr >= 0 && S5) {
+            // [2026-10-27] 달성율 아래에 3줄: 실적(매출) · 선수금 미완납 · 달성율(선수금 제외). 없으면 끼워 넣는다(서식은 위 줄 따라감).
+            //   선수금 미완납은 '선수금' 탭을 SUMIFS 로 읽는 수식 — 대시보드에서 처리완료를 체크하면 다음 갱신 때 빠진다.
+            const SID = S5.properties.sheetId, rateRow = tr + 2;
+            const sheetsPost = (rq) => fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ requests: rq }) });
+            if (String((g[rateRow] || [])[2] || "").trim() !== "실적(매출)") {
+              await sheetsPost([{ insertDimension: { range: { sheetId: SID, dimension: "ROWS", startIndex: rateRow, endIndex: rateRow + 3 }, inheritFromBefore: true } },
+                { copyPaste: { source: { sheetId: SID, startRowIndex: tr, endRowIndex: tr + 1, startColumnIndex: 1, endColumnIndex: 20 },
+                  destination: { sheetId: SID, startRowIndex: rateRow, endRowIndex: rateRow + 2, startColumnIndex: 1, endColumnIndex: 20 }, pasteType: "PASTE_FORMAT" } },
+                { copyPaste: { source: { sheetId: SID, startRowIndex: rateRow - 1, endRowIndex: rateRow, startColumnIndex: 1, endColumnIndex: 20 },
+                  destination: { sheetId: SID, startRowIndex: rateRow + 2, endRowIndex: rateRow + 3, startColumnIndex: 1, endColumnIndex: 20 }, pasteType: "PASTE_FORMAT" } }]);
+              g = await readTab(T.s, "Z", 200);
+            }
+            const r7 = rateRow + 1, r8 = rateRow + 2, r9 = rateRow + 3, Y = +kpiYear;
+            const L = (j) => cA1(4 + j);
+            const monthCol = {}; head.forEach((lab, j) => { if (/^\d+월$/.test(lab)) monthCol[+lab.replace("월", "")] = L(j); });
+            const QM = { Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12] };
+            const advF = (lab) => {
+              if (/^\d+월$/.test(lab)) { const m = +lab.replace("월", "");
+                return `=SUMIFS('선수금'!$C:$C,'선수금'!$A:$A,">="&DATE(${Y},${m},1),'선수금'!$A:$A,"<"&DATE(${Y},${m + 1},1),'선수금'!$F:$F,"미완납")`; }
+              if (QM[lab]) return `=${QM[lab].map((m) => `${monthCol[m]}${r8}`).join("+")}`;
+              if (lab === "합계") return `=SUM(${Object.values(monthCol).map((c) => `${c}${r8}`).join(",")})`;
+              return ""; };
+            let yr0 = ""; const rowsBy0 = {};
+            g.forEach((r, i) => { if (i < r9) return; if (r[1]) yr0 = String(r[1]).replace("년", "").trim(); const lab = String(r[2] || "").trim();
+              if (/^\d{4}$/.test(yr0) && lab) rowsBy0[`${yr0}|${lab}`] = i + 1; });
+            const act = head.map((lab) => { const rr = lab && rowsBy0[`${Y}|${lab}`]; return rr ? `=J${rr}` : ""; });
+            writes.push({ range: `'${T.s}'!C${rateRow}:T${r9}`, values: [
+              ["달성율", ...head.map((lab, j) => lab ? `=IFERROR(${L(j)}${r7}/${L(j)}${tr + 1},"")` : "")],
+              ["실적(매출)", ...act],
+              ["선수금 미완납", ...head.map(advF)],
+              ["달성율(선수금 제외)", ...head.map((lab, j) => lab ? `=IFERROR((${L(j)}${r7}-${L(j)}${r8})/${L(j)}${tr + 1},"")` : "")]] });
+            await sheetsPost([{ updateCells: { range: { sheetId: SID, startRowIndex: rateRow - 1, endRowIndex: rateRow, startColumnIndex: 2, endColumnIndex: 3 },
+              rows: [{ values: [{ note: "달성율 = 실적(매출) ÷ 목표 — 선수금 포함\n실적(매출) = 슬랙봇 매출총액 − 타팀 개인결제창\n선수금 미완납 = '선수금' 탭에서 처리완료 전 금액(이카운트 대조 2026-09~)\n달성율(선수금 제외) = (실적 − 선수금 미완납) ÷ 목표\n매일 아침 자동 갱신" }] }], fields: "note" } }]);
           }
-          let yr = "";
-          const rowsBy = {};
-          g.forEach((r, i) => { if (i < 16) return; if (r[1]) yr = String(r[1]).replace("년", "").trim(); const lab = String(r[2] || "").trim();
-            if (/^\d{4}$/.test(yr) && lab) rowsBy[`${yr}|${lab}`] = i; });
-          const num = (v) => (typeof v === "number" ? v : Number(v) || 0);
-          const upd = {};
-          for (const [key, i] of Object.entries(rowsBy)) {
-            const [y, lab] = key.split("|"); if (y < "2025") continue;
-            const x = sumRowOf(y, lab === "합계" ? null : colOf(lab)); if (!x) continue;
-            upd[key] = { i, d: x.gmv, j: x.net };
-          }
-          const val = (key, col) => { const u = upd[key]; const i = rowsBy[key]; if (i == null) return null;
-            if (u && col === "D") return u.d; if (u && col === "J") return u.j;
-            return num((g[i] || [])[{ D: 3, F: 5, J: 9 }[col]]); };
-          for (const [key, u] of Object.entries(upd)) {
-            const [y, lab] = key.split("|"), pk = `${+y - 1}|${lab}`;
-            const d = u.d, f = num((g[u.i] || [])[5]), h = d + f;
-            const ph = rowsBy[pk] != null ? (val(pk, "D") || 0) + (val(pk, "F") || 0) : null, pj = rowsBy[pk] != null ? val(pk, "J") : null;
-            writes.push({ range: `'${T.s}'!D${u.i + 1}:K${u.i + 1}`, values: [[d, h ? d / h : "", f || (g[u.i] || [])[5] || "", h ? f / h : "", h,
-              ph ? chg(h, ph) : "-", u.j, pj ? chg(u.j, pj) : "-"]] });
-          }
-          filled.요약 = Object.keys(upd).length;
-          // 달성율 기준 설명은 셀 메모로(디자인은 그대로)
-          if (tr >= 0) { const S5 = (mj.sheets || []).find((x) => x.properties.title === T.s);
-            if (S5) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
+          // '선수금' 탭 — 이카운트 대조에서 선수금 표시가 붙은 주문 전부(처리완료 포함). 0. 요약 수식이 이걸 읽는다.
+          {
+            const AT = "선수금";
+            if (!tabNames.includes(AT)) await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`, {
               method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-              body: JSON.stringify({ requests: [{ updateCells: { range: { sheetId: S5.properties.sheetId, startRowIndex: tr + 1, endRowIndex: tr + 2, startColumnIndex: 2, endColumnIndex: 3 },
-                rows: [{ values: [{ note: "달성율 = 매출 ÷ 목표\n매출 = 슬랙봇 매출총액 − 타팀 개인결제창 − 선수금 미완납(처리완료 전)\n매일 아침 자동 갱신" }] }], fields: "note" } }] }) }); }
+              body: JSON.stringify({ requests: [{ addSheet: { properties: { title: AT, gridProperties: { rowCount: 3000, columnCount: 8, frozenRowCount: 1 } } } }] }) });
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${AT}'!A2:G3000`)}:clear`, {
+              method: "POST", headers: { Authorization: "Bearer " + tok } });
+            const list = adj.advList.slice().sort((a2, b2) => a2.dt.localeCompare(b2.dt) || String(a2.o).localeCompare(String(b2.o)));
+            writes.push({ range: `'${AT}'!A1:G${list.length + 1}`, values: [
+              ["주문일", "주문번호", "금액(카페24 실결제)", "구분", "진행 상태", "상태", "대시보드 이카운트 대조의 선수금 주문 · 처리완료 체크 전이면 '미완납' · 매일 아침 자동 갱신"],
+              ...list.map((x) => [x.dt, x.o, x.amt, x.kind, x.ast, x.done ? "처리완료" : "미완납", ""])] });
+            filled.선수금 = list.length;
+          }
         }
         let wj = { totalUpdatedCells: 0 };
-        for (let i = 0; i < writes.length; i += 500) {
-          const wr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
-            method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-            body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: writes.slice(i, i + 500) }) });
-          const j7 = await wr.json().catch(() => ({}));
-          if (!wr.ok) return json({ error: j7?.error?.message || `HTTP ${wr.status}`, saEmail: sa.client_email, filled }, wr.status);
-          wj.totalUpdatedCells += j7.totalUpdatedCells || 0;
-        }
+        try {
+          wj.totalUpdatedCells = await protectedWrite(writes, {
+            [T.d]: ["C", "E", "J", "K", "M", "O", "P", "R"],   // GMV·건수·할인·쿠폰·매출·적립금·예치금·환불 = 원천 숫자
+            [T.w]: ["P"], [T.s]: null, "선수금": null });
+        } catch (e) { return json({ error: String(e.message || e), saEmail: sa.client_email, filled }, 500); }
         // 5-1/5-2 카테고리별 — B열 라벨로 행을 찾아 우리 구간만 덮는다
         let catNote = "skip";
         try {
@@ -727,11 +803,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const wLab2 = (k) => { const l = `${k.slice(0, 4)}년 ${+k.slice(5, 7)}월 ${k.slice(-1)}주차`; return bw[l] || bw[l.replace("주차", "주")] || null; };
           const cells = [...catCells("5-1. 카테고리별 GMV(월별)", catMon, mLabel, "CT", 8),
                          ...catCells("5-2. 카테고리별 GMV(주별)", catWk, wLab2, "CH", 7)];
-          for (let i = 0; i < cells.length; i += 300) {
-            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
-              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-              body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: cells.slice(i, i + 300) }) });
-          }
+          await protectedWrite(cells);
           catNote = `월 ${Object.keys(catMon).length} · 주 ${Object.keys(catWk).length} → ${cells.length}행`;
         } catch (e) { catNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
@@ -777,11 +849,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               ret, g.dau ? ret / g.dau : "", pg ? chg(ret, pret) : "-",
               cvr, pcvr == null ? "-" : cvr - pcvr, bcvr, pbcvr == null ? "-" : bcvr - pbcvr]] });
           }
-          for (let i = 0; i < data2.length; i += 400) {
-            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
-              method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
-              body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: data2.slice(i, i + 400) }) });
-          }
+          await protectedWrite(data2);
           userNote = `${data2.length}일`;
         } catch (e) { userNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
