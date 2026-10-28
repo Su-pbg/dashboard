@@ -162,7 +162,7 @@ var worker_default = {
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
     let job = JSON.parse((await kv.get("kpijob")) || "null");
-    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "ext", "sheet", "sync"], log: [], at: kst.toISOString().slice(0, 16) }; }
+    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "raw", "ext", "sheet", "sync"], log: [], at: kst.toISOString().slice(0, 16) }; }
     const KEY = encodeURIComponent(env.DASHBOARD_KEY), call = async (path) => { const r = await worker_default.fetch(new Request("https://kpi.local" + path + (path.includes("?") ? "&" : "?") + "key=" + KEY), env); return (await r.text()).slice(0, 300); };
     const step = job.todo[0];
     try {
@@ -181,6 +181,7 @@ var worker_default = {
       } else if (step === "ext") { job.log.push("ext " + (await call(`/kpisheet?id=${SHEET}&part=ext`))); job.todo.shift(); }
       else if (step === "sheet") { const body = await call(`/kpisheet?id=${SHEET}`); job.log.push("sheet " + body.slice(0, 120)); job.todo.shift();
         await kv.put("kpisheet:last", JSON.stringify({ src: job.src, day: today, at: kst.toISOString().slice(0, 16), ok: /"ok":true/.test(body), res: body.slice(0, 600) })); }
+      else if (step === "raw") { job.log.push("raw " + (await call(`/kpisheet?id=${SHEET}&part=ext&step=raw`))); job.todo.shift(); }
       else if (step === "sync") { job.log.push("sync " + (await call(`/kpisheet?id=${SHEET}&part=sync`))); job.todo.shift(); }
     } catch (e) { job.log.push(step + " 실패 " + String(e && e.message || e).slice(0, 120)); job.fail = (job.fail || 0) + 1; if (job.fail > 3) job.todo.shift(); }
     if (!job.todo.length) job.done = true;
@@ -688,6 +689,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               for (let d = addDays(rawLast, 1); d <= addDays(yest, 7); d = addDays(d, 1)) vals.push({ range: `'${t}'!B${dayRow(d)}`, values: [[dayLabel(d)]] });
               await flush(); note["1-4"] = `수식 ${addDays(rawLast, 1)}~${yest}`;
               // RAW 탭: 원본 RAW 다음 날 ~ 어제를 주문 API 로 채운다(행 = 2026-01-01 이 2행). 그 뒤 일주일은 비운다.
+              //   서브요청 한도(50) 때문에 따로 부른다: part=ext&step=raw (크론 단계 'raw')
+              if (q.get("step") === "raw") {
               const RT = tabOf("RAW. 자사몰 GMV"), rawRow = (d) => 2 + Math.round((Date.parse(d + "T00:00:00Z") - Date.parse("2026-01-01T00:00:00Z")) / 864e5);
               const rd = await kpiRawDays(env, addDays(rawLast, 1), yest); const rows2 = [];
               for (let d = addDays(rawLast, 1); d <= addDays(yest, 7); d = addDays(d, 1)) { const x = rd[d];
@@ -698,7 +701,9 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ valueInputOption: "RAW",
                 data: [{ range: `'${RT}'!A${rawRow(addDays(rawLast, 1))}:P${rawRow(addDays(yest, 7))}`, values: rows2 }] }) });
               note.raw = `RAW ${addDays(rawLast, 1)}~${yest} (주문 API)`;
+              }
             }
+            if (q.get("step") === "raw") return json({ ok: true, yest, note });
           }
           // ---------- 6-4 유저(일별): C 회원가입 · E DAU · G 새 사용자 · Q·R 첫 구매 ----------
           {
