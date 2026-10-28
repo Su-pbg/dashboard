@@ -122,7 +122,7 @@ async function kpiRawDays(env, from, to) {
   const mallId = env.CAFE24_MALL_ID, n0 = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
   const m = {}, row = (d) => m[d] || (m[d] = { ord: 0, item: 0, price: 0, ship: 0, disc: 0, cpn: 0, pay: 0, pt: 0, cr: 0, npt: 0, ref: 0 });
   for (let p = 0; p < 20; p++) {
-    const j = await cafe24Get(mallId, tok, `orders?start_date=${from}&end_date=${to}&date_type=payment_date&limit=500&offset=${p * 500}&embed=items`, false, env);
+    const j = await cafe24Get(mallId, tok, `orders?start_date=${from}&end_date=${to}&date_type=pay_date&limit=500&offset=${p * 500}&embed=items`, false, env);
     const arr = j.orders || [];
     for (const o of arr) { const d = String(o.payment_date || "").slice(0, 10); if (!d || d < from || d > to) continue;
       const a = o.initial_order_amount || {}, x = row(d);
