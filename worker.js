@@ -112,6 +112,35 @@ async function kpiScanMonth(env, ym) {
   return out;
 }
 __name(kpiScanMonth, "kpiScanMonth");
+// [2026-10-28] RAW. 자사몰 GMV(카페24 매출통계 엑셀) 한 줄을 주문 API 로 만든다 — 원본 팀이 엑셀을 붙여넣기 전 날짜만.
+//   2026-10-01~19 원본 RAW 와 대조: 결제일 기준 · 주문 당시 금액(initial_order_amount) 으로 주문수·상품구매금액·배송비·쿠폰·
+//   실결제·적립금·예치금·네이버포인트·결제합계가 원 단위까지 같다. 품목수 = 주문 품목 줄 수(±1), 할인 = 품목 추가할인 합(근사),
+//   환불 = 환불일 기준 실환불+적립금+예치금(대부분 일치). 원본 팀이 그 날짜 RAW 를 붙여넣으면 part=sync 가 원본 값으로 바꾼다.
+async function kpiRawDays(env, from, to) {
+  const tok = await getCafe24AccessToken(env);
+  if (!tok) throw new Error("cafe24 인증 실패");
+  const mallId = env.CAFE24_MALL_ID, n0 = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+  const m = {}, row = (d) => m[d] || (m[d] = { ord: 0, item: 0, price: 0, ship: 0, disc: 0, cpn: 0, pay: 0, pt: 0, cr: 0, npt: 0, ref: 0 });
+  for (let p = 0; p < 20; p++) {
+    const j = await cafe24Get(mallId, tok, `orders?start_date=${from}&end_date=${to}&date_type=payment_date&limit=500&offset=${p * 500}&embed=items`, false, env);
+    const arr = j.orders || [];
+    for (const o of arr) { const d = String(o.payment_date || "").slice(0, 10); if (!d || d < from || d > to) continue;
+      const a = o.initial_order_amount || {}, x = row(d);
+      x.ord++; x.item += (o.items || []).length; x.price += n0(a.order_price_amount); x.ship += n0(a.shipping_fee);
+      x.disc += (o.items || []).reduce((s2, it) => s2 + n0(it.additional_discount_price), 0); x.cpn += n0(a.coupon_discount_price);
+      x.pay += n0(a.payment_amount); x.pt += n0(a.points_spent_amount); x.cr += n0(a.credits_spent_amount); x.npt += n0(o.naver_point); }
+    if (arr.length < 500) break;
+  }
+  for (let p = 0; p < 20; p++) {
+    const j = await cafe24Get(mallId, tok, `refunds?start_date=${from}&end_date=${to}&date_type=refund_date&limit=500&offset=${p * 500}`, false, env);
+    const arr = j.refunds || [];
+    for (const r of arr) { const d = String(r.refund_date || "").slice(0, 10); if (!d || d < from || d > to) continue;
+      row(d).ref += n0(r.actual_refund_amount) + n0(r.used_points) + n0(r.used_credits); }
+    if (arr.length < 500) break;
+  }
+  return m;
+}
+__name(kpiRawDays, "kpiRawDays");
 
 var worker_default = {
   // [2026-10-27] KPI 시트 자동 갱신 — Cloudflare 크론(06~10시 KST, 20분마다).
@@ -658,6 +687,17 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               await fmlCopy(t, tr, r0, r1 - r0 + 1);
               for (let d = addDays(rawLast, 1); d <= addDays(yest, 7); d = addDays(d, 1)) vals.push({ range: `'${t}'!B${dayRow(d)}`, values: [[dayLabel(d)]] });
               await flush(); note["1-4"] = `수식 ${addDays(rawLast, 1)}~${yest}`;
+              // RAW 탭: 원본 RAW 다음 날 ~ 어제를 주문 API 로 채운다(행 = 2026-01-01 이 2행). 그 뒤 일주일은 비운다.
+              const RT = tabOf("RAW. 자사몰 GMV"), rawRow = (d) => 2 + Math.round((Date.parse(d + "T00:00:00Z") - Date.parse("2026-01-01T00:00:00Z")) / 864e5);
+              const rd = await kpiRawDays(env, addDays(rawLast, 1), yest); const rows2 = [];
+              for (let d = addDays(rawLast, 1); d <= addDays(yest, 7); d = addDays(d, 1)) { const x = rd[d];
+                if (d > yest || !x) { rows2.push([d > yest ? "" : dayLabel(d), ...Array(15).fill(d > yest ? "" : 0)]); continue; }
+                const tot = x.pay + x.pt + x.cr + x.npt;
+                rows2.push([dayLabel(d), x.ord, x.item, x.price, x.ship, x.disc, x.cpn, x.pay, x.pt, x.cr, 0, x.npt, 0, tot, x.ref, tot - x.ref]); }
+              growRows(RT, rawRow(addDays(yest, 7)) + 2); await flush();
+              await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ valueInputOption: "RAW",
+                data: [{ range: `'${RT}'!A${rawRow(addDays(rawLast, 1))}:P${rawRow(addDays(yest, 7))}`, values: rows2 }] }) });
+              note.raw = `RAW ${addDays(rawLast, 1)}~${yest} (주문 API)`;
             }
           }
           // ---------- 6-4 유저(일별): C 회원가입 · E DAU · G 새 사용자 · Q·R 첫 구매 ----------
@@ -701,6 +741,15 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               miss.forEach((x, i) => { at[x] = lastR + 1 + i; vals.push({ range: `'${t}'!B${lastR + 1 + i}`, values: [[x]] }); }); }
             return { at, lastR: lastR + miss.length, miss };
           };
+          // [2026-10-28] 우리가 늘린 줄(원본 마지막 줄 아래)의 값 칸을 비운다 — 줄을 늘릴 때 템플릿 줄의 지난달 숫자까지 복사돼
+          //   새 공급사·브랜드마다 엉뚱한 7~9월 값이 붙어 엠디별 합계가 부풀었다. 수식 칸·B열 이름은 둔다. 우리 블록은 뒤에서 다시 채운다.
+          const cleanTail = async (t, lastR) => {
+            let oLast = 0; (await oGet(t, "B1:B3000", "UNFORMATTED_VALUE")).forEach((r, i) => { if (String(r[0] ?? "").trim()) oLast = i + 1; });
+            if (!oLast || lastR <= oLast) return 0;
+            const g = await get(t, `A${oLast + 1}:ZZ${lastR}`, "FORMULA");
+            g.forEach((r, i) => { const w = Math.max(r.length, 3); const v = Array.from({ length: w - 2 }, (_, j) => { const c = r[j + 2]; return typeof c === "string" && c.startsWith("=") ? c : ""; });
+              vals.push({ range: `'${t}'!C${oLast + 1 + i}:${cA1(w)}${oLast + 1 + i}`, values: [v] }); });
+            await flush(); return lastR - oLast; };
           const monthKey = (x) => (typeof x === "number" && x > 40000 ? ser2date(x).slice(0, 7) : null);
           const fillBlocks = (t, rows, at, keys, srcOf) => {
             for (const k of keys) { const c = at[k]; if (!c) continue;
@@ -713,7 +762,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           {
             const t = tabOf("4-1. 공급사별 GMV(월별)"), ms = months.filter((m) => feed[m]);
             const names = [...new Set(ms.flatMap((m) => Object.keys(feed[m].sup)))];
-            const rows = await rowsOf(t, names); await flush();
+            const rows = await rowsOf(t, names); await flush(); await cleanTail(t, rows.lastR);
             const { at, added } = await blocks(t, 4, monthKey, (k) => date2ser(k + "-01"), ms); await flush();
             fillBlocks(t, rows, at, ms, (k) => feed[k].sup);
             for (const k of ms) { const py = at[`${+k.slice(0, 4) - 1}${k.slice(4)}`], c = at[k]; if (!py || !c) continue;   // YoY = 작년 같은 달(2025 블록은 3칸이라 복사로는 안 맞는다)
@@ -728,7 +777,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             const wkOf = (k) => (feed[k.slice(0, 7)] || { supW: {} }).supW[k];
             const ws2 = weeks.filter((k) => feed[k.slice(0, 7)]);
             const names = [...new Set(ws2.flatMap((k) => Object.keys(wkOf(k) || {})))];
-            const rows = await rowsOf(t, names); await flush();
+            const rows = await rowsOf(t, names); await flush(); await cleanTail(t, rows.lastR);
             const wKey = (x) => { const m = String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/); return m ? `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}` : null; };
             const { at, added } = await blocks(t, 3, wKey, (k) => kpiWeekLabel(k), ws2); await flush();
             fillBlocks(t, rows, at, ws2, wkOf);
@@ -739,7 +788,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           {
             const t = tabOf("3. 브랜드(작가)별 GMV"), ms = months.filter((m) => feed[m]);
             const names = [...new Set(ms.flatMap((m) => Object.keys(feed[m].brand)))];
-            const rows = await rowsOf(t, names); await flush();
+            const rows = await rowsOf(t, names); await flush(); await cleanTail(t, rows.lastR);
             const { at, added } = await blocks(t, 3, monthKey, (k) => date2ser(k + "-01"), ms); await flush();
             fillBlocks(t, rows, at, ms, (k) => feed[k].brand);
             note["3"] = `${ms.join(",")} · 새 블록 ${added.length} · 새 브랜드 ${rows.miss.length}`;
