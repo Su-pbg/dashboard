@@ -184,7 +184,7 @@ var worker_default = {
       } else if (step === "ext") { job.log.push("ext " + (await call(`/kpisheet?id=${SHEET}&part=ext`))); job.todo.shift(); }
       else if (step === "sheet") { const body = await call(`/kpisheet?id=${SHEET}`); job.log.push("sheet " + body.slice(0, 120)); job.todo.shift();
         await kv.put("kpisheet:last", JSON.stringify({ src: job.src, day: today, at: kst.toISOString().slice(0, 16), ok: /"ok":true/.test(body), res: body.slice(0, 600) })); }
-      else if (step === "pcat") { const r = await call(`/kpisheet?part=cat&step=pcat`); job.log.push("pcat " + r.slice(0, 120)); if (!/"left":[1-9]/.test(r)) job.todo.shift(); }
+      else if (step === "pcat") { const r = await call(`/kpisheet?part=cat&step=pcat`); job.log.push("pcat " + r.slice(0, 120)); if (!/"left":[1-9]|"more":true/.test(r)) job.todo.shift(); }
       else if (step === "cat") { job.log.push("cat " + (await call(`/kpisheet?id=${SHEET}&part=cat&step=write`))); job.todo.shift(); }
       else if (step === "raw") { job.log.push("raw " + (await call(`/kpisheet?id=${SHEET}&part=ext&step=raw`))); job.todo.shift(); }
       else if (step === "sync") { job.log.push("sync " + (await call(`/kpisheet?id=${SHEET}&part=sync`))); job.todo.shift(); }
@@ -633,12 +633,13 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         if (q.get("step") === "pcat") {
           const tok = await getCafe24AccessToken(env); if (!tok) return json({ error: "cafe24 인증 실패" }, 500);
           const sold = new Set(); for (const f of Object.values(feeds)) { for (const p of Object.keys(f.pM || {})) sold.add(p); for (const w of Object.values(f.pW || {})) for (const p of Object.keys(w)) sold.add(p); }
-          const need = [...sold].filter((p) => !(p in pcat)).slice(0, 300);
+          const need = [...sold].filter((p) => !(p in pcat)).slice(0, 200);   // 200개 = 서브요청 22번(한도 50)
           for (let i = 0; i < need.length; i += 100) { const ch = need.slice(i, i + 100), hit = {};
             for (const c of LIFE) { const j = await cafe24Get(env.CAFE24_MALL_ID, tok, `products?product_no=${ch.join(",")}&category=${c}&fields=product_no&limit=100`, false, env);
               for (const p of j.products || []) (hit[String(p.product_no)] = hit[String(p.product_no)] || []).push(c); }
             for (const p of ch) pcat[p] = (hit[p] || []).join(","); }
           await kvC.put("kpifeed:pcat", JSON.stringify(pcat));
+          if (need.length) return json({ ok: true, classified: need.length, left: [...sold].filter((p) => !(p in pcat)).length });   // SKU 는 판정이 끝난 다음 호출에서
           // SKU 스냅샷 — 기간마다 한 번(이미 있으면 안 부른다)
           const sku = JSON.parse((await kvC.get("kpifeed:sku")) || "{}"); let skuCalls = 0;
           const periods = [...Object.keys(feeds).map((m) => ["m", m]), ...[...new Set(Object.values(feeds).flatMap((f) => Object.keys(f.pW || {})))].filter((k) => k >= kpiWeekKey(KPI_EXT_FROM.week)).map((k) => ["w", k])];
@@ -651,7 +652,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               x[c] = [tot.count || 0, nw.count || 0]; skuCalls += 2; if (skuCalls > 22) break; }
             if (ended && [608, ...CATS.map((z) => z[1])].every((c) => x[c])) x.done = true; }
           await kvC.put("kpifeed:sku", JSON.stringify(sku));
-          return json({ ok: true, classified: need.length, left: [...sold].filter((p) => !(p in pcat)).length, skuCalls });
+          return json({ ok: true, classified: 0, left: 0, skuCalls, more: skuCalls > 22 });
         }
         // ---- write ----
         if (!id) return json({ error: "id 가 필요합니다" }, 400);
