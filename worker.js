@@ -66,7 +66,7 @@ async function kpiScanMonth(env, ym) {
   const mallId = env.CAFE24_MALL_ID, kv = env.CAFE24_TOKEN_KV;
   const last = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
   const n0 = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
-  const out = { ym, sup: {}, supW: {}, brand: {}, fb: {}, pno: {}, orders: 0, truncated: false, at: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16) };
+  const out = { ym, sup: {}, supW: {}, brand: {}, fb: {}, pno: {}, pW: {}, xp: [], orders: 0, truncated: false, at: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16) };
   const add = (m, k, sale, net, qty) => { const x = m[k] || (m[k] = { sale: 0, net: 0, qty: 0 }); x.sale += sale; x.net += net; x.qty += qty; };
   for (let p = 0; p < ORDER_MAX_PAGES; p++) {
     const j = await cafe24Get(mallId, tok, `orders?start_date=${ym}-01&end_date=${ym}-${String(last).padStart(2, "0")}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p * ORDER_PAGE}&embed=items`, false, env);
@@ -84,6 +84,8 @@ async function kpiScanMonth(env, ym) {
         add(out.sup, sn, sale, net, qty);
         add(out.supW[wk] || (out.supW[wk] = {}), sn, sale, net, qty);
         add(out.pno, String(it.product_no), sale, net, qty);
+        { const pw = out.pW[wk] || (out.pW[wk] = {}), k2 = String(it.product_no), x2 = pw[k2] || (pw[k2] = [0, 0]); x2[0] += sale; x2[1] += qty; }
+        { const nm2 = it.product_name || ""; if (/멤버십/.test(nm2) || (nm2.indexOf("개인결제") >= 0 && !PAYWIN_KEEP.test(nm2))) if (!out.xp.includes(String(it.product_no))) out.xp.push(String(it.product_no)); }
         osale += sale; onet += net; oqty += qty;
       }
       if (o.first_order === "T" && oqty > 0) { const x = out.fb[dt] || (out.fb[dt] = { sale: 0, net: 0, pay: 0, cnt: 0 });
@@ -107,6 +109,7 @@ async function kpiScanMonth(env, ym) {
   }
   await kv.put("kpifeed:pbrand", JSON.stringify(pmap));
   for (const [pno, v] of Object.entries(out.pno)) add(out.brand, brands[pmap[pno]] || "(브랜드 없음)", v.sale, v.net, v.qty);
+  out.pM = {}; for (const [pno, v] of Object.entries(out.pno)) out.pM[pno] = [v.sale, v.qty];
   delete out.pno;
   await kv.put("kpifeed:" + ym, JSON.stringify(out));
   return out;
@@ -162,7 +165,7 @@ var worker_default = {
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
     let job = JSON.parse((await kv.get("kpijob")) || "null");
-    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "raw", "ext", "sheet", "sync"], log: [], at: kst.toISOString().slice(0, 16) }; }
+    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "raw", "ext", "pcat", "sheet", "cat", "sync"], log: [], at: kst.toISOString().slice(0, 16) }; }
     const KEY = encodeURIComponent(env.DASHBOARD_KEY), call = async (path) => { const r = await worker_default.fetch(new Request("https://kpi.local" + path + (path.includes("?") ? "&" : "?") + "key=" + KEY), env); return (await r.text()).slice(0, 300); };
     const step = job.todo[0];
     try {
@@ -181,6 +184,8 @@ var worker_default = {
       } else if (step === "ext") { job.log.push("ext " + (await call(`/kpisheet?id=${SHEET}&part=ext`))); job.todo.shift(); }
       else if (step === "sheet") { const body = await call(`/kpisheet?id=${SHEET}`); job.log.push("sheet " + body.slice(0, 120)); job.todo.shift();
         await kv.put("kpisheet:last", JSON.stringify({ src: job.src, day: today, at: kst.toISOString().slice(0, 16), ok: /"ok":true/.test(body), res: body.slice(0, 600) })); }
+      else if (step === "pcat") { const r = await call(`/kpisheet?part=cat&step=pcat`); job.log.push("pcat " + r.slice(0, 120)); if (!/"left":[1-9]/.test(r)) job.todo.shift(); }
+      else if (step === "cat") { job.log.push("cat " + (await call(`/kpisheet?id=${SHEET}&part=cat&step=write`))); job.todo.shift(); }
       else if (step === "raw") { job.log.push("raw " + (await call(`/kpisheet?id=${SHEET}&part=ext&step=raw`))); job.todo.shift(); }
       else if (step === "sync") { job.log.push("sync " + (await call(`/kpisheet?id=${SHEET}&part=sync`))); job.todo.shift(); }
     } catch (e) { job.log.push(step + " 실패 " + String(e && e.message || e).slice(0, 120)); job.fail = (job.fail || 0) + 1; if (job.fail > 3) job.todo.shift(); }
@@ -554,12 +559,14 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               const T = nMap[nk(p.title)].title, K = nk(p.title), O = ov[gi], N = nv[gi];
               const is14 = K === nk("1-4. 자사몰 GMV(일별)"), is13 = K === nk("1-3. 자사몰 GMV(주별)"), is64 = K === nk("6-4. 유저(일별)");
               let n = 0; const sk = [];
+              // 5-1/5-2: 원본이 손으로 채운 마지막 기간 줄까지는 빈 칸까지 원본과 같게(예전 슬랙봇 기준 값 지우기)
+              const is5x = /^5-[12]\./.test(K); let last5 = 0; if (is5x) O.forEach((r, i) => { if (i >= 4 && isKey(r[1])) last5 = i + 1; });
               const R = Math.max(O.length, is14 ? Math.min(N.length, strictTo) : 0);
               for (let r = 0; r < R; r++) {
                 const orow = O[r] || [], nrow = N[r] || [], rr = r + 1;
                 const ob = orow[1], nb = nrow[1];
                 if (ob !== undefined && ob !== "" && nb !== undefined && nb !== "" && !isKey(ob) && !isKey(nb) && nm(ob) !== nm(nb)) { sk.push(`${rr}:${nm(ob)}≠${nm(nb)}`); continue; }
-                const strict = is14 && rr >= 5 && rr <= strictTo;
+                const strict = (is14 && rr >= 5 && rr <= strictTo) || (is5x && rr >= 5 && rr <= last5);
                 const W = Math.max(orow.length, strict ? nrow.length : 0);
                 let run = null; const close = () => { if (run) { (run.f ? fdata : vdata).push({ range: `'${T}'!${cA1(run.c0 + 1)}${rr}:${cA1(run.c0 + run.v.length)}${rr}`, values: [run.v] }); run = null; } };
                 for (let c = 0; c < W; c++) {
@@ -606,6 +613,98 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         all[d] = { dau, nu: k["신규 방문자"] ?? null, join: k["신규 가입"] ?? null };
         await kvU.put("kpiusers:v1", JSON.stringify(all));
         return json({ ok: true, date: d, ...all[d] });
+      }
+      // [2026-10-28] 5-1/5-2 카테고리별 GMV — 원본이 손으로 채운 다음 기간만 채운다.
+      //   원본 정의(9월 대조): 결제된 주문의 취소·반품 아닌 품목 판매가×수량, 주문일 기준.
+      //   라이프·세부(테이블웨어 615 … 푸드 624) = 지금 그 카테고리(라이프 609 하위)에 있는 상품. 테이블웨어·프레그런스·가전·푸드 등은 ±2% 안.
+      //   아트 = 라이프가 아닌 상품(판매된 원화는 카테고리에서 빠지기 때문 — 9월 아트 2.05억 vs 원본 2.09억). 타 조직 개인결제창·멤버십 제외.
+      //   SKU 합계 = 그 카테고리 진열 상품 수(그 기간 처음 계산할 때 찍은 값) · SKU 추가 = 그 기간에 등록된 상품 수.
+      //   step=pcat: 판매 상품의 카테고리 판정(KV kpifeed:pcat, 300개씩) · step=write: 시트 쓰기(서브요청 한도 때문에 나눈다)
+      if (url.pathname === "/kpisheet" && q.get("part") === "cat") {
+        const kvC = env.CAFE24_TOKEN_KV, id = q.get("id");
+        const CATS = [["테이블웨어", 615], ["홈데코", 616], ["가구", 617], ["패브릭", 618], ["프레그런스", 619], ["가전 / 디지털", 620], ["스테이셔너리", 621], ["패션 / 뷰티", 622], ["펫", 623], ["푸드", 624]];
+        const LIFE = [609, ...CATS.map((c) => c[1])];
+        const kst = new Date(Date.now() + 9 * 3600e3), yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
+        const addDays = (d, n) => new Date(Date.parse(d + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+        const monthsTo = (from, to) => { const o = []; let [y, m] = from.split("-").map(Number); const [ty, tm] = to.split("-").map(Number);
+          while (y < ty || (y === ty && m <= tm)) { o.push(`${y}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; y++; } } return o; };
+        const feeds = {}; for (const m of monthsTo(KPI_EXT_FROM.month, yest.slice(0, 7))) { const v = await kvC.get("kpifeed:" + m); if (v) feeds[m] = JSON.parse(v); }
+        const pcat = JSON.parse((await kvC.get("kpifeed:pcat")) || "{}");
+        if (q.get("step") === "pcat") {
+          const tok = await getCafe24AccessToken(env); if (!tok) return json({ error: "cafe24 인증 실패" }, 500);
+          const sold = new Set(); for (const f of Object.values(feeds)) { for (const p of Object.keys(f.pM || {})) sold.add(p); for (const w of Object.values(f.pW || {})) for (const p of Object.keys(w)) sold.add(p); }
+          const need = [...sold].filter((p) => !(p in pcat)).slice(0, 300);
+          for (let i = 0; i < need.length; i += 100) { const ch = need.slice(i, i + 100), hit = {};
+            for (const c of LIFE) { const j = await cafe24Get(env.CAFE24_MALL_ID, tok, `products?product_no=${ch.join(",")}&category=${c}&fields=product_no&limit=100`, false, env);
+              for (const p of j.products || []) (hit[String(p.product_no)] = hit[String(p.product_no)] || []).push(c); }
+            for (const p of ch) pcat[p] = (hit[p] || []).join(","); }
+          await kvC.put("kpifeed:pcat", JSON.stringify(pcat));
+          // SKU 스냅샷 — 기간마다 한 번(이미 있으면 안 부른다)
+          const sku = JSON.parse((await kvC.get("kpifeed:sku")) || "{}"); let skuCalls = 0;
+          const periods = [...Object.keys(feeds).map((m) => ["m", m]), ...[...new Set(Object.values(feeds).flatMap((f) => Object.keys(f.pW || {})))].filter((k) => k >= kpiWeekKey(KPI_EXT_FROM.week)).map((k) => ["w", k])];
+          for (const [kind, k] of periods) { const key = kind + ":" + k; if (sku[key] && sku[key].done) continue; if (skuCalls > 22) break;
+            const [s0, e0] = kind === "m" ? [k + "-01", new Date(Date.UTC(+k.slice(0, 4), +k.slice(5, 7), 0)).toISOString().slice(0, 10)] : kpiWeekDays(k);
+            const x = sku[key] || (sku[key] = {}); const ended = e0 <= yest;
+            for (const c of [608, ...CATS.map((z) => z[1])]) { if (x[c]) continue;
+              const tot = await cafe24Get(env.CAFE24_MALL_ID, tok, `products/count?category=${c}&display=T`, false, env);
+              const nw = await cafe24Get(env.CAFE24_MALL_ID, tok, `products/count?category=${c}&created_start_date=${s0}&created_end_date=${e0 > yest ? yest : e0}`, false, env);
+              x[c] = [tot.count || 0, nw.count || 0]; skuCalls += 2; if (skuCalls > 22) break; }
+            if (ended && [608, ...CATS.map((z) => z[1])].every((c) => x[c])) x.done = true; }
+          await kvC.put("kpifeed:sku", JSON.stringify(sku));
+          return json({ ok: true, classified: need.length, left: [...sold].filter((p) => !(p in pcat)).length, skuCalls });
+        }
+        // ---- write ----
+        if (!id) return json({ error: "id 가 필요합니다" }, 400);
+        const sa = JSON.parse(env.GA_SA_KEY), tok = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+        const HJ = { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, SH = `https://sheets.googleapis.com/v4/spreadsheets/${id}`;
+        const meta = await (await fetch(`${SH}?fields=sheets.properties`, { headers: HJ })).json(); const P = {}; for (const x of meta.sheets || []) P[x.properties.title] = x.properties;
+        const tabOf = (t) => Object.keys(P).find((x) => x.replace(/[:\s]/g, "") === t.replace(/[:\s]/g, "")) || t;
+        const oMeta = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${KPI_ORIG_ID}?fields=sheets.properties.title`, { headers: HJ })).json();
+        const oTab = (t) => (oMeta.sheets || []).map((x) => x.properties.title).find((x) => x.replace(/[:\s]/g, "") === t.replace(/[:\s]/g, ""));
+        const vget = async (sid, rng, render) => { const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sid}/values/${encodeURIComponent(rng)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: HJ }); return (await r.json()).values || []; };
+        const cA1 = (n) => { let t2 = "", k = n - 1; do { t2 = String.fromCharCode(65 + (k % 26)) + t2; k = Math.floor(k / 26) - 1; } while (k >= 0); return t2; };
+        const date2ser = (d) => Math.round((Date.parse(d + "T00:00:00Z") - Date.UTC(1899, 11, 30)) / 864e5);
+        const ser2date = (n) => new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5).toISOString().slice(0, 10);
+        const sku = JSON.parse((await kvC.get("kpifeed:sku")) || "{}");
+        const xp = new Set(Object.values(feeds).flatMap((f) => f.xp || []));
+        const sumOf = (pmap) => { const r = { A: [0, 0] }; for (const [p, [sale, qty]] of Object.entries(pmap || {})) {
+            const cs = pcat[p]; if (cs === undefined) continue; const list = cs ? cs.split(",").map(Number) : [];
+            if (!list.length) { if (xp.has(p)) continue; r.A[0] += sale; r.A[1] += qty; continue; }
+            for (const c of list) { const x = r[c] || (r[c] = [0, 0]); x[0] += sale; x[1] += qty; } } return r; };
+        const note = {}, reqs = [], vals = [];
+        for (const [t0, kind, width, offs] of [["5-1. 카테고리별 GMV(월별)", "m", 8, [0, 3, 6, 7]], ["5-2. 카테고리별 GMV(주별)", "w", 7, [0, 2, 5, 6]]]) {
+          const t = tabOf(t0), keyOf = (x) => kind === "m" ? (typeof x === "number" && x > 40000 ? ser2date(x).slice(0, 7) : null)
+            : ((m) => m ? `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}` : null)(String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/));
+          let oLastR = 0, oLastK = null; (await vget(KPI_ORIG_ID, `'${oTab(t0)}'!B1:B400`, "UNFORMATTED_VALUE")).forEach((r, i) => { const k = keyOf(r[0]); if (k && i >= 4) { oLastR = i + 1; oLastK = k; } });
+          if (!oLastR) { note[t0] = "원본 기준 줄 없음"; continue; }
+          const keys = kind === "m" ? Object.keys(feeds).filter((m) => m > oLastK).sort()
+            : [...new Set(Object.values(feeds).flatMap((f) => Object.keys(f.pW || {})))].filter((k) => k > oLastK).sort();
+          const pOf = (k) => kind === "m" ? (feeds[k] || {}).pM : Object.values(feeds).reduce((acc, f) => { for (const [p, v] of Object.entries((f.pW || {})[k] || {})) { const a = acc[p] || (acc[p] = [0, 0]); a[0] += v[0]; a[1] += v[1]; } return acc; }, {});
+          const hdr = (await vget(id, `'${t}'!A3:ZZ3`, "UNFORMATTED_VALUE"))[0] || []; const colOf = {}; hdr.forEach((h, i) => { if (h) colOf[String(h).replace(/\s/g, "")] = i + 1; });
+          const tmpl = (await vget(id, `'${t}'!A${oLastR}:ZZ${oLastR}`, "FORMULA"))[0] || [];
+          const cur = await vget(id, `'${t}'!B${oLastR + 1}:B400`, "UNFORMATTED_VALUE"); const endR = oLastR + cur.length;
+          const W = Math.max(tmpl.length, 3);
+          // 우리 줄 전부 비우고(옛 슬랙봇 기준 값 포함) 새로 쓴다
+          if (endR > oLastR) vals.push({ range: `'${t}'!B${oLastR + 1}:${cA1(W)}${endR}`, values: Array.from({ length: endR - oLastR }, () => Array(W - 1).fill("")) });
+          if (keys.length) {
+            reqs.push({ copyPaste: { source: { sheetId: P[t].sheetId, startRowIndex: oLastR - 1, endRowIndex: oLastR }, destination: { sheetId: P[t].sheetId, startRowIndex: oLastR, endRowIndex: oLastR + keys.length }, pasteType: "PASTE_FORMAT" } });
+            let st = -1; for (let j = 2; j <= tmpl.length; j++) { const f = typeof tmpl[j] === "string" && tmpl[j].startsWith("="); if (f && st < 0) st = j; if (!f && st >= 0) {
+              reqs.push({ copyPaste: { source: { sheetId: P[t].sheetId, startRowIndex: oLastR - 1, endRowIndex: oLastR, startColumnIndex: st, endColumnIndex: j }, destination: { sheetId: P[t].sheetId, startRowIndex: oLastR, endRowIndex: oLastR + keys.length, startColumnIndex: st, endColumnIndex: j }, pasteType: "PASTE_FORMULA" } }); st = -1; } } }
+          keys.forEach((k, i) => { const R = oLastR + 1 + i, sm = sumOf(pOf(k)), sk = (sku[kind + ":" + k]) || {};
+            vals.push({ range: `'${t}'!B${R}`, values: [[kind === "m" ? date2ser(k + "-01") : kpiWeekLabel(k)]] });
+            for (const [nm, c] of [["아트", "A"], ...CATS]) { const col = colOf[nm.replace(/\s/g, "")]; if (!col) continue;
+              const v = sm[c] || [0, 0], s2 = sk[c === "A" ? 608 : c] || ["", ""];
+              const cells = [v[0], v[1], s2[0], s2[1]]; offs.forEach((o, j) => vals.push({ range: `'${t}'!${cA1(col + o)}${R}`, values: [[cells[j]]] })); } });
+          note[t0] = `${oLastK} 다음 ${keys.join(",") || "없음"}`;
+        }
+        // 순서: 우리 줄 비우기 → 서식·수식 복사 → 라벨·값 쓰기 (비우기를 나중에 하면 복사한 수식이 지워진다)
+        const clears = vals.filter((v) => /:/.test(v.range.split("!")[1])), rest = vals.filter((v) => !/:/.test(v.range.split("!")[1]));
+        if (clears.length) { const w = await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ valueInputOption: "RAW", data: clears }) }); if (!w.ok) return json({ error: "clear " + (await w.text()).slice(0, 200) }, 500); }
+        if (reqs.length) { const r = await fetch(`${SH}:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ requests: reqs }) }); if (!r.ok) return json({ error: "batchUpdate " + (await r.text()).slice(0, 200) }, 500); }
+        for (const batch of [rest]) for (let i = 0; i < batch.length; i += 400) {
+          const w = await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: batch.slice(i, i + 400) }) });
+          if (!w.ok) return json({ error: "values " + (await w.text()).slice(0, 200), note }, 500); }
+        return json({ ok: true, note });
       }
       if (url.pathname === "/kpisheet" && q.get("part") === "ext") {
         const sa = JSON.parse(env.GA_SA_KEY), id = q.get("id"), kvE = env.CAFE24_TOKEN_KV;
@@ -1290,8 +1389,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const wLab2 = (k) => { const l = `${k.slice(0, 4)}년 ${+k.slice(5, 7)}월 ${k.slice(-1)}주차`; return bw[l] || bw[l.replace("주차", "주")] || null; };
           const cells = [...catCells("5-1. 카테고리별 GMV(월별)", catMon, mLabel, "CT", 8),
                          ...catCells("5-2. 카테고리별 GMV(주별)", catWk, wLab2, "CH", 7)];
-          await protectedWrite(cells);
-          catNote = `월 ${Object.keys(catMon).length} · 주 ${Object.keys(catWk).length} → ${cells.length}행`;
+          // [2026-10-28] 슬랙봇 카테고리는 원본 5-x 정의와 달라(중복 축·취소 반영) 쓰지 않는다 → part=cat 이 채운다.
+          catNote = `part=cat (슬랙봇 ${cells.length}행 미사용)`;
         } catch (e) { catNote = "실패: " + String(e && e.message || e).slice(0, 120); }
 
         // 6-x 유저 탭은 part=ext 가 채운다(2026-10-27). 여기서는 안 건드린다.
