@@ -1069,6 +1069,9 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           hint: `시트를 ${sa.client_email} 에 '편집자' 로 공유해 주세요.`, saEmail: sa.client_email }, meta.status);
         if (q.get("ping")) return json({ ok: true, title: mj?.properties?.title,
           tabs: (mj.sheets || []).map((x) => x.properties.title), saEmail: sa.client_email });
+        // [2026-10-29] 읽기 전용 peek — 시트 칸을 그대로 돌려준다(진단용). ?peek='1-4. 자사몰: GMV(일별)'!B1027:M1040[&render=FORMULA]
+        if (q.get("peek")) { const pr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(q.get("peek"))}?valueRenderOption=${q.get("render") || "UNFORMATTED_VALUE"}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: { Authorization: "Bearer " + tok } });
+          const pj = await pr.json().catch(() => ({})); return json({ ok: pr.ok, range: pj.range, values: pj.values || [], error: pj.error?.message }, pr.ok ? 200 : pr.status); }
 
         const GHP = "https://su-pbg.github.io/dashboard/";
         const grab = async (f) => { const r = await fetch(GHP + f); return r.ok ? (await r.json()).daily || [] : []; };
