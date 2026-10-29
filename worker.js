@@ -488,6 +488,13 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           await kvA.put("kpiad:v1", JSON.stringify(cur2));
           return json({ ok: true, ad: Object.keys(cur2.ad).length, adMonth: Object.keys(cur2.adMonth).length });
         }
+        // [2026-10-29] 지정 칸만 쓰기: POST {id, data:[{range:"'탭'!F67", values:[["홍영주"]]}, ...]} — 열 하나 고칠 때 A열부터 덮지 않으려고(거래처 LIST 담당자 이관에 씀)
+        if (b.id && Array.isArray(b.data) && b.data.length) {
+          const tokD = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
+          const rD = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${b.id}/values:batchUpdate`, { method: "POST", headers: { Authorization: "Bearer " + tokD, "Content-Type": "application/json" },
+            body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: b.data.slice(0, 500) }) });
+          const jD = await rD.json().catch(() => ({})); return json({ ok: rD.ok, updated: jD.totalUpdatedCells, error: jD?.error?.message }, rD.ok ? 200 : rD.status);
+        }
         const id = b.id, tab = String(b.tab || ""), rows = Array.isArray(b.rows) ? b.rows : [];
         if (!id || !tab || !rows.length) return json({ error: "id·tab·rows 가 필요합니다" }, 400);
         const tok = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets");
