@@ -9,5 +9,8 @@
   "dependencies": {
     "@google-analytics/data": "^4.12.0",
     "pptxgenjs": "^4.0.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.155.0"
   }
 }
