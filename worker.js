@@ -50,6 +50,10 @@ __name(verifyToken, "verifyToken");
 //   · 6-4 유저(일별): 회원가입·DAU·새 사용자 = GA4 '봇·어뷰징 제외'(대시보드 기본값) — 2026-10-20 부터(그 전은 원본 손입력 그대로).
 //     첫 구매 사용자 거래액·건수 = 카페24 주문 first_order='T' — 2026-10-19 부터.
 //   · 1-4·6-4 일별, 1-3·6-3 주별 줄이 모자라면 원본 마지막 줄을 복사해 늘린다(수식 포함, 범위 참조는 새 기간으로 옮긴다).
+// [2026-10-29] 6-3 WAU·새 사용자 정의. false = 대시보드 정의(totalUsers·봇/어뷰징 제외, 6-4 일별과 같다). true = GA4 원값(activeUsers·newUsers).
+//   실측(10월 1·2주): 원값 45,702/37,354 는 손입력 21,427/18,113 의 2배라 아니다. 봇 제외값 22,884/18,781 이 +6.8%/+3.7% 로 가장 가깝다.
+//   원본 팀이 GA4 화면에서 어떤 필터로 읽었는지는 모른다 → 대시보드 정의로 간다. 원값은 raw 에 같이 남긴다.
+var KPI_WAU_RAW = false;
 var KPI_EXT_FROM = { month: "2026-10", week: "2026-10-19", user: "2026-10-20", fb: "2026-10-19" };
 // [2026-10-28] 원본 KPI_Dashboard — 새 시트는 이걸 그대로 따라간다(part=sync). 원본이 채운 칸은 원본이 이긴다.
 var KPI_ORIG_ID = "1F-vT9k5bindzk_QXzlz1dKTF43-eyw4L9ialfvDtWbU";
@@ -626,10 +630,15 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         const r = await worker_default.fetch(new Request(`https://kpi.local/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&autoExclLowEngagement=1&key=${encodeURIComponent(env.DASHBOARD_KEY)}`), env);
         const o = await r.json().catch(() => ({}));
         const k = {}; for (const x of o.kpis || []) k[x.label] = x.after;
-        const wau = o.usersInRange && o.usersInRange.after;
-        if (wau == null) return json({ error: "GA4 응답에 활성 사용자가 없습니다", keys: Object.keys(o) }, 502);
+        const tot = o.usersInRange && o.usersInRange.after;
+        if (tot == null) return json({ error: "GA4 응답에 활성 사용자가 없습니다", keys: Object.keys(o) }, 502);
+        // GA4 원값(activeUsers·newUsers, 봇 제외 없음)도 같이 받아 둔다(참고용. KPI_WAU_RAW 참조).
+        const rows = await runReport(env.GA4_PROPERTY_ID && String(env.GA4_PROPERTY_ID).trim() || "333394141", await getAccessToken(JSON.parse(env.GA_SA_KEY)),
+          { dateRanges: [{ startDate: s0, endDate: e0 }], dimensions: [{ name: "year" }], metrics: [{ name: "activeUsers" }, { name: "newUsers" }] });
+        const mv = (rows[0] && rows[0].metricValues) || [], active = mv[0] ? +mv[0].value : null, newU = mv[1] ? +mv[1].value : null;
         const all = JSON.parse((await kvU.get("kpiweeks:v1")) || "{}");
-        all[wkk] = { wau, nu: k["신규 방문자"] ?? null, join: k["신규 가입"] ?? null, from: s0, to: e0 };
+        all[wkk] = { wau: KPI_WAU_RAW ? active : tot, nu: KPI_WAU_RAW ? newU : (k["신규 방문자"] ?? null), join: k["신규 가입"] ?? null, from: s0, to: e0,
+          raw: { active, newU }, excl: { tot, nu: k["신규 방문자"] ?? null } };
         await kvU.put("kpiweeks:v1", JSON.stringify(all));
         return json({ ok: true, week: wkk, ...all[wkk] });
       }
