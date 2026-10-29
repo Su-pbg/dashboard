@@ -801,6 +801,21 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ valueInputOption: "RAW",
                 data: [{ range: `'${RT}'!A${rawRow(addDays(rawLast, 1))}:P${rawRow(addDays(yest, 7))}`, values: rows2 }] }) });
               note.raw = `RAW ${addDays(rawLast, 1)}~${yest} (주문 API)`;
+              // [2026-10-29] 1-4 AD '신규 상품 수(SKU)' — 원본은 손입력(값)이라 RAW 마지막 날 이후가 비어 있었고,
+              //   요약의 10월 289 가 10-19 까지 합으로 보였다. 하루씩 products/count(등록일)로 센다.
+              //   KV kpisku:v1 에 두고 없는 날만 부른다(한 번에 10일 — 서브요청 한도). 원본 팀이 그 날짜를 손으로 넣으면 part=sync 가 원본 값으로 바꾼다.
+              //   실패해도 RAW 채우기는 이미 끝났으므로 note 에만 남긴다.
+              try {
+                const SK = JSON.parse((await kvE.get("kpisku:v1")) || "{}"); let nNew = 0;
+                const ct = await getCafe24AccessToken(env);
+                for (let d = addDays(rawLast, 1); d <= yest && nNew < 10; d = addDays(d, 1)) { if (SK[d] != null) continue;
+                  const c = await cafe24Get(env.CAFE24_MALL_ID, ct, `products/count?created_start_date=${d}&created_end_date=${d}`, false, env);
+                  if (c && c.count != null) { SK[d] = +c.count; nNew++; } }
+                await kvE.put("kpisku:v1", JSON.stringify(SK));
+                const sv = []; for (let d = addDays(rawLast, 1); d <= yest; d = addDays(d, 1)) if (SK[d] != null) sv.push({ range: `'${t}'!AD${dayRow(d)}`, values: [[SK[d]]] });
+                if (sv.length) await fetch(`${SH}/values:batchUpdate`, { method: "POST", headers: HJ, body: JSON.stringify({ valueInputOption: "RAW", data: sv }) });
+                note.sku = `SKU ${sv.length}일 (새로 센 날 ${nNew})`;
+              } catch (e) { note.skuErr = String(e && e.message || e).slice(0, 120); }
               }
             }
             if (q.get("step") === "raw") return json({ ok: true, yest, note });
