@@ -169,7 +169,7 @@ var worker_default = {
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
     let job = JSON.parse((await kv.get("kpijob")) || "null");
-    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "weeks", "scan", "raw", "ext", "pcat", "sheet", "cat", "sync", "users2"], log: [], at: kst.toISOString().slice(0, 16) }; }
+    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "weeks", "scan", "raw", "ext", "wk", "pcat", "sheet", "cat", "sync", "users2"], log: [], at: kst.toISOString().slice(0, 16) }; }
     const KEY = encodeURIComponent(env.DASHBOARD_KEY), call = async (path) => { const r = await worker_default.fetch(new Request("https://kpi.local" + path + (path.includes("?") ? "&" : "?") + "key=" + KEY), env); return (await r.text()).slice(0, 300); };
     const step = job.todo[0];
     try {
@@ -198,6 +198,7 @@ var worker_default = {
       else if (step === "pcat") { const r = await call(`/kpisheet?part=cat&step=pcat`); job.log.push("pcat " + r.slice(0, 120)); if (!/"left":[1-9]|"more":true/.test(r)) job.todo.shift(); }
       else if (step === "cat") { job.log.push("cat " + (await call(`/kpisheet?id=${SHEET}&part=cat&step=write`))); job.todo.shift(); }
       else if (step === "raw") { job.log.push("raw " + (await call(`/kpisheet?id=${SHEET}&part=ext&step=raw`))); job.todo.shift(); }
+      else if (step === "wk") { job.log.push("wk " + (await call(`/kpisheet?id=${SHEET}&part=ext&step=wk`))); job.todo.shift(); }
       else if (step === "sync") { job.log.push("sync " + (await call(`/kpisheet?id=${SHEET}&part=sync`))); job.todo.shift(); }
       else if (step === "users2") {
         // [2026-10-29] GA4 가 어제 값을 새벽엔 안 줄 때가 있다 — 10-28 이 아침 갱신 땐 비었다가(회원가입·DAU·새 사용자 세 칸) 10시에 같은 호출로 바로 나왔다.
@@ -803,6 +804,17 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           const oGet = async (t0, rng, render = "FORMULA") => { const ot = oTabs.find((x) => x.replace(/[:\s]/g, "") === t0.replace(/[:\s]/g, "")); if (!ot) return [];
             const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${KPI_ORIG_ID}/values/${encodeURIComponent(`'${ot}'!${rng}`)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: OH });
             const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(`원본 ${t0} 읽기: ${j?.error?.message || r.status}`); return j.values || []; };
+          // [2026-10-29] step=wk — 6-3 유저(주별) WAU(F)·새 사용자(I) 만 KV kpiweeks:v1 로 채우고 끝낸다. ext 본문 끝에 붙였더니 서브요청 50개를 넘겨 죽었다(실측).
+          //   원본이 손입력을 멈춘 주부터만. 원본 F 에 값이 있는 주는 건드리지 않는다(원본 팀 값이 이긴다). 크론 단계 'wk' 가 ext 다음에 부른다.
+          if (q.get("step") === "wk") {
+            const t0 = "6-3. 유저(주별)", t = tabOf(t0), wk = (x) => { const m = String(x || "").match(/^(\d{4})년\s*(\d+)월\s*(\d)주/); return m ? `${m[1]}-${String(+m[2]).padStart(2, "0")}-W${m[3]}` : null; };
+            const Wk = JSON.parse((await kvE.get("kpiweeks:v1")) || "{}"), oF = await oGet(t0, "B1:I400", "UNFORMATTED_VALUE"), g2 = await get(t, "B1:B400");
+            let nW = 0; const done = []; g2.forEach((r, i) => { const k = wk(r[0]); if (!k || i < 4 || !Wk[k] || k < kpiWeekKey(KPI_EXT_FROM.week)) return;
+              const orow = oF.find((x) => wk(x[0]) === k); if (orow && (orow[4] !== "" && orow[4] != null)) return;   // 원본 F 에 값 있음 → 패스
+              vals.push({ range: `'${t}'!F${i + 1}`, values: [[Wk[k].wau]] }, { range: `'${t}'!I${i + 1}`, values: [[Wk[k].nu ?? ""]] }); nW++; done.push(k); });
+            await flush(); note["6-3 WAU"] = `${nW}주 (${done.join(",")})`;
+            return json({ ok: true, yest, note });
+          }
           // 템플릿 줄의 '수식 칸'만 아래로 복사(값 칸은 안 건드린다 — 전에 통째로 복사해 날짜 라벨·손입력이 같이 복사됐다)
           const fmlCopy = async (t, tr, r0, n, cMin = 3) => {
             if (n <= 0) return 0; const row = ((await get(t, `A${tr}:ZZ${tr}`, "FORMULA"))[0]) || [];
@@ -1004,14 +1016,6 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               vals.push({ range: `'${t}'!A${R}:${cA1(row.length)}${R}`, values: [row] }); });
             note[t0] = want.length ? `+${want.length}줄 (${want.join(",")})` : "변경 없음";
             await flush();
-            // [2026-10-29] 6-3 WAU(F)·새 사용자(I): 원본이 손입력을 멈춘 주부터 KV kpiweeks:v1 로 채운다. 원본에 값이 있는 주는 건드리지 않는다(원본 팀 값이 이긴다).
-            if (t0 === "6-3. 유저(주별)") {
-              const Wk = JSON.parse((await kvE.get("kpiweeks:v1")) || "{}"), oF = await oGet(t0, "B1:I400", "UNFORMATTED_VALUE"), g2 = await get(t, "B1:B400");
-              let nW = 0; g2.forEach((r, i) => { const k = wk(r[0]); if (!k || i < 4 || !Wk[k] || k < kpiWeekKey(KPI_EXT_FROM.week)) return;
-                const orow = oF.find((x) => wk(x[0]) === k); if (orow && (orow[4] !== "" && orow[4] != null)) return;   // 원본 F 에 값 있음 → 패스
-                vals.push({ range: `'${t}'!F${i + 1}`, values: [[Wk[k].wau]] }, { range: `'${t}'!I${i + 1}`, values: [[Wk[k].nu ?? ""]] }); nW++; });
-              note["6-3 WAU"] = `${nW}주`; await flush();
-            }
           }
         } catch (e) { return json({ error: String(e.message || e), note }, 500); }
         return json({ ok: true, yest, note });
