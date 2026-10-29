@@ -14,6 +14,7 @@
 - `worker.js` KPI 수집 효율화 — 클라우드 세션(KPI 대시보드 엑셀 시트)이 1단계 완료 후 **대기 중**. 2단계(ext 를 daily/blocks/weekly 분할)부터는 Su 가 "하나씩" 하자고 함. 다음 단계 시작 전 그 세션과 조율.
 
 ## 다음 할 일
+0. (Su 수동) 거래처 LIST (라이프) 시트의 담당자 이지혜 50·'이아롬 ' 84 → 홍영주. 대시보드 `supplier-managers.json` 은 2026-10-29 에 바꿨음(122곳). 워커는 그 시트에 쓰기 권한 없음(SA pbg-51@…, 편집자 공유하면 POST /kpisheet {id,data[]} 로 가능).
 1. 기획 2단계: `part=ext` 를 `step=daily|blocks|weekly` 로 분할(worker.js 863~1006행). 각 응답에 서브요청 카운트 `sub:` 추가.
 2. GitHub Secrets 에 `CLOUDFLARE_API_TOKEN`·새 `DASHBOARD_KEY` 입력(웹에서, Su).
 3. 10/22 판매 입력 대조 오저장 16건 되돌리기(워커 undo 또는 파일 재업로드).
