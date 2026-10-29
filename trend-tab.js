@@ -120,11 +120,14 @@ table.tr-t{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
 `;
 // '저가라인' 은 priceGap(우리가격÷시장가)이 있어야 나오는데 네이버 쇼핑 API 를 못 써서 영원히 안 나온다.
 // 목록에 두면 '0' 칩이 계속 떠서 고장난 것처럼 보인다 — 시장가가 다시 들어오면 되살린다.
-const ACTIONS=['재고확보','시즌 준비','계절 선소싱','소싱','밀기','안 팔림 점검','소싱 검토','지켜보기','유지','패스'];
-const TODO=['재고확보','시즌 준비','계절 선소싱','소싱','밀기','안 팔림 점검'];
-const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','시즌 준비':'시즌 정점이 2개월 안 · 우리 몰에 있음 → 재고·기획전·광고 준비','계절 선소싱':'시즌 정점이 2개월 안 · 우리 몰에 없음 → 지금 들여야 시즌에 맞음','소싱':'뜨는 중 · 우리 몰에 없음','밀기':'뜨는 중 · 우리 상품이 팔리고 있음 → 광고·기획전',
+// [2026-10-29] 판정 이름은 slackbot radar_score.decide() 가 내는 8종 그대로 쓴다. 화면에서 '계절 선소싱' 으로
+//   바꿔 부르는 바람에 '시즌 소싱'(정점 2개월 내 · 미취급 — 가장 급한 소싱) 4건이 할 일 카드·버튼에서 통째로 빠져 있었다.
+//   '소싱'·'지켜보기' 는 2026-10-13 이전 판정이라 더 안 나온다.
+const ACTIONS=['재고확보','시즌 준비','시즌 소싱','밀기','안 팔림 점검','소싱 검토','유지','패스'];
+const TODO=['재고확보','시즌 준비','시즌 소싱','밀기','안 팔림 점검'];
+const ACT_HELP={'재고확보':'수요 있는데 우리 상품이 전부 품절','시즌 준비':'시즌 정점이 2개월 안 · 우리 몰에 있음 → 재고·기획전·광고 준비','시즌 소싱':'시즌 정점이 2개월 안 · 우리 몰에 없음 → 지금 들여야 시즌에 맞음','밀기':'수요 있고 우리 상품이 잘 팔림(검색 1천 건당 0.5개 이상) → 광고·기획전',
   '안 팔림 점검':'수요 있는데 우리 상품이 안 팔림(30일 0개 또는 검색 1천 건당 0.2개 미만) → 가격·노출·상품명','저가라인':'우리 가격이 시장의 2배 이상',
-  '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','지켜보기':'뜨는 중이지만 검색이 아직 작음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
+  '소싱 검토':'꾸준한 큰 수요(월 5천+) · 경쟁 낮음/중간 · 우리 몰에 없음','유지':'상시·보합 수요 · 우리 상품이 팔리고 있음 — 할 일 없음','패스':'그 외'};
 const AGE={'10':'10대','20':'20대','30':'30대','40':'40대','50':'50대','60':'60대+'};
 const S={data:null,pool:null,shop:null,cfg:null,prods:null,terms:null,sres:null,band:'mid',act:'할 일',theme:'',q:'',onlyNew:false,onlyRising:false,sort:'',dir:-1,open:null,limit:15};
 const n=v=>v==null?'—':Number(v).toLocaleString('ko-KR');
@@ -261,7 +264,7 @@ function renderTable(){
 // [2026-10-20] 버튼 9개가 같은 무게로 늘어서 있어서 뭘 먼저 눌러야 할지 안 보였다.
 //   급한 순(재고확보 → 시즌 소싱 → 소싱 검토 → 안 팔림 점검 → 시즌 준비 → 밀기)으로 세우고
 //   참고군(유지·패스·전체)은 흐리게 뒤로 뺀다.
-const URGENT=['재고확보','계절 선소싱','소싱 검토','안 팔림 점검','시즌 준비','밀기'];
+const URGENT=['재고확보','시즌 소싱','소싱 검토','안 팔림 점검','시즌 준비','밀기'];
 function renderActs(){
   const rows=S.data.runs[S.data.runs.length-1].rows; const cnt={}; rows.forEach(r=>cnt[r.action]=(cnt[r.action]||0)+1);
   const el=document.getElementById('trActs');
@@ -270,7 +273,7 @@ function renderActs(){
   el.innerHTML = btn('할 일','할 일',todo,'lead')
     + URGENT.filter(a=>cnt[a]).map(a=>btn(a,a,cnt[a])).join('')
     + '<span class="tr-sep"></span>'
-    + ['유지','패스','지켜보기','저가라인','소싱'].filter(a=>cnt[a]).map(a=>btn(a,a,cnt[a],'dim')).join('')
+    + ['유지','패스'].filter(a=>cnt[a]).map(a=>btn(a,a,cnt[a],'dim')).join('')
     + btn('','전체',rows.length,'dim');
   el.querySelectorAll('.tr-act').forEach(b=>b.onclick=()=>{S.act=b.dataset.a;S.limit=15;renderActs();renderTable();});
 }
@@ -546,7 +549,7 @@ function renderAction(){
 
   el.innerHTML=(burnHTML?`<div><h4 class="tr-sub" style="font-weight:600;margin:0 0 2px">검색 유입 대비 미취급 (${burn.length})</h4>`
       +`<div class="tr-sub" style="margin:0 0 6px">자사몰 검색 결과 0건 — 유입 발생분</div>${burnHTML}</div>`:'')
-    + grp('계절 선소싱', pick(['계절 선소싱'],r=>vol(r)+peak(r),r=>'<span class="tr-flat">없음</span>'), '계절 정점 2개월 내 · 미취급')
+    + grp('시즌 소싱', pick(['시즌 소싱'],r=>vol(r)+peak(r),r=>'<span class="tr-flat">없음</span>'), '시즌 정점 2개월 내 · 미취급 — 지금 들여야 시즌에 맞음')
     + grp('소싱 검토', pick(['소싱 검토'],vol,r=>'<span class="tr-flat">없음</span>'), '수요 대비 미취급')
     + grp('재고 확보', pick(['재고확보'],vol,have), '전 품목 재고 소진')
     + grp('판매 부진', pick(['안 팔림 점검'],vol,have), '가격 · 노출 · 상세 점검 대상')
@@ -683,7 +686,7 @@ window.loadTrendTab=async function(){
      <div class="tr-filters"><input type="search" id="trQ" placeholder="키워드 검색" value="">
        <select id="trTheme"><option value="">전체 테마</option>${themes.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
        <label><input type="checkbox" id="trNew">신규만</label>
-       <label title="백테스트에서 모멘텀 적중률 46% — 동전던지기보다 낮다. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise">최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
+       <label title="재검증(2026-10-28) 모멘텀 방향 적중 47% — 동전던지기 수준. 소싱 결정에 쓰지 말 것."><input type="checkbox" id="trRise">최근 오른 것만 <span class="tr-sub">(참고용)</span></label></div>
      <div id="trTable"></div>
      <h4 class="tr-sub" style="margin:18px 0 4px">급상승</h4>
      <div id="trRise2"></div>
@@ -695,7 +698,8 @@ window.loadTrendTab=async function(){
      쇼핑 클릭·여성·연령 = 쇼핑인사이트(가구/인테리어·생활/건강 중 클릭이 많은 쪽) · 광고 경쟁 = 검색광고 경쟁 정도(네이버 쇼핑 검색 API 종료로 상품 수 대신) ·
      유튜브 = 최근 7일 올라온 영상의 조회수 합(상위 30개 키워드) · 블로그 = 최근 7일 새 글 · 카페 = 카페 글 누적 수의 전날 대비 증가분 ·
      우리 몰 = 상품명·분류·태그에 키워드가 들어간 상품, 30일 판매수량.<br>
-     <b>※ 모멘텀은 예측력이 없다.</b> 120키워드×60일 백테스트: '이번 주 상승 → 다음 주도 상승' 적중률 <b>46%</b>(동전 50%), 예측오차 모멘텀 1.94 vs 단순유지 1.41. 검색량은 평균회귀한다 — <b>'뜨는 중' 으로 소싱을 결정하지 말 것.</b> 판정은 수준×전환효율×경쟁여지×시즌으로 한다.<br>
+     <b>※ 모멘텀은 예측력이 없다.</b> 139키워드×60일 재검증(2026-10-28): '이번 주 상승 → 다음 주도 상승' <b>47%</b>(n=834, 동전 50%), 크기 오차 모멘텀 12% vs 단순유지 9%. 검색량은 평균회귀한다 — <b>'뜨는 중' 으로 소싱을 결정하지 말 것.</b><br>
+     <b>※ 시즌지수는 맞는다.</b> 9→10월 예고 vs 데이터랩 실측 r=+0.76(118키워드), 예고 배율 ±30% 이상 40개는 방향 68%. 단 크기는 과대(러그 예고 ×1.72 / 실측 ×1.29). 검색량 → 우리 판매는 연결이 없다(변화율 r=+0.02, 보유 58키워드·22일). 판정은 수준×전환효율×경쟁여지×시즌으로 한다.<br>
      흐름(참고): <b>뜨는 중</b> 4주 +20% 또는 전년 +30% 또는 검색수 28일 +20% · <b>식는 중</b> 4주·전년 모두 −20% · <b>상시</b> 60일 일별 등락이 작고(변동계수 0.3 미만) 전년과 ±25% 안 · <b>불규칙</b> 그 외(등락이 크거나 전년과 차이가 큼) ·
      <b>시즌</b> 최근 3년 월별 검색에서 같은 달이 평균의 1.5배 이상이고 매년 그 달(±1개월)에 정점이 옴.<br>
      판정: ${ACTIONS.map(a=>`<b>${a}</b> ${ACT_HELP[a]}`).join(' · ')}<br>
