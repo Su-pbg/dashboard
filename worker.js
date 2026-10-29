@@ -165,7 +165,7 @@ var worker_default = {
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
     let job = JSON.parse((await kv.get("kpijob")) || "null");
-    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "raw", "ext", "pcat", "sheet", "cat", "sync"], log: [], at: kst.toISOString().slice(0, 16) }; }
+    if (!job || job.done) { if (!fresh && !due) return; job = { src, day: today, todo: ["users", "scan", "raw", "ext", "pcat", "sheet", "cat", "sync", "users2"], log: [], at: kst.toISOString().slice(0, 16) }; }
     const KEY = encodeURIComponent(env.DASHBOARD_KEY), call = async (path) => { const r = await worker_default.fetch(new Request("https://kpi.local" + path + (path.includes("?") ? "&" : "?") + "key=" + KEY), env); return (await r.text()).slice(0, 300); };
     const step = job.todo[0];
     try {
@@ -188,6 +188,15 @@ var worker_default = {
       else if (step === "cat") { job.log.push("cat " + (await call(`/kpisheet?id=${SHEET}&part=cat&step=write`))); job.todo.shift(); }
       else if (step === "raw") { job.log.push("raw " + (await call(`/kpisheet?id=${SHEET}&part=ext&step=raw`))); job.todo.shift(); }
       else if (step === "sync") { job.log.push("sync " + (await call(`/kpisheet?id=${SHEET}&part=sync`))); job.todo.shift(); }
+      else if (step === "users2") {
+        // [2026-10-29] GA4 가 어제 값을 새벽엔 안 줄 때가 있다 — 10-28 이 아침 갱신 땐 비었다가(회원가입·DAU·새 사용자 세 칸) 10시에 같은 호출로 바로 나왔다.
+        //   그래서 맨 끝에 한 번 더 본다: 아직 없으면 다시 받고, 받았으면 ext 를 한 번 더 돌려 6-4 를 채운다. 09시까지만 기다린다(그 뒤는 포기, 다음 날 users 가 최근 3일을 다시 받는다).
+        const yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
+        const has = async () => !!JSON.parse((await kv.get("kpiusers:v1")) || "{}")[yest];
+        if (await has()) job.todo.shift();
+        else { job.log.push("users2 " + yest + " " + (await call("/kpisheet?feed=users&date=" + yest)).slice(0, 80));
+          if (await has()) { job.todo.shift(); job.todo.push("ext"); } else if (hour >= 9) job.todo.shift(); }
+      }
     } catch (e) { job.log.push(step + " 실패 " + String(e && e.message || e).slice(0, 120)); job.fail = (job.fail || 0) + 1; if (job.fail > 3) job.todo.shift(); }
     if (!job.todo.length) job.done = true;
     job.log = job.log.slice(-30);

@@ -29,11 +29,20 @@
 | **Cloudflare Worker** `proud-sea-35f9.sugim-386.workers.dev` | `su-pbg/dashboard` 의 `worker.js` | **O** |
 | 매출/카테고리 수집 `build_revenue_daily.py` 등 | `Su-pbg/slackbot` | 별도 레포 |
 
+### 로컬 머신은 Mac mini 다 (2026-10-29, Su)
+맥북프로는 더 이상 로컬로 안 돌린다. 레포는 `~/Projects/dashboard`(맥북프로 시절 `~/dashboard` 가 아니다).
+- 워커 키: `~/Projects/dashboard/.dashboard_key.local` (2026-10-29 새 값으로 교체. 맥북프로 파일은 옛 값이라 못 쓴다)
+- 배포 인증: `wrangler login`(브라우저) 대신 **API 토큰 파일** `.cloudflare_token.local` (gitignore). 없으면 Su 가
+  Cloudflare → My Profile → API Tokens → "Edit Cloudflare Workers" 템플릿으로 만들어 넣는다.
+- `gh`·`brew` 가 없다. GitHub Actions 시크릿은 웹에서 넣는다(su7aeng 계정은 read 뿐이라 CLI 로도 안 된다).
+- 클라우드 세션(폰)에서 이 머신에 일을 시킬 수 있다 — Su 가 신뢰 카드를 승인한 세션만. 클라우드 컨테이너는
+  워커 주소·Cloudflare API 가 네트워크 정책으로 막혀 있어 **워커 호출·배포는 반드시 Mac mini 에서** 한다.
+
 ### 워커 고치는 법 (편집기 붙여넣기는 끝났다)
 ```bash
-# worker.js 를 고친 뒤
+# worker.js 를 고친 뒤 (Mac mini, ~/Projects/dashboard)
 node --check worker.js
-npx wrangler deploy          # wrangler.jsonc 사용. 시크릿은 건드리지 않는다
+CLOUDFLARE_API_TOKEN=$(cat .cloudflare_token.local) npx wrangler deploy   # wrangler.jsonc 사용. 시크릿은 건드리지 않는다
 ```
 - **`no_bundle: true` 다.** `worker.js` 는 Cloudflare 에서 내려받은 '이미 번들된' 파일이라
   다시 번들하면 esbuild 의 `__name` 헬퍼가 깨져 업로드가 거부된다(`ReferenceError`).
@@ -301,7 +310,7 @@ products?limit=1 + 2026-03-01 → 200
 상태코드/본문을 찍어보는 진단용. 인증된 요청만 가능. **다 쓰면 지울 것.**
 
 ### `DASHBOARD_KEY` 교체함
-검증 호출이 필요해서 Cloudflare 시크릿을 새 값으로 돌렸다. 값은 `~/dashboard/.dashboard_key.local`.
+검증 호출이 필요해서 Cloudflare 시크릿을 새 값으로 돌렸다. 값은 `~/dashboard/.dashboard_key.local`. **(2026-10-29 다시 교체 — 이제 Mac mini `~/Projects/dashboard/.dashboard_key.local`)**
 **GitHub Secret 쪽은 아직 옛 값** → `update-members` 액션이 403 으로 실패한다.
 맞추려면 GitHub Settings → Secrets → Actions 에 같은 값을 넣으면 된다.
 (su7aeng 계정은 이 레포에 read 권한뿐이라 CLI 로는 못 넣는다.)
@@ -807,6 +816,16 @@ rows = sourcing(doc, pool, products)                               # 사전 × �
 
 
 ---
+
+
+### KPI 시트 함정 (2026-10-29)
+- **회원가입·DAU·새 사용자(6-4 C/E/G)가 아침에 빈칸이면 GA4 가 아직 어제 값을 안 준 것이다.** 10-28 이 06:30 갱신 땐
+  비었다가 10시에 같은 호출(`feed=users&date=`)로 바로 나왔다. 코드 문제가 아니다. 크론 마지막 단계 `users2` 가
+  09시까지 다시 받아 `ext` 를 한 번 더 돌린다. 그래도 비면 다음 날 `users` 가 최근 3일을 다시 받는다.
+- **신규 상품 수(SKU, 1-4 AD)는 원래 손입력이었다.** 원본 팀이 10-19 에서 멈춰 요약 10월이 289(10-19 까지 합)로 보였고
+  11·12월 -100%·#DIV/0!·합계 1853% 는 원본 수식 그대로다. 지금은 `step=raw` 가 카페24 `products/count`(등록일)로
+  하루씩 센다 — 10-14·15·16·19 네 날 원본 손입력(41·39·31·6)과 정확히 일치. KV `kpisku:v1`, 한 번에 10일.
+  원본 팀이 손으로 넣으면 `sync` 가 원본 값으로 바꾼다.
 
 ## 3-5. 2026-10-12 (위탁 정산 메뉴)
 

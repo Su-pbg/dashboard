@@ -8,3 +8,4 @@ PBG_주간회의_*.pptx
 
 # 실제 영수증 OCR 텍스트가 들어 있다. 커밋하지 않는다.
 expense-fixtures.local.json
+.cloudflare_token.local
