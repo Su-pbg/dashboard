@@ -140,6 +140,8 @@ function monthRange(ym){
   const [y,m]=ym.split('-').map(Number);
   return {from:`${y}-${pad(m)}-01`, to:`${y}-${pad(m)}-${pad(new Date(y,m,0).getDate())}`, y, m};
 }
+// [2026-10-29] 담당자 이관(Su): 이지혜·이아롬 → 홍영주. 거래처 LIST 시트가 아직 옛 이름이어도 화면·목록은 후임으로 본다. 시트가 정리되면 지워도 된다.
+const MGR_ALIAS={'이지혜':'홍영주','이아롬':'홍영주','이아롭':'홍영주'};
 const mgrOf=code=>(S.map&&S.map[code]&&S.map[code].mgr)||'(미지정)';
 const inMgr=code=>S.mgr===ALL||mgrOf(code)===S.mgr;
 const mgrLabel=()=>S.mgr===ALL?'전체 담당자':S.mgr;
@@ -203,7 +205,7 @@ function parseSuppliers(sheets){
       const code=codeOfRow(cc==null?'':String(r[cc]||'').trim(), cn<0?'':String(r[cn]||'').trim(), r[cb]);
       if(!code) continue;
       addAlias(r[cb],code);
-      const m=cm<0?'':String(r[cm]||'').trim();
+      const m=MGR_ALIAS[cm<0?'':String(r[cm]||'').trim()] ?? (cm<0?'':String(r[cm]||'').trim());   // [2026-10-29] 퇴사·이관 담당자는 후임으로 읽는다
       if(m&&!mgr[code]) mgr[code]=m;   // 같은 공급사가 여러 줄이면 먼저 나온 담당자
       const ty=ct<0?'':String(r[ct]||'').trim();
       if(ty&&!byCode[code].type) byCode[code].type=ty;   // '카페 24 등록 공급사' 탭이 비었을 때만 채운다
