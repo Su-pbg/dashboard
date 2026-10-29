@@ -4,8 +4,8 @@
 2026-10-29 (Mac mini, Claude). Mac mini 를 유일한 로컬로 세팅(node 24·wrangler·openpyxl, 레포 4개 클론), 워커 배포 2회(95b634fb → 4015ff2b), KPI 시트 수집 효율화 기획(8단계), 에이전트 협업 세팅(AGENTS/HANDOFF/훅).
 
 ## 현재 상태
-- 배포된 워커 = 커밋 fd67714 기준(버전 4015ff2b). **HEAD ab0d86b(6-3 WAU 를 `part=ext&step=wk` 로 분리)는 아직 미배포.**
-- `part=ext` 는 배포본에서 "Too many subrequests" 로 실패 중(6-3 WAU 블록 때문). ab0d86b 배포로 풀릴 예정.
+- 배포된 워커 = 커밋 ab0d86b(버전 a1d222fa, 2026-10-29 14:2x). 기획 1단계(6-3 WAU → `part=ext&step=wk`) 적용됨.
+- `part=ext` 정상(ok). `step=wk` 로 6-3 WAU 2주(2026-10-W3·W4) 채워짐. 서브요청 초과 해소.
 - KV `kpiweeks:v1` 에 2026-10-W3(WAU 15,917) · W4(7,170, 진행 중) 들어감. `kpiusers:v1` 10-28 채워짐.
 - GitHub Actions `deploy-worker.yml` 은 있으나 시크릿 `CLOUDFLARE_API_TOKEN` 미설정. Actions 의 `DASHBOARD_KEY` 도 옛 값(403).
 - 테스트 전부 통과(expense · ecount 60 · paywin 13).
@@ -14,11 +14,10 @@
 - `worker.js` KPI 수집 효율화 — 클라우드 세션(KPI 대시보드 엑셀 시트)이 1단계 완료 후 **대기 중**. 2단계(ext 를 daily/blocks/weekly 분할)부터는 Su 가 "하나씩" 하자고 함. 다음 단계 시작 전 그 세션과 조율.
 
 ## 다음 할 일
-1. ab0d86b 배포 → `part=ext` 정상 → `part=ext&step=wk` 로 6-3 WAU 채워지는지 확인.
-2. 기획 2단계: `part=ext` 를 `step=daily|blocks|weekly` 로 분할(worker.js 863~1006행). 각 응답에 서브요청 카운트 `sub:` 추가.
-3. GitHub Secrets 에 `CLOUDFLARE_API_TOKEN`·새 `DASHBOARD_KEY` 입력(웹에서, Su).
-4. 10/22 판매 입력 대조 오저장 16건 되돌리기(워커 undo 또는 파일 재업로드).
-5. `revenue-daily-archive.json`(~06-23) 과 `revenue-daily.json`(07-31~) 사이 **2026-06-24~07-30 공백** 확인(7월이 47건으로 집계됨).
+1. 기획 2단계: `part=ext` 를 `step=daily|blocks|weekly` 로 분할(worker.js 863~1006행). 각 응답에 서브요청 카운트 `sub:` 추가.
+2. GitHub Secrets 에 `CLOUDFLARE_API_TOKEN`·새 `DASHBOARD_KEY` 입력(웹에서, Su).
+3. 10/22 판매 입력 대조 오저장 16건 되돌리기(워커 undo 또는 파일 재업로드).
+4. `revenue-daily-archive.json`(~06-23) 과 `revenue-daily.json`(07-31~) 사이 **2026-06-24~07-30 공백** 확인(7월이 47건으로 집계됨).
 
 ## 결정 사항 (누적)
 | 날짜 | 결정 | 근거 |
