@@ -10,3 +10,7 @@ PBG_주간회의_*.pptx
 expense-fixtures.local.json
 .cloudflare_token.local
 .DS_Store
+.env
+.env.*
+*.pem
+*.key
