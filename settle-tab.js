@@ -94,7 +94,7 @@ const $=id=>document.getElementById(id);
 
 const S={
   root:null, month:'', mgr:'',
-  sheet:null, sheetErr:null, sup:null, map:null,     // 거래처 LIST · 담당자 맵
+  sheet:null, sheetErr:null, sup:null, map:null, ovr:null,     // 거래처 LIST · 담당자 맵
   c24:null, c24Err:null, c24Loading:false,           // ① 카페24 판매
   sales:null, salesName:'', salesErr:null,           // ② 이카운트
   recon:null, reconView:'diff', reconOpen:null,      // ② 대조
@@ -142,7 +142,10 @@ function monthRange(ym){
 }
 // [2026-10-29] 담당자 이관(Su): 이지혜·이아롬 → 홍영주. 거래처 LIST 시트가 아직 옛 이름이어도 화면·목록은 후임으로 본다. 시트가 정리되면 지워도 된다.
 const MGR_ALIAS={'이지혜':'홍영주','이아롬':'홍영주','이아롭':'홍영주'};
-const mgrOf=code=>(S.map&&S.map[code]&&S.map[code].mgr)||'(미지정)';
+// [2026-10-29] 시트에 담당자가 없는 공급사는 워커 KV 오버라이드(/supplier-map, 대시보드 담당자 탭과 같은 저장소)로 지정할 수 있다. 시트 값이 있으면 시트가 이긴다.
+const ovrMgr=code=>{const o=S.ovr&&S.ovr[code]&&S.ovr[code].mgr; return o?(MGR_ALIAS[o]??o):'';};
+const mgrOf=code=>(S.map&&S.map[code]&&S.map[code].mgr)||ovrMgr(code)||'(미지정)';
+const mgrList=()=>[...new Set(Object.values(S.map||{}).map(m=>m.mgr).filter(Boolean))].sort();
 const inMgr=code=>S.mgr===ALL||mgrOf(code)===S.mgr;
 const mgrLabel=()=>S.mgr===ALL?'전체 담당자':S.mgr;
 function save(blob,name){
@@ -597,7 +600,7 @@ function step1(){
   else if(S.c24){
     const all=c24BySupplier(), sups=all.filter(x=>isConsign(x.code));
     const buys=all.filter(x=>/매입/.test(contractOf(x.code))&&!isConsign(x.code)), unknown=all.filter(x=>!contractOf(x.code));
-    const row=x=>{const s=S.sup&&S.sup.byCode[x.code], br=brandsOf(x.lines);return `<tr><td class="l"><b>${esc(s?s.name:x.name)}</b> <span class="st-sub" style="display:inline">${esc(x.code)}${S.mgr===ALL?' · '+esc(mgrOf(x.code)):''}</span>${br.length?`<div class="st-sub">브랜드 ${br.map(esc).join(', ')}</div>`:''}</td>
+    const row=x=>{const s=S.sup&&S.sup.byCode[x.code], br=brandsOf(x.lines);return `<tr><td class="l"><b>${esc(s?s.name:x.name)}</b> <span class="st-sub" style="display:inline">${esc(x.code)}${S.mgr===ALL?' · '+esc(mgrOf(x.code)):''}</span>${!(S.map&&S.map[x.code]&&S.map[x.code].mgr)?`<div class="st-sub">담당자 <select class="st-in" style="width:120px" data-a="setmgr" data-c="${esc(x.code)}"><option value="">(미지정)</option>${mgrList().map(m=>`<option ${ovrMgr(x.code)===m?'selected':''}>${esc(m)}</option>`).join('')}</select> <span style="color:var(--ghost)">시트엔 없음 · 대시보드에만 저장</span></div>`:''}${br.length?`<div class="st-sub">브랜드 ${br.map(esc).join(', ')}</div>`:''}</td>
         <td class="l">${esc(s?s.type||'—':'시트에 없음')}</td><td class="l">${esc(s&&s.doc||'—')}</td>
         <td>${s?(s.rate!=null?Math.round(s.rate*1000)/10+'%':`<span class="st-badge st-warn" style="margin:0">${esc(s.rateRaw||'없음')}</span>`):'—'}</td>
         <td>${n(x.lines.filter(l=>l.ok).length)}</td><td>${n(x.orders.size)}</td><td>${n(x.qty)}</td><td>${n(x.sale)}</td><td>${n(x.net)}</td><td>${x.cancel?n(x.cancel):'<span style="color:var(--ghost)">0</span>'}</td></tr>`;};
@@ -762,6 +765,7 @@ async function loadSheet(refresh){
   try{
     const d=await getJSON(WORKER+'/settle'+(refresh?'?refresh=1':''));
     S.sheet=d; S.sup=parseSuppliers(d.sheets);
+    try{ S.ovr=(await getJSON(WORKER+'/supplier-map')).overrides||{}; }catch(e){ S.ovr=S.ovr||{}; }
   }catch(e){ S.sheetErr=e; }
   rebuild(); render();
 }
@@ -775,6 +779,12 @@ async function onSalesFile(f){
   rebuild(); render();
   if(S.groups.length){ await loadExtra([],S.groups.map(g=>g.sup.code)); S.groups.forEach(g=>{g.calc=compute(g);}); render(); }
 }
+async function saveMgr(code,mgr){
+  try{
+    const d=await getJSON(WORKER+'/supplier-map',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,mgr})});
+    (S.ovr ||= {})[code]=d.saved||{mgr:null}; rebuild(); render();
+  }catch(e){ alert('담당자를 저장하지 못했습니다: '+e.message); }
+}
 async function saveMap(brand,code){
   try{
     const d=await getJSON(WORKER+'/settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand,code})});
@@ -785,6 +795,7 @@ async function saveMap(brand,code){
 function wire(root){
   root.addEventListener('change',e=>{
     const t=e.target, a=t.dataset.a;
+    if(a==='setmgr') return saveMgr(t.dataset.c,t.value);
     if(t.id==='stMonth'||t.id==='stMgr'){
       S.month=$('stMonth').value; S.mgr=$('stMgr').value; loadEdits();
       // 월·담당자가 바뀌면 ①부터 다시. 이카운트 파일은 월이 같으면 그대로 둔다
