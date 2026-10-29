@@ -838,6 +838,11 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               growRows(t, r1 + 9); await flush();
               blankRows(t, r0, r1 + 7, "AH"); await flush();
               await fmlCopy(t, tr, r0, r1 - r0 + 1);
+              // [2026-10-29] 원본 마지막 줄에서 할인(J)·예치금(P)은 수식이 아니라 값(0)이라 fmlCopy 가 건너뛰어 10-20 이후가 비었다(peek 실측)
+              //   → 같은 줄의 다른 칸처럼 RAW VLOOKUP 수식으로 채운다(RAW F=할인 6열, J=예치금 10열). 원본 팀이 값을 넣으면 part=sync 가 원본으로 바꾼다.
+              for (let d = addDays(rawLast, 1); d <= yest; d = addDays(d, 1)) { const R = dayRow(d);
+                vals.push({ range: `'${t}'!J${R}`, values: [[`=VLOOKUP($B${R},'RAW. 자사몰 GMV'!$A:$P,6,0)`]] },
+                          { range: `'${t}'!P${R}`, values: [[`=VLOOKUP($B${R},'RAW. 자사몰 GMV'!$A:$P,10,0)`]] }); }
               for (let d = addDays(rawLast, 1); d <= addDays(yest, 7); d = addDays(d, 1)) vals.push({ range: `'${t}'!B${dayRow(d)}`, values: [[dayLabel(d)]] });
               await flush(); note["1-4"] = `수식 ${addDays(rawLast, 1)}~${yest}`;
               // RAW 탭: 원본 RAW 다음 날 ~ 어제를 주문 API 로 채운다(행 = 2026-01-01 이 2행). 그 뒤 일주일은 비운다.
