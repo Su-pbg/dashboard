@@ -10,7 +10,7 @@
 - GitHub Actions `deploy-worker.yml` 은 있으나 시크릿 `CLOUDFLARE_API_TOKEN` 미설정. Actions 의 `DASHBOARD_KEY` 도 옛 값(403).
 - 테스트 전부 통과(expense · ecount 60 · paywin 13).
 - **slackbot 스케줄 잡 3개(revenue 01:17 · product-snapshot 06:10 · trend-metrics 06:50 KST)는 2026-10-30 부터 Mac mini self-hosted 러너에서 돈다**(GitHub Actions 무료 2,000분 소진 때문). 러너 `~/actions-runner`, launchd `actions.runner.Su-pbg-slackbot.mac-mini`(재부팅 자동 시작), 로그 `~/Library/Logs/actions.runner.Su-pbg-slackbot.mac-mini/`. 상태: `~/actions-runner/svc.sh status`. Mac mini 가 꺼져 있으면 잡이 큐에 걸린다. 11월 1일 한도 리셋 후에도 그대로 둔다.
-- 첫 self-hosted 실행(10-30 11:38)에서 슬랙봇 잠복 버그 발현: 실행 중 토큰이 갱신되면 client-id 전용 스토어프론트 `/categories` 호출에도 Bearer 가 끼어 401 → 분류트리 비어 **라이프 중카테고리 전부 0**(revenue-daily.json 7ae7dfb). slackbot 1987f31 로 고치고 재실행함. 재실행 결과는 revenue-daily.json 의 라이프 중카 행 수(정상 ≈404, 깨지면 97)로 확인.
+- 첫 self-hosted 실행(10-30 11:38)에서 슬랙봇 잠복 버그 발현: 실행 중 토큰이 갱신되면 client-id 전용 스토어프론트 `/categories` 호출에도 Bearer 가 끼어 401 → 분류트리 비어 **라이프 중카테고리 전부 0**(revenue-daily.json 7ae7dfb). slackbot 1987f31 로 고치고 재실행해 복구 확인(12:12, revenue-daily.json f454a6b, 라이프 중카 행 404). 깨지면 행 수가 97 로 준다.
 - Mac mini 에 `gh`(2.103) 설치·Su-pbg 로그인됨(`~/.local/bin/gh`, 키체인). `gh secret set` 으로 시크릿 입력 가능.
 
 ## 진행 중 (건드리지 말 것)
