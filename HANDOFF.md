@@ -19,7 +19,7 @@
 ## 다음 할 일
 0. (Su 수동) 거래처 LIST (라이프) 시트의 담당자 이지혜 50·'이아롬 ' 84 → 홍영주. 대시보드 `supplier-managers.json` 은 2026-10-29 에 바꿨음(122곳). 워커는 그 시트에 쓰기 권한 없음(SA pbg-51@…, 편집자 공유하면 POST /kpisheet {id,data[]} 로 가능).
 1. 기획 2단계: `part=ext` 를 `step=daily|blocks|weekly` 로 분할(worker.js 863~1006행). 각 응답에 서브요청 카운트 `sub:` 추가.
-2. GitHub Secrets 에 `CLOUDFLARE_API_TOKEN`·새 `DASHBOARD_KEY` 입력 — 이제 Mac mini 에서 `gh secret set NAME < 파일` 로 가능(Su 가 시키면).
+2. GitHub Secrets 에 `CLOUDFLARE_API_TOKEN` 입력(`DASHBOARD_KEY` 는 10-29 에 이미 갱신됨). 에이전트의 `gh secret set` 은 분류기(Secret-Store Writes)가 막는다 → Su 가 직접: Mac mini 터미널 `cd ~/Projects/dashboard && ~/.local/bin/gh secret set CLOUDFLARE_API_TOKEN < .cloudflare_token.local`, 또는 폰에서 Cloudflare 새 토큰(Edit Cloudflare Workers 템플릿) 만들어 GitHub 웹에 입력. 넣기 전까지 배포는 "배포해" 로 수동.
 3. 10/22 판매 입력 대조 오저장 16건 되돌리기(워커 undo 또는 파일 재업로드).
 4. `revenue-daily-archive.json`(~06-23) 과 `revenue-daily.json`(07-31~) 사이 **2026-06-24~07-30 공백** 확인(7월이 47건으로 집계됨).
 
