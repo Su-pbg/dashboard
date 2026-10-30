@@ -207,7 +207,7 @@ var worker_default = {
         const has = async () => !!JSON.parse((await kv.get("kpiusers:v1")) || "{}")[yest];
         if (await has()) job.todo.shift();
         else { job.log.push("users2 " + yest + " " + (await call("/kpisheet?feed=users&date=" + yest)).slice(0, 80));
-          if (await has()) { job.todo.shift(); job.todo.push("ext"); } else if (hour >= 9) job.todo.shift(); }
+          if (await has()) { job.todo.shift(); job.todo.push("ext", "wk"); } else if (hour >= 9) job.todo.shift(); }
       }
     } catch (e) { job.log.push(step + " 실패 " + String(e && e.message || e).slice(0, 120)); job.fail = (job.fail || 0) + 1; if (job.fail > 3) job.todo.shift(); }
     if (!job.todo.length) job.done = true;
@@ -633,6 +633,11 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
       // [2026-10-29] 주 단위: GET /kpisheet?feed=users&week=YYYY-MM-Wn → KV kpiweeks:v1[주] = {wau, nu, join}
       //   6-3 유저(주별)의 WAU(F)·새 사용자(I)는 원본이 손입력이라 10월 2주에서 멈춰 있었다(비중·리텐션·CVR 전부 #DIV/0!).
       //   WAU 는 DAU 합이 아니라 그 주 범위의 순 사용자라 GA4 를 주 범위로 따로 부른다(일별 feed 와 같은 정의: usersInRange·신규 방문자).
+      // [2026-10-31] 진단: GET /kpisheet?job=1 — 크론 단계 로그(kpijob)와 마지막 시트 쓰기(kpisheet:last). 읽기 전용. 밤에 뭐가 돌았는지 여기로 본다.
+      if (url.pathname === "/kpisheet" && q.get("job")) {
+        const kvJ = env.CAFE24_TOKEN_KV; const [j1, j2] = await Promise.all([kvJ.get("kpijob"), kvJ.get("kpisheet:last")]);
+        return json({ job: j1 ? JSON.parse(j1) : null, last: j2 ? JSON.parse(j2) : null });
+      }
       if (url.pathname === "/kpisheet" && q.get("feed") === "users" && /^\d{4}-\d{2}-W\d$/.test(q.get("week") || "")) {
         const wkk = q.get("week"), kvU = env.CAFE24_TOKEN_KV, [s0, e0] = kpiWeekDays(wkk);
         const r = await worker_default.fetch(new Request(`https://kpi.local/?bs=${s0}&be=${e0}&as=${s0}&ae=${e0}&autoExclLowEngagement=1&key=${encodeURIComponent(env.DASHBOARD_KEY)}`), env);
@@ -843,7 +848,10 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             if (rawLast && rawLast < yest) {
               const tr = dayRow(rawLast), r0 = tr + 1, r1 = dayRow(yest);
               growRows(t, r1 + 9); await flush();
-              blankRows(t, r0, r1 + 7, "AH"); await flush();
+              // [2026-10-31] C~AH 를 통째로 비우면 다른 단계가 써 둔 M(매출, sheet 단계)·AD(신규 상품 수, step=raw)까지 지운다 —
+              //   users2 가 밤에 ext 를 한 번 더 돌리자 10-20~29 SKU 가 전부 비고 요약 10월이 289 로 돌아갔다(10-30 실측). 두 열은 비켜서 비운다.
+              for (const [a, b] of [["C", "L"], ["N", "AC"], ["AE", "AH"]]) vals.push({ range: `'${t}'!${a}${r0}:${b}${r1 + 7}`, values: Array.from({ length: r1 + 7 - r0 + 1 }, () => Array(cNum(b) - cNum(a) + 1).fill("")) });
+              await flush();
               await fmlCopy(t, tr, r0, r1 - r0 + 1);
               // [2026-10-29] 원본 마지막 줄에서 할인(J)·예치금(P)은 수식이 아니라 값(0)이라 fmlCopy 가 건너뛰어 10-20 이후가 비었다(peek 실측)
               //   → 같은 줄의 다른 칸처럼 RAW VLOOKUP 수식으로 채운다(RAW F=할인 6열, J=예치금 10열). 원본 팀이 값을 넣으면 part=sync 가 원본으로 바꾼다.
@@ -1017,6 +1025,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             if (want.length) { growRows(t, lastR + want.length + 1); copyRow(t, lastR, lastR + 1, want.length, "PASTE_FORMAT"); await flush(); }
             want.forEach((k, i) => { const [na, nb] = wkDays(k), R = lastR + 1 + i;
               const row = tmpl.map((v, j) => { if (j === 1) return kpiWeekLabel(k, "주");
+                // [2026-10-31] 6-3 의 F(WAU)·I(새 사용자)는 값 칸이라 템플릿 값이 그대로 복사됐다 — 10월 4주가 3주 WAU 15,917 을 물려받았다(실측). step=wk 가 채우니 비운다.
+                if (t0 === "6-3. 유저(주별)" && (j === 5 || j === 8) && !(typeof v === "string" && v.startsWith("="))) return "";
                 if (typeof v !== "string" || !v.startsWith("=")) return v ?? "";
                 const keep = [];   // 다른 탭 참조(!A1:B2)는 잠시 빼 두고, 같은 탭 참조만 한 줄씩 내린다
                 let f = v.replace(/'[^']+'!\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?/g, (all) => { const m = all.match(/^(.*!)([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
