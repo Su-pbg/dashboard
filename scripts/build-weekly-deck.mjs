@@ -9,6 +9,7 @@
 //                                      [--sup-cur a.json --sup-prev b.json]
 //
 //   --date      회의 날짜(기본: 오늘). 이 날짜가 속한 월 + 직전 주를 대상으로 잡는다.
+//   --month     YYYY-MM. 월간 구간을 이 달 전체로(월초 회의에서 지난달 마감 리뷰용).
 //   --sup-*     워커 tab=suppliersales 응답 파일. 있으면 팀·담당자 슬라이드가 붙고,
 //               없으면 그 슬라이드를 건너뛴다(자료가 아예 안 나오는 것보다 낫다).
 //
@@ -56,14 +57,16 @@ const wPrevE = addDays(wCurS, -1);
 const wDays = Math.round((Date.parse(wCurE) - Date.parse(wCurS)) / 86400000);
 const wPrevEcut = addDays(wPrevS, wDays);
 
-const mCurS = MEET.slice(0, 7) + '-01';
-let mCurE = addDays(MEET, -1);
+// --month YYYY-MM: 월간 구간을 그 달 전체(마감월)로. 월초 회의에서 기본값은 하루짜리라 쓸모가 없었다(2026-11-02 실측).
+const MONTH = arg('--month');
+const mCurS = (MONTH || MEET.slice(0, 7)) + '-01';
+let mCurE = MONTH ? iso(new Date(Date.UTC(+MONTH.slice(0, 4), +MONTH.slice(5, 7), 0))) : addDays(MEET, -1);
 if (mCurE > lastData) mCurE = lastData;
 const mDays = Math.round((Date.parse(mCurE) - Date.parse(mCurS)) / 86400000);
 const prevMonth = new Date(mCurS + 'T00:00:00Z');
 prevMonth.setUTCMonth(prevMonth.getUTCMonth() - 1);
 const mPrevS = iso(prevMonth);
-const mPrevE = addDays(mPrevS, mDays);
+const mPrevE = MONTH ? iso(new Date(Date.UTC(prevMonth.getUTCFullYear(), prevMonth.getUTCMonth() + 1, 0))) : addDays(mPrevS, mDays);   // 마감월 비교는 전월도 통째로
 
 // ── 집계 ────────────────────────────────────────────────────────────────
 function agg(s, e) {
@@ -162,7 +165,7 @@ function statCard(s, x, y, w, label, value, delta, note) {
   s.background = { color: INK };
   s.addText('PRINTBAKERY', { x: 0.9, y: 2.2, w: 8, h: 0.35, fontSize: 13, color: '9AA3AD',
                              charSpacing: 3, fontFace: 'Calibri', isTextBox: true, margin: 0 });
-  s.addText(`${Number(MEET.slice(5, 7))}월 실적 리뷰`, { x: 0.9, y: 2.65, w: 11, h: 1.0, fontSize: 46,
+  s.addText(`${Number(mCurS.slice(5, 7))}월 실적 리뷰`, { x: 0.9, y: 2.65, w: 11, h: 1.0, fontSize: 46,
     bold: true, color: 'FFFFFF', fontFace: 'Calibri', isTextBox: true, margin: 0 });
   s.addText(`월간 ${mCurS.slice(5)} ~ ${mCurE.slice(5)}  ·  주간 ${wCurS.slice(5)} ~ ${wCurE.slice(5)}`,
     { x: 0.9, y: 3.75, w: 11, h: 0.4, fontSize: 15, color: 'C3C9D0', fontFace: 'Calibri', isTextBox: true, margin: 0 });

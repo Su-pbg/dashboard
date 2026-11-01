@@ -6,6 +6,7 @@
 //                                        [--sup-cur a.json --sup-prev b.json --overlay o.json]
 //
 //   --date      회의 날짜(기본: 오늘). 이 날짜가 속한 월 + 직전 주를 대상으로 잡는다.
+//   --month     YYYY-MM. 월간 구간을 이 달 전체로(월초 회의에서 지난달 마감 리뷰용).
 //   --sup-*     워커 tab=suppliersales 응답. 있으면 팀·담당자 절이 붙고 없으면 건너뛴다.
 //   --overlay   워커 /supplier-map 응답. 화면에서 고친 담당자 값이다. 안 넣으면 자료가
 //               대시보드와 어긋난다 (자체공급처럼 담당자를 옮긴 건이 옛 값으로 잡힌다).
@@ -48,12 +49,15 @@ if (wCurE > lastData) wCurE = lastData;
 const wDays = Math.round((Date.parse(wCurE) - Date.parse(wCurS)) / 86400000);
 const wPrevS = addDays(wCurS, -7), wPrevE = addDays(wPrevS, wDays);
 
-const mCurS = MEET.slice(0, 7) + '-01';
-let mCurE = addDays(MEET, -1);
+// --month YYYY-MM: 월간 구간을 그 달 전체(마감월)로 잡는다. 월초 회의(11-02)에서 기본값은 '11-01~11-01' 하루라 쓸모가 없었다(2026-11-02 실측).
+//   지정하면 그 달 1일 ~ 말일(데이터가 있는 날까지). 전월·전년 비교도 같은 일수.
+const MONTH = arg('--month');
+const mCurS = (MONTH || MEET.slice(0, 7)) + '-01';
+let mCurE = MONTH ? iso(new Date(Date.UTC(+MONTH.slice(0, 4), +MONTH.slice(5, 7), 0))) : addDays(MEET, -1);
 if (mCurE > lastData) mCurE = lastData;
 const mDays = Math.round((Date.parse(mCurE) - Date.parse(mCurS)) / 86400000);
 const pm = new Date(mCurS + 'T00:00:00Z'); pm.setUTCMonth(pm.getUTCMonth() - 1);
-const mPrevS = iso(pm), mPrevE = addDays(mPrevS, mDays);
+const mPrevS = iso(pm), mPrevE = MONTH ? iso(new Date(Date.UTC(pm.getUTCFullYear(), pm.getUTCMonth() + 1, 0))) : addDays(mPrevS, mDays);   // 마감월 비교는 전월도 통째로(9월 30일 ≠ 10월 31일)
 const yCurS = addYears(mCurS, -1), yCurE = addYears(mCurE, -1);
 
 // ── 집계 ────────────────────────────────────────────────────────────────
@@ -241,7 +245,7 @@ L.push('');
 
 L.push('---');
 L.push('');
-L.push(`_비교 기준: 전월은 같은 일수(${mPrevS} ~ ${mPrevE}), 주간은 직전 주 같은 요일 수._`);
+L.push(`_비교 기준: 전월은 ${MONTH ? '한 달 전체' : '같은 일수'}(${mPrevS} ~ ${mPrevE}), 주간은 직전 주 같은 요일 수._`);
 if (!MY.has) L.push(`_전년(${yCurS} ~ ${yCurE}) 데이터가 없어 전년 대비는 비워 둡니다._`);
 if (!TC) L.push(`_팀·담당자별은 워커 데이터(\`--sup-cur\`)가 있을 때만 들어갑니다._`);
 L.push('');
