@@ -77,6 +77,7 @@ function agg(s, e) {
   const cats = {};
   for (const k of ks) for (const c of rows[k].categories || []) {
     const ax = c.axis || c.name || '미분류';
+    if (ax === '오프라인') continue;   // [2026-11-02] 오프라인 채널은 회의 자료에서 뺀다 (Su)
     cats[ax] = (cats[ax] || 0) + (c.amt || 0);
   }
   const count = sum('count');
@@ -335,33 +336,17 @@ if (SR) {
     { x: 8.5, y: 5.95, w: 4.2, h: 0.5, fontSize: 10, color: MUTE, fontFace: 'Calibri', isTextBox: true, margin: 0 });
 }
 
-// 5. 팀·담당자 (워커 데이터가 있을 때만)
+// 5. 팀별 (워커 데이터가 있을 때만). [2026-11-02] 담당자별 막대는 뺐다 (Su) — 팀 합계만.
 if (TC) {
   const s = pres.addSlide();
   s.background = { color: BG };
-  title(s, '팀 · 담당자별 실적', `${wCurS} ~ ${wCurE}  ·  cafe24 공급사코드 기준 · 취소·반품 제외`);
+  title(s, '팀별 실적', `${wCurS} ~ ${wCurE}  ·  cafe24 공급사코드 기준 · 취소·반품 제외`);
   const tk = Object.keys(TC.teams).sort((a, b) => TC.teams[b] - TC.teams[a]);
   tk.slice(0, 2).forEach((t, i) => {
     const prev = TP ? (TP.teams[t] || 0) : null;
     statCard(s, 0.7 + i * 3.08, 1.75, 2.86, `${t} 팀`, man(TC.teams[t]),
       prev ? pct(TC.teams[t], prev) : null, prev ? `전주 ${man(prev)}` : null);
   });
-  const rowsM = TC.mgrs.slice(0, 8);
-  const maxA = Math.max(...rowsM.map((r) => r[1]), 1);
-  let y = 1.85;
-  for (const [mgr, amt] of rowsM) {
-    s.addText(mgr, { x: 7.2, y, w: 1.7, h: 0.3, fontSize: 13, color: INK, fontFace: 'Calibri',
-                     isTextBox: true, margin: 0 });
-    s.addShape(pres.ShapeType.roundRect, { x: 8.95, y: y + 0.06, w: 2.6, h: 0.18,
-      fill: { color: 'E9EDF1' }, line: { color: 'E9EDF1', width: 0 }, rectRadius: 0.09 });
-    s.addShape(pres.ShapeType.roundRect, { x: 8.95, y: y + 0.06, w: Math.max(2.6 * amt / maxA, 0.12), h: 0.18,
-      fill: { color: ART }, line: { color: ART, width: 0 }, rectRadius: 0.09 });
-    s.addText(man(amt), { x: 11.65, y, w: 1.0, h: 0.3, fontSize: 12, color: MUTE, align: 'right',
-                          fontFace: 'Calibri', isTextBox: true, margin: 0 });
-    y += 0.42;
-  }
-  s.addText('담당자별 판매 (지난 주)', { x: 7.2, y: 1.45, w: 5.4, h: 0.3, fontSize: 12, bold: true,
-    color: MUTE, fontFace: 'Calibri', isTextBox: true, margin: 0 });
 }
 
 // 6. 할인 · 환불

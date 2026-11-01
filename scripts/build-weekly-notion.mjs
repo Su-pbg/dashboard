@@ -68,6 +68,7 @@ function agg(s, e) {
   const cats = {};
   for (const k of ks) for (const c of rows[k].categories || []) {
     const ax = c.axis || c.name || '미분류';
+    if (ax === '오프라인') continue;   // [2026-11-02] 오프라인 채널은 회의 자료에서 뺀다 (Su)
     cats[ax] = (cats[ax] || 0) + (c.amt || 0);
   }
   const tm = ks.map((k) => rows[k].totalMembers).filter((v) => v != null);
@@ -193,7 +194,7 @@ L.push('');
 }
 
 if (TC) {
-  L.push(`## 팀 · 담당자별 실적`);
+  L.push(`## 팀별 실적`);   // [2026-11-02] 담당자별 표는 뺐다 (Su)
   L.push('');
   L.push(`\`${wCurS} ~ ${wCurE}\` · cafe24 공급사코드 기준 · 취소·반품 제외`);
   L.push('');
@@ -203,12 +204,6 @@ if (TC) {
     TP && TP[t] ? sign(pct(TC[t].amt, TP[t].amt)) : '—',
   ])));
   L.push('');
-  for (const t of tk) {
-    L.push(`**${t}**`);
-    L.push('');
-    L.push(table(['담당자', '금액'], TC[t].mgrs.map(([m, v]) => [m, won(v)])));
-    L.push('');
-  }
 }
 
 L.push(`## 할인 · 환불`);
@@ -247,7 +242,7 @@ L.push('---');
 L.push('');
 L.push(`_비교 기준: 전월은 ${MONTH ? '한 달 전체' : '같은 일수'}(${mPrevS} ~ ${mPrevE}), 주간은 직전 주 같은 요일 수._`);
 if (!MY.has) L.push(`_전년(${yCurS} ~ ${yCurE}) 데이터가 없어 전년 대비는 비워 둡니다._`);
-if (!TC) L.push(`_팀·담당자별은 워커 데이터(\`--sup-cur\`)가 있을 때만 들어갑니다._`);
+if (!TC) L.push(`_팀별은 워커 데이터(\`--sup-cur\`)가 있을 때만 들어갑니다._`);
 L.push('');
 
 fs.writeFileSync(OUT, L.join('\n'), 'utf8');
