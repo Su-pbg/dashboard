@@ -27,6 +27,7 @@ const arg = (k, d = null) => { const i = argv.indexOf(k); return i >= 0 ? argv[i
 
 const iso = (d) => d.toISOString().slice(0, 10);
 const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+const addYears = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCFullYear(d.getUTCFullYear() + n); return iso(d); };
 
 const MEET = arg('--date') || iso(new Date(Date.now() + 9 * 3600 * 1000));
 const OUT = arg('--out') || path.join(ROOT, `PBG_주간회의_${MEET}.pptx`);
@@ -84,12 +85,15 @@ function agg(s, e) {
   return { days: ks.length, gmv: sum('gmv'), net: sum('net'), count, refund: sum('refund'), disc, coup, cats,
            aov: count ? sum('net') / count : 0 };
 }
-const M = agg(mCurS, mCurE), MP = agg(mPrevS, mPrevE);
+// [2026-11-02] 전년 동월도 비교한다 (Su). 아카이브에 그 구간이 없으면 카드에 '전년 없음'.
+const yCurS = addYears(mCurS, -1), yCurE = addYears(mCurE, -1);
+const M = agg(mCurS, mCurE), MP = agg(mPrevS, mPrevE), MY = agg(yCurS, yCurE);
 const W = agg(wCurS, wCurE), WP = agg(wPrevS, wPrevEcut);
 
 const pct = (a, b) => (b ? (a - b) / b * 100 : 0);
 const sign = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
 const man = (v) => Math.round(v / 10000).toLocaleString('ko-KR') + '만';
+const yoy = (cur, f, fmt) => MY.days ? ` · 전년 ${fmt(MY[f])} (${sign(pct(cur, MY[f]))})` : ' · 전년 없음';
 const eok = (v) => (v / 100000000).toFixed(2) + '억';
 
 // 팀·담당자 (워커 응답이 있을 때만)
@@ -172,24 +176,25 @@ function statCard(s, x, y, w, label, value, delta, note) {
     { x: 0.9, y: 3.75, w: 11, h: 0.4, fontSize: 15, color: 'C3C9D0', fontFace: 'Calibri', isTextBox: true, margin: 0 });
   s.addText(`주간회의 ${MEET}`, { x: 0.9, y: 4.25, w: 11, h: 0.4, fontSize: 13, color: '7C848D',
     fontFace: 'Calibri', isTextBox: true, margin: 0 });
-  s.addNotes(`전년 동월 데이터가 없어(수집 시작 2026-06-24) 전월 같은 일수와 직전 주를 기준으로 비교했습니다.`);
+  s.addNotes(MY.days ? `전월·직전 주·전년 동월(${yCurS} ~ ${yCurE}) 세 가지와 비교했습니다.`
+                     : `전년 동월 데이터가 없어 전월 같은 일수와 직전 주를 기준으로 비교했습니다.`);
 }
 
 // 2. 월간 핵심 지표
 {
   const s = pres.addSlide();
   s.background = { color: BG };
-  title(s, `${Number(mCurS.slice(5, 7))}월 핵심 지표`, `${mCurS} ~ ${mCurE} (${M.days}일)  ·  전월 같은 일수와 비교`);
+  title(s, `${Number(mCurS.slice(5, 7))}월 핵심 지표`, `${mCurS} ~ ${mCurE} (${M.days}일)  ·  전월 같은 일수 · 전년 동월과 비교`);
   const w = 2.86, gap = 0.22;
   const cards = [
-    ['GMV', eok(M.gmv), pct(M.gmv, MP.gmv), `전월 ${eok(MP.gmv)}`],
-    ['순매출', eok(M.net), pct(M.net, MP.net), `전월 ${eok(MP.net)}`],
-    ['주문 건수', M.count.toLocaleString('ko-KR') + '건', pct(M.count, MP.count), `전월 ${MP.count.toLocaleString('ko-KR')}건`],
-    ['객단가', man(M.aov), pct(M.aov, MP.aov), `전월 ${man(MP.aov)}`],
+    ['GMV', eok(M.gmv), pct(M.gmv, MP.gmv), `전월 ${eok(MP.gmv)}` + yoy(M.gmv, 'gmv', eok)],
+    ['순매출', eok(M.net), pct(M.net, MP.net), `전월 ${eok(MP.net)}` + yoy(M.net, 'net', eok)],
+    ['주문 건수', M.count.toLocaleString('ko-KR') + '건', pct(M.count, MP.count), `전월 ${MP.count.toLocaleString('ko-KR')}건` + yoy(M.count, 'count', (v) => v.toLocaleString('ko-KR') + '건')],
+    ['객단가', man(M.aov), pct(M.aov, MP.aov), `전월 ${man(MP.aov)}` + yoy(M.aov, 'aov', man)],
   ];
   cards.forEach((c, i) => statCard(s, 0.7 + i * (w + gap), 1.75, w, ...c));
   const cards2 = [
-    ['환불', man(M.refund), pct(M.refund, MP.refund), `전월 ${man(MP.refund)}`],
+    ['환불', man(M.refund), pct(M.refund, MP.refund), `전월 ${man(MP.refund)}` + yoy(M.refund, 'refund', man)],
     ['쿠폰 할인', man(M.coup), pct(M.coup, MP.coup), `전월 ${man(MP.coup)}`],
     ['일평균 순매출', man(M.net / (M.days || 1)), pct(M.net / (M.days || 1), MP.net / (MP.days || 1)), `${M.days}일 기준`],
     ['환불률', (M.gmv ? M.refund / M.gmv * 100 : 0).toFixed(1) + '%', null, `전월 ${(MP.gmv ? MP.refund / MP.gmv * 100 : 0).toFixed(1)}%`],
@@ -197,7 +202,8 @@ function statCard(s, x, y, w, label, value, delta, note) {
   cards2.forEach((c, i) => statCard(s, 0.7 + i * (w + gap), 3.85, w, ...c));
   const dir = pct(M.net, MP.net) >= 0 ? '늘었다' : '줄었다';
   s.addText(`순매출이 전월 같은 기간보다 ${sign(pct(M.net, MP.net))} ${dir}. `
-    + `건수 ${sign(pct(M.count, MP.count))}, 객단가 ${sign(pct(M.aov, MP.aov))}.`,
+    + `건수 ${sign(pct(M.count, MP.count))}, 객단가 ${sign(pct(M.aov, MP.aov))}.`
+    + (MY.days ? ` 전년 동월 대비 순매출 ${sign(pct(M.net, MY.net))}, GMV ${sign(pct(M.gmv, MY.gmv))}.` : ''),
     { x: 0.7, y: 6.05, w: 12, h: 0.5, fontSize: 14, color: INK, fontFace: 'Calibri', isTextBox: true, margin: 0 });
 }
 
