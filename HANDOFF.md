@@ -7,7 +7,7 @@
 - **[2026-10-31 00:40 KST, 클라우드 세션] 밤 크론이 어제 넣은 값을 지웠다 — 커밋으로 고쳤고 배포 대기.** 10-30 아침 실행 뒤 시트: 1-4 AD(SKU) 10-20~29 전부 빈칸(요약 10월 289 로 복귀) · 1-4 M(매출) 10-20~29 빈칸 · 6-3 10월 4주 WAU/새 사용자가 3주 값(15,917/12,170) 그대로. 6-4 10-29 는 정상(가입 13·DAU 2,670·새 1,870).
   원인(코드): `part=ext` 의 1-4 구간이 rawLast 이후 줄을 C~AH 통째로 비운 뒤 수식만 복사한다 → sheet 단계가 쓴 M, raw 단계가 쓴 AD 가 날아간다. 크론은 raw→ext 순서고 `users2` 가 밤에 ext 를 한 번 더 넣어 sheet 이후에도 지운다. 6-3 새 줄은 템플릿(3주) 값 칸(F·I)을 그대로 복사하고 users2 의 ext 뒤엔 wk 가 안 돈다.
   고침: 1-4 비우기에서 M·AD 열 제외 · 6-3 새 줄 F/I 는 빈칸(wk 가 채움) · users2 가 ext 뒤에 wk 도 넣음 · 진단 `GET /kpisheet?job=1`(kpijob 로그·kpisheet:last). **배포 후 복구 순서: `part=ext&step=raw`(SKU) → `part=ext&step=wk`(W4) → `GET /kpisheet?id=…`(M 매출) → `?job=1` 로 밤 로그 확인.**
-- 배포된 워커 = 커밋 ab0d86b(버전 a1d222fa, 2026-10-29 14:2x). 기획 1단계(6-3 WAU → `part=ext&step=wk`) 적용됨.
+- 배포된 워커 = 커밋 ce53e2a(버전 40818fab, 2026-11-02). ab4af2a(ext 가 1-4 M·AD·6-3 새 주 WAU 지우던 것) 포함. 배포 뒤 복구 4단계(raw→wk→sheet→job) 돌려 시트 실측 확인: 1-4 M·AD 10-20~11-01 채워짐, 6-3 10월 4주 WAU 11,317.
 - `part=ext` 정상(ok). `step=wk` 로 6-3 WAU 2주(2026-10-W3·W4) 채워짐. 서브요청 초과 해소.
 - KV `kpiweeks:v1` 에 2026-10-W3(WAU 15,917) · W4(7,170, 진행 중) 들어감. `kpiusers:v1` 10-28 채워짐.
 - GitHub Actions `deploy-worker.yml` 은 있으나 시크릿 `CLOUDFLARE_API_TOKEN` 미설정. Actions 의 `DASHBOARD_KEY` 도 옛 값(403).
