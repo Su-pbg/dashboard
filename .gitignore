@@ -14,3 +14,4 @@ expense-fixtures.local.json
 .env.*
 *.pem
 *.key
+성과공유_*.md
