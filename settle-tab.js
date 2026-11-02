@@ -19,6 +19,11 @@
 //   · 정산금액 = 수량 × 정가 × (1 − 계약요율), 원 단위 반올림. 판매가·할인가가 아니라 정가 기준.
 //   · 배송비: 시트에 배송비가 적힌 업체만 주문번호당 1건(무료배송 기준과 무관). 예외는 화면에서 주문별로 끈다.
 //   · 세금계산서 업체만 하단에 공급가액(÷1.1 반올림)·세액·합계.
+//   · [2026-11-02] 과세·면세 구분(팀 요청 — 헤르시·갤러리 콜론비처럼 미술품(면세)과 상품(과세)을 같이 파는 업체).
+//     이카운트 파일엔 과세 구분이 없다 → 같은 주문의 카페24 품목(product_tax_type B=면세 / tax_rate 0)으로 판정한다.
+//     같은 주문에 과세·면세가 섞이면 품명 유사도로 짝을 고르고, 못 고르면 그 업체 정산 서류(계산서=면세, 그 외 과세)를 따른다.
+//     둘 다 있으면 정산서에 과세·면세 블록을 나눠 각각 '판매 계' 를 내고, 하단에 세금계산서(과세: 공급가액·세액·합계)와 계산서(면세: 합계)를 따로 적는다.
+//     배송비는 과세다. 한 종류뿐이면 정산서는 전과 같다.
 //   · 요율이 숫자가 아니거나("50%, 40%") 정산서류가 비면 '확인 필요'로 막고 ZIP 에서 뺀다.
 (function(){
 const CSS=`
@@ -495,6 +500,7 @@ function rebuild(){
     if(SKIP_RES.includes((S.edits[rkey(r.order||'(주문번호 없음)',r.sup.code)]||{}).res)) continue;   // ② 에서 뺀 주문
     if(r.sup.type==='매입'){ (buyIn[r.sup.code] ||= {sup:r.sup,rows:0}).rows++; continue; }
     const g=(groups[r.sup.code] ||= {sup:r.sup,rows:[],brands:{}});
+    r.tax=taxOf(r.name,(r.order&&byOrder.get(r.order)||[]).filter(l=>l.supplier_id===r.sup.code));
     g.rows.push(r); g.brands[r.brand]=r.via;
   }
   // ② 에서 이카운트 수량·금액을 고친 주문은 차이만큼 '대조 조정' 줄을 붙인다(이카운트 누락 주문에 값을 넣으면 그 판매가 들어간다).
@@ -507,7 +513,7 @@ function rebuild(){
     const g=(groups[x.code] ||= {sup,rows:[],brands:{}});
     g.rows.push({voucher:ref.voucher||'대조 조정',order:x.order==='(주문번호 없음)'?'':x.order,code:ref.code||'',
       name:`[대조 조정] ${ref.name||c24.product_name||''}`,qty:dq,price:dq?Math.round(da/dq):da,tot:da,
-      cust:ref.cust||'',memo:editOf(x).memo||'',adj:true});
+      cust:ref.cust||'',memo:editOf(x).memo||'',adj:true,tax:taxOf(ref.name||c24.product_name||'',x.c24lines||[])});
   }
   S.groups=Object.values(groups).map(g=>{
     const p=prev[g.sup.code];
@@ -518,12 +524,24 @@ function rebuild(){
   }).sort((a,b)=>a.sup.name.localeCompare(b.sup.name,'ko'));
   S.buyIn=Object.values(buyIn);
 }
+// 카페24 품목의 과세 구분: product_tax_type B(면세) 또는 세율 0 → 면세, 그 외 과세. 없으면 null.
+const lineTax=l=>l?(l.tax_type==='B'||(l.tax_type!=='A'&&Number(l.tax_rate)===0)?'면세':'과세'):null;
+// 이카운트 판매 행 하나의 과세 구분. 같은 주문·같은 공급사의 카페24 품목이 한 종류면 그것, 섞였으면 품명이 가장 비슷한 품목을 따른다.
+function taxOf(name,lines){
+  const ts=[...new Set(lines.map(lineTax).filter(Boolean))];
+  if(ts.length===1) return ts[0];
+  if(!ts.length) return null;
+  let best=null,bs=0; for(const l of lines){ const v=sim(name,l.product_name||''); if(v>bs){ bs=v; best=l; } }
+  return bs>=0.3?lineTax(best):null;
+}
 function compute(g){
   const s=g.sup, issues=[], blocking=[];
   const rate=g.rateOverride!=null?g.rateOverride:s.rate;
   if(rate==null){ blocking.push('rate'); issues.push(s.rateRaw?`요율 "${s.rateRaw}" 확인`:'요율 없음'); }
   if(!s.doc){ blocking.push('doc'); issues.push('정산 서류 없음'); }
-  const items=g.rows.map(r=>{const tot=r.tot!=null?r.tot:r.qty*r.price; return {...r,tot,settle:rate==null?null:Math.round(tot*(1-rate))};});
+  // 과세 구분을 못 정한 행은 그 업체의 정산 서류를 따른다(계산서 = 면세, 그 외 = 과세)
+  const defTax=/^계산서/.test(String(s.doc||''))?'면세':'과세';
+  const items=g.rows.map(r=>{const tot=r.tot!=null?r.tot:r.qty*r.price; return {...r,tot,tax:r.tax||defTax,taxGuess:!r.tax,settle:rate==null?null:Math.round(tot*(1-rate))};});
   // 주문당 배송비: 화면에서 넣은 값 → 거래처 LIST → 카페24 공급사 배송비 정책 순
   const fee=g.feeOverride!=null?g.feeOverride:(s.fee!=null?s.fee:c24Fee(s.code));
   // 업체 배송인데 어디에도 배송비가 없으면 배송비 행이 통째로 빠진다 → 알리고 표에서 바로 넣게 한다(막지는 않는다)
@@ -544,7 +562,13 @@ function compute(g){
   // 요율이 없으면 정산금액·지급계를 비운다(0 으로 채우지 않는다 — 기존엔 0원으로 나가 실제 지급액이 틀렸다)
   const saleG=rate==null?null:sum(items,'settle');
   const total=saleG==null?null:saleG+shipF, supply=total==null?null:Math.round(total/1.1);
-  return {rate,fee,items,ships,saleQ,saleF,saleG,shipQ,shipF,totalF:saleF+shipF,total,supply,tax:total==null?null:total-supply,issues,blocking};
+  // 과세·면세 블록. 배송비는 과세 쪽. 둘 다 있으면 정산서를 나눠 쓴다(mixed).
+  const part=t=>{ const a=items.filter(x=>x.tax===t), q=sum(a,'qty'), f=sum(a,'tot'), gv=rate==null?null:sum(a,'settle');
+    const tt=gv==null?null:gv+(t==='과세'?shipF:0), sp=tt==null?null:(t==='과세'?Math.round(tt/1.1):tt);
+    return {n:a.length,saleQ:q,saleF:f,saleG:gv,total:tt,supply:sp,tax:tt==null?null:tt-sp}; };
+  const byTax={과세:part('과세'),면세:part('면세')}, mixed=byTax.과세.n>0&&byTax.면세.n>0, guessed=items.filter(x=>x.taxGuess).length;
+  if(mixed&&guessed) issues.push(`과세·면세 못 가린 품목 ${guessed}건 — ${defTax}로 넣음`);
+  return {rate,fee,items,ships,saleQ,saleF,saleG,shipQ,shipF,totalF:saleF+shipF,total,supply,tax:total==null?null:total-supply,byTax,mixed,guessed,issues,blocking};
 }
 const FILL=c=>({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+c}});
 const NUMF='#,##0';
@@ -558,7 +582,14 @@ function settleWorkbook(g){
   const total=(label,q,f,gv)=>{const r=line([label,'','',q,'',f,gv,'']); [1,4,6,7].forEach(i=>{r.getCell(i).font={bold:true};}); return r;};
   head(['일자','품목코드','품명 및 규격','수량','개당 소비자가','합 계','정산금액','비고']);
   const v=x=>x==null?'':x;   // 요율 미확정이면 정산금액 칸을 비운다
-  for(const it of c.items) line([it.voucher,it.code,it.name,it.qty,it.price,it.tot,v(it.settle),it.adj?(it.memo||'대조에서 수정'):'']);
+  const itemLine=it=>line([it.voucher,it.code,it.name,it.qty,it.price,it.tot,v(it.settle),[it.adj?(it.memo||'대조에서 수정'):'',c.mixed&&it.taxGuess?'과세 구분 확인':''].filter(Boolean).join(' · ')]);
+  if(c.mixed){
+    // 과세·면세가 섞인 업체: 블록을 나눠 각각 판매 계를 낸다(세금계산서 / 계산서 금액이 바로 보이게)
+    for(const t of ['과세','면세']){ const b=c.byTax[t]; if(!b.n) continue;
+      const lab=ws.addRow([`[${t}] ${t==='과세'?'세금계산서':'계산서'} 대상`]); lab.getCell(1).font={bold:true};
+      for(const it of c.items.filter(x=>x.tax===t)) itemLine(it);
+      total(`판매 계(${t})`,b.saleQ,b.saleF,v(b.saleG)); }
+  } else for(const it of c.items) itemLine(it);
   total('판매 계',c.saleQ,c.saleF,v(c.saleG));
   ws.addRow([]);
   head(['주문번호','일자','품명 및 규격','수량','주문 금액 합계','배송비','정산 금액','비고']);
@@ -570,7 +601,15 @@ function settleWorkbook(g){
   ws.addRow(['* '+(s.policy||'')+(c.rate==null?(s.policy?' / ':'')+'요율 미확정 — 정산금액을 직접 입력하세요':'')]);
   const pay=ws.addRow(['','','','','',`${M}월 지급계`,v(c.total)]);
   pay.getCell(6).fill=FILL('FFFF00'); pay.getCell(6).font={bold:true}; pay.getCell(7).font={bold:true}; pay.getCell(7).numFmt=NUMF;
-  if(s.doc==='세금계산서'&&c.total!=null){
+  const docBlock=(title,rows)=>{ ws.addRow([]); const h=ws.addRow(['','','','','',title]); h.getCell(6).font={bold:true};
+    for(const [k,val] of rows){ const r=ws.addRow(['','','','','',k,val]); r.getCell(7).numFmt=NUMF;
+      if(k==='합계') [6,7].forEach(i=>{r.getCell(i).fill=FILL('A8D08D'); r.getCell(i).font={bold:true};}); } };
+  if(c.mixed&&c.total!=null){
+    // 과세분(배송비 포함) → 세금계산서, 면세분 → 계산서. 둘의 합계 = 지급계.
+    const a=c.byTax.과세, b=c.byTax.면세;
+    docBlock('세금계산서 (과세 + 배송비)',[['공급가액',a.supply],['세액',a.tax],['합계',a.total]]);
+    docBlock('계산서 (면세)',[['합계',b.total]]);
+  } else if(s.doc==='세금계산서'&&c.total!=null){
     ws.addRow([]);
     for(const [k,v] of [['공급가액',c.supply],['세액',c.tax],['합계',c.total]]){
       const r=ws.addRow(['','','','','',k,v]); r.getCell(7).numFmt=NUMF;
@@ -712,7 +751,7 @@ function step3(){
       <div class="st-scroll"><table class="st-t"><thead><tr><th class="l"></th><th class="l">공급사</th><th class="l">정산 서류</th><th>수수료</th><th>품목</th><th>판매 합계</th><th>주문당 배송비</th><th>지급계</th><th></th></tr></thead>
       <tbody>${S.groups.length?S.groups.map(groupRow).join(''):'<tr><td class="l" colspan="9" style="color:var(--muted)">이 담당자의 위탁 공급사 판매가 이카운트 파일에 없습니다.</td></tr>'}</tbody></table></div>
       ${S.buyIn.length?`<p class="st-note">매입 계약이라 뺀 공급사: ${S.buyIn.map(b=>`${esc(b.sup.name)}(${b.rows}행)`).join(', ')}</p>`:''}
-      <p class="st-note">정산금액 = 수량 × 정가 × (1 − 수수료율) · 배송비는 주문번호당 1건(시트 값, 비어 있으면 표에서 입력 — 이번 정산에만 적용) · 특정 주문을 빼려면 업체명을 눌러 주문별로 끄세요 · 세금계산서 업체는 공급가액·세액 포함</p>`;
+      <p class="st-note">정산금액 = 수량 × 정가 × (1 − 수수료율) · 배송비는 주문번호당 1건(시트 값, 비어 있으면 표에서 입력 — 이번 정산에만 적용) · 특정 주문을 빼려면 업체명을 눌러 주문별로 끄세요 · 세금계산서 업체는 공급가액·세액 포함 · 과세·면세가 섞인 업체는 정산서에 블록을 나눠 세금계산서(과세+배송비)·계산서(면세) 금액을 따로 적습니다(구분은 같은 주문의 카페24 품목 기준)</p>`;
   }
   return `<div class="st-card"><h2><span class="st-step ${on?'':'off'}">3</span>정산서 만들기</h2>
     <p class="st-lead">업체별 정산서를 기존 양식 그대로 만듭니다. 요율·정산 서류·배송비는 거래처 LIST 시트를 그대로 읽고, 비어 있으면 여기서 넣으면 됩니다.</p>${body}</div>`;
@@ -728,7 +767,7 @@ function groupRow(g,i){
   return `<tr class="${bad?'bad':''} ${on?'':'off'}">
     <td class="l"><input type="checkbox" data-a="inc" data-i="${i}" ${on?'checked':''} aria-label="${esc(g.sup.name)} 포함"></td>
     <td class="l"><button class="st-name" data-a="open" data-i="${i}" aria-expanded="${open}">${open?'▾':'▸'} ${esc(g.sup.name)}</button>${badge}${brands}</td>
-    <td class="l">${esc(g.sup.doc||'—')}</td>
+    <td class="l">${esc(g.sup.doc||'—')}${c.mixed?`<div class="st-sub">과세 ${n(c.byTax.과세.total)}원 · 면세 ${n(c.byTax.면세.total)}원</div>`:''}</td>
     <td><input class="st-in rate" data-a="rate" data-i="${i}" type="number" step="1" min="0" max="100" value="${c.rate!=null?Math.round(c.rate*1000)/10:''}" placeholder="?" aria-label="${esc(g.sup.name)} 수수료율">%</td>
     <td>${c.items.length}</td><td>${n(c.saleF)}</td>
     <td><input class="st-in fee" data-a="fee" data-i="${i}" type="number" step="100" min="0" value="${c.fee??''}" placeholder="없음" aria-label="${esc(g.sup.name)} 주문당 배송비">원
@@ -748,13 +787,13 @@ function feePolicy(g){
 }
 function detailRow(g,i){
   const c=g.calc, s=g.sup;
-  const items=c.items.map(it=>`<tr><td>${esc(it.voucher)}</td><td>${esc(it.name)}</td><td class="r">${it.qty}</td><td class="r">${n(it.price)}</td><td class="r">${n(it.tot)}</td><td class="r">${n(it.settle)}</td></tr>`).join('');
+  const items=c.items.map(it=>`<tr><td>${esc(it.voucher)}</td><td>${esc(it.name)}</td><td>${it.tax}${it.taxGuess?'<span class="st-badge st-warn" style="margin:0 0 0 4px">추정</span>':''}</td><td class="r">${it.qty}</td><td class="r">${n(it.price)}</td><td class="r">${n(it.tot)}</td><td class="r">${n(it.settle)}</td></tr>`).join('');
   const ships=c.ships.length?c.ships.map(o=>`<tr class="${o.on?'':'off'}"><td><label><input type="checkbox" data-a="ship" data-i="${i}" data-o="${esc(o.order)}" ${o.on?'checked':''}> ${esc(o.order)}</label></td><td>${esc(o.voucher)} · ${esc(o.cust)}${o.memo?` <span style="color:var(--muted)">(${esc(o.memo)})</span>`:''}</td><td class="r">${n(o.amount)}</td><td class="r">${n(o.fee)}</td></tr>`).join('')
     :`<tr><td colspan="4" style="color:var(--muted)">${c.fee==null?'배송비 없음 (시트에 배송비가 비어 있음)':'주문번호가 있는 행이 없습니다'}</td></tr>`;
   return `<tr class="st-detail"><td></td><td colspan="8">
     <div class="st-meta"><span>${esc(s.code)}</span><span>${esc(s.type||'계약형태 미기재')} · ${esc(s.method||'배송방식 미기재')}</span>
       <span>시트 배송비 ${s.fee!=null?n(s.fee)+'원':esc(s.feeRaw||'없음')}</span><span>${esc(s.policy||'배송비 정책 없음')}</span></div>
-    <table class="st-mini"><thead><tr><th>일자</th><th>품명</th><th class="r">수량</th><th class="r">정가</th><th class="r">합계</th><th class="r">정산금액</th></tr></thead><tbody>${items}</tbody></table>
+    <table class="st-mini"><thead><tr><th>일자</th><th>품명</th><th>구분</th><th class="r">수량</th><th class="r">정가</th><th class="r">합계</th><th class="r">정산금액</th></tr></thead><tbody>${items}</tbody></table>
     <table class="st-mini"><thead><tr><th>주문번호 (체크 해제하면 배송비 제외)</th><th>일자 · 고객</th><th class="r">주문 금액</th><th class="r">배송비</th></tr></thead><tbody>${ships}</tbody></table>
   </td></tr>`;
 }
