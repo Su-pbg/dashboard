@@ -248,6 +248,39 @@ var worker_default = {
       if (request.method === "POST" && url.pathname === "/hook/cafe24") {
         return await handleCafe24Hook(request, env);
       }
+      // [2026-11-02] 카페24 앱 재인증(스코프 추가 뒤 리프레시 토큰 교체). 시크릿은 Cloudflare 에만 있으니 교환도 여기서 한다.
+      //   1) GET /cafe24auth?key=…  → 카페24 동의 화면으로 보낸다(state = KV 에 10분 둔 난수. key 를 카페24에 보내지 않는다)
+      //   2) 카페24가 /cafe24auth?code=…&state=… 로 돌려보내면 토큰 교환 → Gist token.txt 교체 → KV access_token 비움
+      //   개발자센터 앱의 Redirect URI 에 이 주소가 등록돼 있어야 한다. 스코프는 지금 토큰 10개 + mall.read_promotion(쿠폰).
+      if (url.pathname === "/cafe24auth") {
+        const kvA = env.CAFE24_TOKEN_KV;
+        if (!kvA) return json({ error: "KV 없음" }, 500);
+        const redirect = `${url.origin}/cafe24auth`;
+        const SCOPES = ["mall.read_product", "mall.read_collection", "mall.read_supply", "mall.read_personal", "mall.read_order", "mall.read_customer", "mall.read_store", "mall.read_salesreport", "mall.read_shipping", "mall.read_analytics", "mall.read_promotion"];
+        const code = q.get("code"), state = q.get("state");
+        if (!code) {
+          if (!env.DASHBOARD_KEY || !safeEqual(q.get("key") || "", env.DASHBOARD_KEY)) return json({ error: "접근 권한이 없습니다." }, 403);
+          const nonce = crypto.randomUUID();
+          await kvA.put("c24auth:" + nonce, "1", { expirationTtl: 600 });
+          const to = `https://${env.CAFE24_MALL_ID}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${encodeURIComponent(env.CAFE24_ADMIN_CLIENT_ID)}&state=${nonce}&redirect_uri=${encodeURIComponent(redirect)}&scope=${encodeURIComponent(SCOPES.join(","))}`;
+          return Response.redirect(to, 302);
+        }
+        if (!state || !(await kvA.get("c24auth:" + state))) return json({ error: "state 불일치 — /cafe24auth?key=… 부터 다시" }, 403);
+        await kvA.delete("c24auth:" + state);
+        const basicA = btoa(`${env.CAFE24_ADMIN_CLIENT_ID}:${env.CAFE24_ADMIN_CLIENT_SECRET}`);
+        const tr = await fetch(`https://${env.CAFE24_MALL_ID}.cafe24api.com/api/v2/oauth/token`, {
+          method: "POST", headers: { "Authorization": `Basic ${basicA}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirect)}`
+        });
+        const tj = await tr.json().catch(() => ({}));
+        if (!tr.ok || !tj.refresh_token) return json({ error: "토큰 교환 실패", status: tr.status, body: JSON.stringify(tj).slice(0, 300) }, 502);
+        const gr = await fetch(`https://api.github.com/gists/${env.CAFE24_GIST_ID}`, {
+          method: "PATCH", headers: { "Authorization": `token ${env.CAFE24_GH_PAT}`, "Accept": "application/vnd.github+json", "User-Agent": "pbg-dashboard-worker", "Content-Type": "application/json" },
+          body: JSON.stringify({ files: { "token.txt": { content: tj.refresh_token } } })
+        });
+        await kvA.delete("access_token");
+        return json({ ok: gr.ok, gist: gr.status, scopes: tj.scopes || null, expires_in: tj.expires_in || null });
+      }
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const keyOk = !!env.DASHBOARD_KEY && safeEqual(q.get("key") || "", env.DASHBOARD_KEY);
       const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
