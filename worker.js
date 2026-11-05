@@ -3308,12 +3308,19 @@ async function getCafe24AccessToken(env, force) {
   }
   const tokenJson = await tokenRes.json();
   if (tokenJson.refresh_token) {
-    const patchRes = await fetch(gistUrl, {
-      method: "PATCH",
-      headers: ghHeaders,
-      body: JSON.stringify({ files: { "token.txt": { content: tokenJson.refresh_token } } })
-    });
-    if (!patchRes.ok) console.log(`[\uACBD\uACE0] Gist \uAC31\uC2E0 \uC2E4\uD328 status=${patchRes.status}`);
+    // [2026-11-05] Gist 쓰기 재시도 4회 — GitHub 500 한 번에 새 리프레시 토큰을 잃으면 전부 invalid_grant(재인증만 복구)
+    let patchOk = false;
+    for (let i = 0; i < 4 && !patchOk; i++) {
+      if (i) await new Promise((r) => setTimeout(r, 1500 * i));
+      const patchRes = await fetch(gistUrl, {
+        method: "PATCH",
+        headers: ghHeaders,
+        body: JSON.stringify({ files: { "token.txt": { content: tokenJson.refresh_token } } })
+      }).catch(() => null);
+      patchOk = !!(patchRes && patchRes.ok);
+      if (!patchOk) console.log(`[\uACBD\uACE0] Gist \uAC31\uC2E0 \uC2E4\uD328 ${i + 1}/4 status=${patchRes ? patchRes.status : "fetch"}`);
+    }
+    if (!patchOk) console.log("[\uC2EC\uAC01] Gist \uC5D0 \uC0C8 \uB9AC\uD504\uB808\uC2DC \uD1A0\uD070\uC744 \uBABB \uC37C\uB2E4 \u2014 /cafe24auth \uC7AC\uC778\uC99D \uD544\uC694");
   }
   LAST_TOKEN_SCOPES = tokenJson.scopes || null;
   if (kv && tokenJson.access_token) {
