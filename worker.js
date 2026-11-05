@@ -251,12 +251,12 @@ var worker_default = {
       // [2026-11-02] 카페24 앱 재인증(스코프 추가 뒤 리프레시 토큰 교체). 시크릿은 Cloudflare 에만 있으니 교환도 여기서 한다.
       //   1) GET /cafe24auth?key=…  → 카페24 동의 화면으로 보낸다(state = KV 에 10분 둔 난수. key 를 카페24에 보내지 않는다)
       //   2) 카페24가 /cafe24auth?code=…&state=… 로 돌려보내면 토큰 교환 → Gist token.txt 교체 → KV access_token 비움
-      //   개발자센터 앱의 Redirect URI 에 이 주소가 등록돼 있어야 한다. 스코프는 앱의 읽기 권한 전부(13개 중 앱 쓰기 제외 12개). 앱 권한 화면과 맞춰 둘 것.
+      //   개발자센터 앱의 Redirect URI 에 이 주소가 등록돼 있어야 한다. 스코프는 앱 권한 13개 전부(Su: 앱 쓰기도 포함). 앱 권한 화면과 맞춰 둘 것.
       if (url.pathname === "/cafe24auth") {
         const kvA = env.CAFE24_TOKEN_KV;
         if (!kvA) return json({ error: "KV 없음" }, 500);
         const redirect = `${url.origin}/cafe24auth`;
-        const SCOPES0 = ["mall.read_application", "mall.read_category", "mall.read_product", "mall.read_collection", "mall.read_supply", "mall.read_personal", "mall.read_order", "mall.read_customer", "mall.read_store", "mall.read_salesreport", "mall.read_shipping", "mall.read_analytics", "mall.read_promotion"];
+        const SCOPES0 = ["mall.read_application", "mall.write_application", "mall.read_category", "mall.read_product", "mall.read_collection", "mall.read_supply", "mall.read_personal", "mall.read_order", "mall.read_customer", "mall.read_store", "mall.read_salesreport", "mall.read_shipping", "mall.read_analytics", "mall.read_promotion"];
         const SCOPES = q.get("promo") === "0" ? SCOPES0.filter((x) => x !== "mall.read_promotion") : SCOPES0;   // 앱에 프로모션 권한을 아직 안 넣었으면 &promo=0
         const code = q.get("code"), state = q.get("state");
         if (!code) {
