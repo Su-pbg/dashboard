@@ -256,7 +256,8 @@ var worker_default = {
         const kvA = env.CAFE24_TOKEN_KV;
         if (!kvA) return json({ error: "KV 없음" }, 500);
         const redirect = `${url.origin}/cafe24auth`;
-        const SCOPES = ["mall.read_product", "mall.read_collection", "mall.read_supply", "mall.read_personal", "mall.read_order", "mall.read_customer", "mall.read_store", "mall.read_salesreport", "mall.read_shipping", "mall.read_analytics", "mall.read_promotion"];
+        const SCOPES0 = ["mall.read_product", "mall.read_collection", "mall.read_supply", "mall.read_personal", "mall.read_order", "mall.read_customer", "mall.read_store", "mall.read_salesreport", "mall.read_shipping", "mall.read_analytics", "mall.read_promotion"];
+        const SCOPES = q.get("promo") === "0" ? SCOPES0.filter((x) => x !== "mall.read_promotion") : SCOPES0;   // 앱에 프로모션 권한을 아직 안 넣었으면 &promo=0
         const code = q.get("code"), state = q.get("state");
         if (!code) {
           if (!env.DASHBOARD_KEY || !safeEqual(q.get("key") || "", env.DASHBOARD_KEY)) return json({ error: "접근 권한이 없습니다." }, 403);
