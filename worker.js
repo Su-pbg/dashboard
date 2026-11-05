@@ -275,12 +275,16 @@ var worker_default = {
         });
         const tj = await tr.json().catch(() => ({}));
         if (!tr.ok || !tj.refresh_token) return json({ error: "토큰 교환 실패", status: tr.status, body: JSON.stringify(tj).slice(0, 300) }, 502);
-        const gr = await fetch(`https://api.github.com/gists/${env.CAFE24_GIST_ID}`, {
-          method: "PATCH", headers: { "Authorization": `token ${env.CAFE24_GH_PAT}`, "Accept": "application/vnd.github+json", "User-Agent": "pbg-dashboard-worker", "Content-Type": "application/json" },
-          body: JSON.stringify({ files: { "token.txt": { content: tj.refresh_token } } })
-        });
+        let gr = null;
+        for (let i = 0; i < 4 && !(gr && gr.ok); i++) {   // Gist 쓰기 실패하면 새 토큰이 날아가므로 재시도
+          if (i) await new Promise((r) => setTimeout(r, 1500 * i));
+          gr = await fetch(`https://api.github.com/gists/${env.CAFE24_GIST_ID}`, {
+            method: "PATCH", headers: { "Authorization": `token ${env.CAFE24_GH_PAT}`, "Accept": "application/vnd.github+json", "User-Agent": "pbg-dashboard-worker", "Content-Type": "application/json" },
+            body: JSON.stringify({ files: { "token.txt": { content: tj.refresh_token } } })
+          }).catch(() => null);
+        }
         await kvA.delete("access_token");
-        return json({ ok: gr.ok, gist: gr.status, scopes: tj.scopes || null, expires_in: tj.expires_in || null });
+        return json({ ok: !!(gr && gr.ok), gist: gr ? gr.status : "fetch", scopes: tj.scopes || null, expires_in: tj.expires_in || null, next: gr && gr.ok ? "끝. 주문처리 새로고침" : "Gist 쓰기 실패 — /cafe24auth?key=… 부터 다시" });
       }
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const keyOk = !!env.DASHBOARD_KEY && safeEqual(q.get("key") || "", env.DASHBOARD_KEY);
