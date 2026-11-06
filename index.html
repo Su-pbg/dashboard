@@ -592,7 +592,7 @@ function diffText(before,after,unit){
     return `${sign}${diff.toFixed(1)}%p`;
   }
   if(unit==='duration'){
-    const abs=Math.abs(diff); const m=Math.floor(abs/60), sec=Math.round(abs%60);
+    const abs=Math.round(Math.abs(diff)); const m=Math.floor(abs/60), sec=abs%60;   /* 초를 먼저 반올림 — 59.6초가 '1:60' 이 되던 것(2026-11-06) */
     const t=m>0?`${m}:${String(sec).padStart(2,'0')}`:`${sec}초`;
     return `${diff<0?'-':'+'}${t}`;
   }
@@ -632,7 +632,7 @@ let MENU = URL_Q.get('m')==='ecount' ? 'ecmap'   // [2026-10-14] 예전 '전표 
          : 'dashboard');   // 주소에 m 이 없으면 늘 대시보드(마지막 메뉴를 기억하면 북마크가 헷갈린다)
 let DASH_TAB = (URL_TAB && DASH_TABS.find(t=>t.id===URL_TAB)) ? URL_TAB
         : ((SAVED_TAB && DASH_TABS.find(t=>t.id===SAVED_TAB)) ? SAVED_TAB
-        : (SAVED_TAB==='trend' ? 'growth' : 'overview'));
+        : 'growth');   /* [2026-11-06] 예전 기본값 'overview' 는 없는 탭이라 첫 방문 화면이 탭 선택 없이 떴다 */
 let TAB = MENU==='trend' ? 'trend' : DASH_TAB;
 function renderTabs(){
   $('tabs').innerHTML=DASH_TABS.map(t=>`<button class="tab ${t.id===TAB?'active':''}" data-tab="${t.id}">${t.name}${t.ready?'':'<span class="soon">준비중</span>'}</button>`).join('');
@@ -978,7 +978,7 @@ async function loadProductTab(){
 
 function fmtByUnit(v,unit){
   if(unit==='percent') return v.toFixed(1)+'%';
-  if(unit==='duration'){ const m=Math.floor(v/60), s=Math.round(v%60); return m>0?`${m}:${String(s).padStart(2,'0')}`:`${s}초`; }
+  if(unit==='duration'){ const r=Math.round(v), m=Math.floor(r/60), s=r%60; return m>0?`${m}:${String(s).padStart(2,'0')}`:`${s}초`; }
   if(unit==='decimal') return v.toFixed(1);
   if(unit==='won') return fmt(v)+'원';
   return fmt(v);
@@ -2431,12 +2431,19 @@ async function loadSearchTerms(){
   const wrap=$('searchWrap');
   if(!wrap) return;
   try{
-    const dd = await wfetch(WORKER+'/?'+q()+'&tab=searchterms');
-    if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">불러오지 못했습니다: '+dd.error+'</div></div>'; return; }
-    const cur=dd.searchTerms, prev=dd.searchTermsBefore;
+    const dd = await wfetch(WORKER+'/?'+q()+'&tab=searchterms&check=0');
+    if(dd.error){ wrap.innerHTML='<div class="funnel"><div class="state">검색어를 불러오지 못했습니다: '+esc(dd.error)+'</div></div>'; return; }
+    // [2026-11-06] 워커에 tab=searchterms 블록이 둘이고 앞의 것(트렌드용, {terms:[{term,organic,paid}]})이 먼저 응답한다.
+    //   예전 모양({searchTerms:{all,real,ad}})을 기다리다 늘 '없음'이 떴다 → 받은 모양을 이 카드 모양으로 바꿔 쓴다.
+    //   값은 검색 횟수가 아니라 그 검색어가 있는 세션 수다. 비교 기간 값은 이 응답에 없다.
+    const BY_SESSION=Array.isArray(dd.terms);
+    const asCard=(k)=>{ const rows=dd.terms.filter(t=>t[k]>0).sort((a,b)=>b[k]-a[k]).map(t=>({term:t.term,searches:t[k]}));
+      return {rows:rows.slice(0,50), totalSearches:rows.reduce((a,b)=>a+b.searches,0), uniqueTerms:rows.length}; };
+    const cur=BY_SESSION?{...asCard('total'),real:asCard('organic'),ad:asCard('paid')}:dd.searchTerms;
+    const prev=BY_SESSION?null:dd.searchTermsBefore;
+    const UNIT=BY_SESSION?'세션':'회';
     if(!cur || !cur.rows || !cur.rows.length){
-      wrap.innerHTML='<div class="funnel"><div class="state">이 기간에 잡힌 검색어가 없습니다.<br>'
-        +'GA4 관리 → 맞춤 정의에서 <b>search_term</b> 을 이벤트 범위 측정기준으로 등록했는지 확인해 주세요.</div></div>';
+      wrap.innerHTML='<div class="funnel"><div class="state">이 기간 검색 기록이 없습니다.</div></div>';
       return;
     }
     const cmpOn=$('cmp').checked && prev && prev.rows;
@@ -2472,7 +2479,7 @@ async function loadSearchTerms(){
     let h='';
     if(cur.ad||cur.real){
       h+='<div class="preset-btns" id="searchSrcBtns" style="margin-bottom:12px;">'
-        + TABS_SRC.map(([k,lab,n])=>`<button data-src="${k}" class="${k===SRC?'active':''}">${lab} ${fmt(n)}회</button>`).join('')
+        + TABS_SRC.map(([k,lab,n])=>`<button data-src="${k}" class="${k===SRC?'active':''}">${lab} ${fmt(n)}${UNIT}</button>`).join('')
         + '</div>';
       h+=`<p class="sec-desc" style="margin:-4px 0 12px;">광고가 검색 결과 페이지를 랜딩으로 씁니다. `
         + `그래서 '광고 랜딩' 은 사용자가 친 검색이 아니라 캠페인이 만든 것입니다 — `
@@ -2482,7 +2489,7 @@ async function loadSearchTerms(){
       <div class="section-block-head">
         <span class="section-dot" style="background:${SRC==='ad'?'#FF9500':'#3182F6'};"></span>
         <span class="section-block-title">${SRC==='ad'?'광고 랜딩':SRC==='all'?'전체':'실제 검색'} 상위 ${rows.length}개</span>
-        <span class="section-block-total">검색 ${fmt(totSearch)}회 · 고유 검색어 ${fmt(uniq)}개</span>
+        <span class="section-block-total">${BY_SESSION?'세션':'검색'} ${fmt(totSearch)}${UNIT} · 고유 검색어 ${fmt(uniq)}개</span>
         <a class="csv-btn" href="${csvUrl}" download>전체 ${fmt(cur.uniqueTerms||uniq)}개 엑셀 다운로드</a>
       </div>`;
 
@@ -2499,9 +2506,9 @@ async function loadSearchTerms(){
       }
       return `<div class="slotbar-row">
         <div><span class="slotbar-name" style="cursor:default;">${esc(x.term)}</span>
-          <div class="slotbar-meta">사용자 ${fmt(x.users)}명 · 점유 ${share.toFixed(1)}%</div>${cmpHtml}</div>
+          <div class="slotbar-meta">${x.users!=null?`사용자 ${fmt(x.users)}명 · `:''}점유 ${share.toFixed(1)}%</div>${cmpHtml}</div>
         <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${barC};"></div></div>
-        <div><div class="slotbar-val">${fmt(x.searches)}</div><div class="slotbar-sub">검색</div></div>
+        <div><div class="slotbar-val">${fmt(x.searches)}</div><div class="slotbar-sub">${BY_SESSION?'세션':'검색'}</div></div>
       </div>`;
     }).join('');
     h+='</div>';
@@ -2579,13 +2586,11 @@ async function loadCartAnalysis(){
       {name:'장바구니 페이지 방문', v:p.basketSessions, color:'#00B26B', meta:`조회수 ${fmt(p.basketViews)}`},
       {name:'주문서 페이지 도달', v:p.orderSessions, color:'#3182F6', meta:`조회수 ${fmt(p.orderViews)}`},
       {name:'구매 완료', v:c.purchaseSessions, color:'#8B5CF6', meta:`주문서→구매 ${p.orderToBuyRate.toFixed(1)}%`},
-      directBuy
-      ? {name:'바로구매 (주문서 직행)', v:p.directEstimate, color:'#FF9500',
+      // [2026-11-06] 분리 후에는 '주문서 − 장바구니' 추정을 쓰지 않는다 — 10월 2,848 − 2,915 가 음수라 0 으로 보였다.
+      //   아래 '주문서 진입 경로'(워커 entry*, 직전 페이지 기준 실측)로 따로 보여준다.
+      ...(directBuy ? [] : [{name:'장바구니 페이지 미기록', v:p.directEstimate, color:'#FF9500',
          meta:`주문서 세션 중 ${p.directShare.toFixed(1)}%`,
-         detail:`구매하기 버튼이 장바구니를 거치지 않고 주문서로 바로 넘어가는 경로입니다 (${BUY_SPLIT_LABEL}). 추정식은 주문서 세션 − 장바구니 페이지 세션입니다. 세션 이월(어제 담고 오늘 결제)이나 GA4 페이지뷰 누락도 이 값에 섞일 수 있으니 절대값보다 추세로 보세요.`}
-      : {name:'장바구니 페이지 미기록', v:p.directEstimate, color:'#FF9500',
-         meta:`주문서 세션 중 ${p.directShare.toFixed(1)}%`,
-         detail:'장바구니를 안 거친 구매가 아닙니다 (분리 전에는 장바구니가 필수 경로). 다음 중 하나입니다 — ① 세션 이월: 어제 담아두고 오늘 결제 (가장 흔함) ② 상품 상세에서 담고 주문서로 바로 넘어가 장바구니 페이지뷰가 안 찍힘 ③ GA4 페이지뷰 누락. 즉 구매 경로 지표가 아니라 추적 점검용 참고치입니다.'},
+         detail:'장바구니를 안 거친 구매가 아닙니다 (분리 전에는 장바구니가 필수 경로). 다음 중 하나입니다 — ① 세션 이월: 어제 담아두고 오늘 결제 (가장 흔함) ② 상품 상세에서 담고 주문서로 바로 넘어가 장바구니 페이지뷰가 안 찍힘 ③ GA4 페이지뷰 누락. 즉 구매 경로 지표가 아니라 추적 점검용 참고치입니다.'}]),
     ];
     const maxP=Math.max(...pathRows.map(x=>x.v),1);
     h+='<div class="section-block">'+pathRows.map(x=>{
@@ -2598,6 +2603,28 @@ async function loadCartAnalysis(){
       </div>`;
       return rowItem(summary, detail);
     }).join('')+'</div>';
+
+    // [2026-11-06] 주문서 진입 경로 — 워커가 주는 직전 페이지(pageReferrer) 기준 실측. 한 세션이 여러 번 들어오면 매번 센다.
+    if(directBuy && p.entryTotal>0){
+      const top=(p.entryOtherTop||[]).map(o=>`${esc(o.referrer)} ${fmt(o.sessions)}회`).join(' · ');
+      const er=[
+        {name:'바로구매 (상품에서 바로)', v:p.entryDirect, color:'#FF9500', meta:`진입 중 ${(p.entryDirect/p.entryTotal*100).toFixed(1)}%`},
+        {name:'장바구니에서', v:p.entryViaCart, color:'#00B26B', meta:`진입 중 ${(p.entryViaCart/p.entryTotal*100).toFixed(1)}%`},
+        {name:'장바구니 창에서', v:p.entryViaModal, color:'#00B26B', meta:`진입 중 ${(p.entryViaModal/p.entryTotal*100).toFixed(1)}%`},
+        {name:'기타', v:p.entryOther, color:'#8B95A1', meta:`진입 중 ${(p.entryOther/p.entryTotal*100).toFixed(1)}%`, detail:top?`직전 페이지 상위: ${top}`:''},
+      ];
+      const mx=Math.max(...er.map(x=>x.v),1);
+      h+=`<div class="section-title">주문서 진입 경로 <span class="badge">진입 횟수 기준</span></div>
+        <p class="sec-desc">주문서 직전에 본 페이지로 나눕니다 · 한 세션이 여러 번 들어오면 매번 셉니다 · 합계 ${fmt(p.entryTotal)}회 (주문서 세션 ${fmt(p.orderSessions)})</p>`;
+      h+='<div class="section-block">'+er.map(x=>{
+        const w=Math.max(x.v/mx*100,3), detail=x.detail?`<div class="slotbar-meta">${x.detail}</div>`:'';
+        return rowItem(`<div class="slotbar-row">
+          <div><div class="slotbar-head"><span class="slotbar-name" style="cursor:default;">${x.name}</span>${detail?rowToggleBtn():''}</div><div class="slotbar-meta">${x.meta}</div></div>
+          <div class="slotbar-track"><div class="slotbar-fill" style="width:${w}%;background:${x.color};"></div></div>
+          <div><div class="slotbar-val">${fmt(x.v)}</div><div class="slotbar-sub">회</div></div>
+        </div>`, detail);
+      }).join('')+'</div>';
+    }
 
     // 주문서 이탈 강조
     if(p.orderDropSessions>0){
@@ -2799,8 +2826,17 @@ function sectionTable(rows, id){
   const st=SECTION_SORT[id]||{key:'sessions',dir:'desc'};
   SECTION_SORT[id]=st;
   const val=(r)=> st.key==='order' ? r.order : r.after.sessions;
-  const sorted=[...rows].sort((a,b)=> st.dir==='asc' ? (val(a)-val(b)) : (val(b)-val(a)));
   const cmpOn = $('cmp').checked;
+  // [2026-11-06] 끝난 기획전·끊긴 추적을 '−100%' 로 섞어 보여주지 않는다. 줄 상태:
+  //   종료된 기획 = 비교 기간 100세션 이상이었는데 지금 3 이하 · 추적 끊김 = 상단배너인데 한 달 2 이하(배너가 실제로 0 일 수 없다)
+  //   유입 없음 = 그 밖의 0세션. 셋 다 표 맨 아래 접힘으로 보낸다.
+  const slotState=(r)=>{ const a=r.after.sessions, b=(cmpOn&&r.before)?r.before.sessions:null;
+    if(b!=null && b>=100 && a<=3) return 'end';
+    if(r.section==='상단배너' && a<=2) return 'broken';
+    if(a===0) return 'zero';
+    return ''; };
+  const sortedAll=[...rows].sort((a,b)=> st.dir==='asc' ? (val(a)-val(b)) : (val(b)-val(a)));
+  const sorted=sortedAll.filter(r=>!slotState(r)), quiet=sortedAll.filter(r=>slotState(r));
   // 비교 막대와 같은 기준으로 길이를 재려면 최댓값에 비교값도 포함해야 함
   const maxSessions=Math.max(...sorted.map(r=>Math.max(r.after.sessions, (cmpOn&&r.before)?r.before.sessions:0)),1);
   const tot=sorted.reduce((s,x)=>s+x.after.sessions,0)||1;
@@ -2812,7 +2848,8 @@ function sectionTable(rows, id){
     <span style="cursor:pointer;" onclick="sortSection('${id}','sessions')">유입 세션 정렬 ${sortArrow(id,'sessions')}</span>
   </div>`;
 
-  sorted.forEach((r,i)=>{
+  const drawRow=(r,i)=>{
+    const ss=slotState(r);
     const hasProducts = r.topProducts && r.topProducts.length>0;
     const label = r.topProductsLabel || '상품';
     const rowId=`${id}-${i}`;
@@ -2822,9 +2859,12 @@ function sectionTable(rows, id){
       : `<span class="slotbar-name" style="cursor:default;">${r.name}</span>`;
     const showCmp = cmpOn && r.before;
     let metaExtra='';
-    if(showCmp){
-      const dv=delta(r.before.sessions, r.after.sessions);
-      metaExtra=` · <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>`;
+    if(ss){
+      const chip={end:['종료된 기획','var(--muted)'],broken:['추적 끊김','var(--down)'],zero:['유입 없음','var(--ghost)']}[ss];
+      metaExtra=` · <span style="color:${chip[1]};font-weight:600;">${chip[0]}</span>`;
+    }else if(showCmp){
+      const dv=r.before.sessions===0?null:delta(r.before.sessions, r.after.sessions);
+      metaExtra=dv?` · <span class="${dv.good?'up-txt':'down-txt'}">${dv.up?'▲':'▼'} ${dv.text}</span>`:' · <span class="up-txt">신규</span>';
     }
     // 비교가 켜지면 선택/비교 막대를 위아래로 나란히
     const barHtml = showCmp
@@ -2856,7 +2896,15 @@ function sectionTable(rows, id){
         </div>`).join('');
       html += `</div>`;
     }
-  });
+  };
+  sorted.forEach((r,i)=>drawRow(r,i));
+  if(quiet.length){
+    const nb=quiet.filter(r=>slotState(r)==='broken').length;
+    html += `<details style="margin-top:8px;border-top:1px solid var(--hair);padding-top:6px;">
+      <summary style="cursor:pointer;font-size:12px;color:var(--muted);">끝났거나 유입이 없는 구좌 ${quiet.length}개${nb?` · <span style="color:var(--down);font-weight:600;">추적 끊김 ${nb}</span>`:''}</summary>`;
+    quiet.forEach((r,i)=>drawRow(r,sorted.length+i));
+    html += `</details>`;
+  }
   html += '</div>';
   return html;
 }
@@ -2949,8 +2997,8 @@ function unmappedHTML(um){
   if(!rows.length) return '';
   const maxV=Math.max(...rows.map(r=>r.sessions),1);
   let h='<h2 class="sec">미등록 구좌</h2>';
-  h+='<p class="sec-desc">메인에서 유입은 있는데 <b>worker.js 의 SLOT_MAP</b> 에 등록되지 않은 자리입니다. '
-   + '위 구좌 성과 표에서 빠져 있으니, 링크를 눌러 어느 자리인지 확인하고 SLOT_MAP 에 추가하세요.</p>';
+  h+='<p class="sec-desc">메인에서 유입은 있는데 구좌 목록에 아직 없는 자리입니다. 위 구좌 성과 표에서 빠져 있어요. '
+   + '링크를 눌러 어느 자리인지 확인한 뒤 개발 담당에게 위치를 알려주세요.</p>';
   h+='<div class="section-block">'+rows.map(r=>{
     const w=Math.max(r.sessions/maxV*100,4);
     const sortTxt=r.sort ? ` · ${SORT_LABEL_FE[r.sort]||'sort_method='+r.sort}` : '';
@@ -3034,8 +3082,8 @@ function renderProductSubtab(){
     // 미등록 구좌는 "왜 여기 있는지"를 설명해야 조치로 이어진다.
     // 구좌가 늘어도 SLOT_MAP 을 사람이 못 따라가면 실적이 조용히 새기 때문에 따로 알린다.
     const secNote = sec==='미등록 구좌'
-      ? '<p class="sec-desc" style="margin:6px 0 10px;">메인에서 유입은 있는데 SLOT_MAP 에 등록되지 않은 자리입니다. '
-        + '이름·섹션을 확인해 <b>worker.js 의 SLOT_MAP</b> 에 추가하면 정식 구좌로 집계됩니다.</p>'
+      ? '<p class="sec-desc" style="margin:6px 0 10px;">메인에서 유입은 있는데 구좌 목록에 아직 없는 자리입니다. '
+        + '이름·섹션을 확인해 개발 담당에게 알려주면 정식 구좌로 집계됩니다.</p>'
       : '';
     h+=`<div class="section-block">
       <div class="section-block-head"><span class="section-dot" style="background:${sectionColor(sec)};"></span><span class="section-block-title">${sec}</span><span class="section-block-total">합계 ${fmt(total)} 세션</span></div>
