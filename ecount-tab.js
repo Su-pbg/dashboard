@@ -330,12 +330,23 @@ async function downloadFile(id){ const d=await getJSON(`${WORKER}/ecsales?id=${e
 // ---------- 대조 현황 (이카운트 판매 입력 첫 화면) ----------
 // 예전 데일리 대사 시트의 내용(월간요약 · 날짜별 탭 · 전표입력공유)을 여기서 본다. 시트를 붙이는 게 아니라
 // '판매 입력 대조'를 돌릴 때 워커 /ecrecon 에 남긴 결과로 그린다(Su, 2026-10-14). 메모·처리완료는 팀 공유.
-const RV={month:'',idx:null,notes:{},date:'',day:null,err:null,q:''};
+const RV={month:'',idx:null,notes:{},date:'',day:null,err:null,q:'',amt:{}};
 const ST_ORDER=['미입력','금액불일치','환불 대기 확인','결제유형 확인','품목·수량 불일치','취소 확인','카페24에 없음','정상','취소','입금대기','개인결제창','파일 기간 밖'];
 async function loadRV(){
   if(!RV.month) RV.month=kstDay(0).slice(0,7);
   RV.err=null;
   try{ const d=await getJSON(`${WORKER}/ecrecon?month=${RV.month}`); RV.idx=d.idx||{}; RV.notes=d.notes||{}; }catch(e){ RV.err=e; RV.idx={}; }
+  fillRVAmt();
+}
+// 일별 금액 — 2026-11-06 전에 저장된 날짜는 요약에 금액이 없다 → 그 날짜 결과(주문 줄)를 받아 같은 식(amtOf)으로 채운다. 저장은 안 한다.
+const rvAmt=(dt,v)=>v&&v.summary&&v.summary.c24Amt!=null?v.summary:RV.amt[dt]||null;
+async function fillRVAmt(){
+  const m=RV.month, need=Object.keys(RV.idx||{}).filter(dt=>!rvAmt(dt,RV.idx[dt]));
+  for(let i=0;i<need.length;i+=5){
+    await Promise.all(need.slice(i,i+5).map(async dt=>{ try{ const d=await getJSON(`${WORKER}/ecrecon?date=${dt}`); if(d.day) RV.amt[dt]=amtOf(d.day.rows); }catch(e){} }));
+    if(RV.month!==m) return;   // 그사이 달을 바꿨으면 그만
+    if(S.logView==='rv'&&!RV.date) render();
+  }
 }
 async function loadRVDay(date){
   RV.date=date; RV.day=null; RV.dayMissing=false; render();
@@ -406,8 +417,8 @@ async function exportRV(btn){
   }
   const tot={}; let all=0,missAmt=0; for(const dt of days){ const m=(RV.idx[dt]||{}).summary||{}; all+=m.total||0; missAmt+=m.missAmt||0; for(const k of ST_ORDER) tot[k]=(tot[k]||0)+(m[k]||0); }
   const sum=[[`카페24-이카운트 대조 - 월간요약 (${RV.month})`],[`이번달 누계: 전체 ${all}건 | ${sumTxt(tot)}${missAmt?` | 미입력 금액 ${missAmt}원`:''}`],[],
-    ['날짜','전체','정상','미입력','미입력 금액','금액불일치','결제유형 확인','품목·수량 불일치','취소·입금대기','선수금·배송방식','대조 시각','이카운트 파일'],
-    ...days.map(dt=>{ const v=RV.idx[dt], m=v.summary||{}; return [dt,m.total||0,m['정상']||0,m['미입력']||0,m.missAmt||0,m['금액불일치']||0,m['결제유형 확인']||0,m['품목·수량 불일치']||0,(m['취소']||0)+(m['입금대기']||0)+(m['취소 확인']||0),m.tagged||0,v.at,v.file||'']; })];
+    ['날짜','카페24 매출','이카운트 매출(선수금 포함)','차액(카페24-이카운트)','전체','정상','미입력','미입력 금액','금액불일치','결제유형 확인','품목·수량 불일치','취소·입금대기','선수금·배송방식','대조 시각','이카운트 파일'],
+    ...days.map(dt=>{ const v=RV.idx[dt], m=v.summary||{}, a=rvAmt(dt,v)||(dayData[dt]?amtOf(dayData[dt].rows):{c24Amt:null,ecAmt:null}); return [dt,a.c24Amt,a.ecAmt,a.c24Amt!=null?a.c24Amt-a.ecAmt:null,m.total||0,m['정상']||0,m['미입력']||0,m.missAmt||0,m['금액불일치']||0,m['결제유형 확인']||0,m['품목·수량 불일치']||0,(m['취소']||0)+(m['입금대기']||0)+(m['취소 확인']||0),m.tagged||0,v.at,v.file||'']; })];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'월간요약');
   const H=['주문번호','주문시각','선수금/배송방식','선수금 진행','배송 상태','이카운트 배송일자','이카운트 배송결과','공급사명','상품 (옵션 ×수량)','카페24 품목코드','이카운트 품목','카페24 실결제금액','이카운트 합계금액','차액(카페24-이카운트)','결제유형(카페24 기준)','이카운트 결제유형','상태','추가 확인','품목대조','메모','처리완료'];
   const line=(r,dt)=>{ const nt=RV.notes[r.o]||{}; return [r.o,r.t,r.tags||'',nt.ast||'',nt.dst||'',r.dday||'',r.dres||'',r.sup,r.items,r.codes||'',r.ecitems||r.eccodes||'',r.paid,r.ec,r.diff,r.want,r.ecPay,r.st,(r.more||[]).join(', '),r.item,nt.memo||'',nt.done?'Y':'']; };
@@ -441,6 +452,7 @@ function rvHtml(){
       <button class="ec-dl" data-a="rvday" data-d="${esc(next||'')}" ${next?'':'disabled'} title="다음 대조 날짜">▶</button>
       <span class="ec-sub" style="margin:0">대조 ${esc(d.at)}${d.file?` · ${esc(d.file)}`:''}</span></div>
       <div class="ec-stat">${esc(sumTxt(d.summary))}${d.summary.missAmt?` · 미입력 금액 ${n(d.summary.missAmt)}원`:''}</div>
+      ${(a=>`<div class="ec-stat" style="color:var(--ink)">금액: 카페24 ${n(a.c24Amt)}원 · 이카운트 ${n(a.ecAmt)}원(선수금 포함) · 차액 <b style="color:${a.c24Amt-a.ecAmt?'var(--down)':'var(--up)'}">${n(a.c24Amt-a.ecAmt)}</b>원</div>`)(amtOf(d.rows))}
       <div class="ec-row" style="margin-top:var(--s3)"><input class="ec-in" id="ecRvQ" value="${esc(RV.q)}" placeholder="주문번호·공급사·상품 검색" style="width:240px"></div>
       ${tfBar(base,g)}${rvTable(rows,false)}`;
   }
@@ -448,16 +460,22 @@ function rvHtml(){
   const days=Object.entries(RV.idx).sort((a,b)=>b[0].localeCompare(a[0]));
   const tot={}; let missAmt=0; for(const [,v] of days){ for(const k of ST_ORDER) tot[k]=(tot[k]||0)+(v.summary[k]||0); missAmt+=v.summary.missAmt||0; }
   const all=days.reduce((t,[,v])=>t+(v.summary.total||0),0);
+  const am=days.map(([dt,v])=>rvAmt(dt,v)), amOk=am.filter(Boolean), amC=amOk.reduce((t,a)=>t+a.c24Amt,0), amE=amOk.reduce((t,a)=>t+a.ecAmt,0);
+  const amWait=am.length-amOk.length;
+  const dfs=d=>d?`<span style="color:var(--down);font-weight:700">${n(d)}</span>`:'<span style="color:var(--up)">0</span>';
   const share0=days.flatMap(([dt,v])=>((v.summary||{}).issues||[]).map(x=>({...x,date:dt}))), inShare=new Set(share0.map(x=>x.o));
   const share=share0.filter(x=>!(RV.notes[x.o]||{}).done);
   const c=(v,bad)=>v?`<span style="${bad?'color:var(--down);font-weight:700':''}">${n(v)}</span>`:'<span style="color:var(--ghost)">0</span>';
   return `${pick}
     <div class="ec-stat" style="font-weight:600;color:var(--ink)">이번 달 누계: 전체 ${n(all)}건 · ${esc(sumTxt(tot))}${missAmt?` · 미입력 금액 ${n(missAmt)}원`:''}</div>
-    <div class="ec-scroll"><table class="ec-t" style="min-width:900px"><thead><tr><th>날짜</th><th>전체</th><th>정상</th><th>미입력</th><th>미입력 금액</th><th>금액불일치</th><th>결제유형 확인</th><th>품목·수량 불일치</th><th>취소·입금대기</th><th>선수금·배송방식</th><th>대조 시각</th><th></th></tr></thead><tbody>
-      ${days.map(([dt,v])=>{ const m=v.summary; return `<tr><td><b>${esc(dt.slice(5).replace('-','/'))}</b></td><td>${n(m.total)}</td><td>${c(m['정상'])}</td><td>${c(m['미입력'],1)}</td><td>${m.missAmt?n(m.missAmt):'—'}</td>
+    ${days.length?`<div class="ec-stat" style="color:var(--ink)">금액(주문일 기준): 카페24 ${n(amC)}원 · 이카운트 ${n(amE)}원(선수금 포함) · 차액 ${dfs(amC-amE)}원${amWait?` <span class="ec-sub" style="display:inline;margin:0">· ${n(amWait)}일 불러오는 중…</span>`:''}</div>`:''}
+    <details class="ec-note" style="margin-top:4px"><summary>금액 대조 기준</summary><div>날짜 = 주문일(주문번호 앞 8자리). 카페24 = 결제된 주문의 실결제금액(+네이버페이 포인트). 이카운트 = 그 주문번호로 들어간 전표 합계(선수금 포함, 나중 정산·반품 전표까지) + 카페24에 없는 이카운트 주문. 미입력은 이카운트 0으로 들어가 차액에 잡힙니다. 취소·입금대기·개인결제창·파일 기간 밖 주문은 양쪽 모두 뺍니다. 차액 = 카페24 − 이카운트.</div></details>
+    <div class="ec-scroll"><table class="ec-t" style="min-width:1200px"><thead><tr><th>날짜</th><th>카페24 매출</th><th>이카운트 매출<div class="ec-sub" style="margin:0">선수금 포함</div></th><th>차액</th><th>전체</th><th>정상</th><th>미입력</th><th>미입력 금액</th><th>금액불일치</th><th>결제유형 확인</th><th>품목·수량 불일치</th><th>취소·입금대기</th><th>선수금·배송방식</th><th>대조 시각</th><th></th></tr></thead><tbody>
+      ${days.map(([dt,v],i)=>{ const m=v.summary, a=am[i]; return `<tr><td><b>${esc(dt.slice(5).replace('-','/'))}</b></td>
+        ${a?`<td>${n(a.c24Amt)}</td><td>${n(a.ecAmt)}</td><td>${dfs(a.c24Amt-a.ecAmt)}</td>`:'<td colspan="3" class="ec-sub" style="margin:0">불러오는 중…</td>'}<td>${n(m.total)}</td><td>${c(m['정상'])}</td><td>${c(m['미입력'],1)}</td><td>${m.missAmt?n(m.missAmt):'—'}</td>
         <td>${c(m['금액불일치'],1)}</td><td>${c(m['결제유형 확인'],1)}</td><td>${c(m['품목·수량 불일치'],1)}</td><td>${c((m['취소']||0)+(m['입금대기']||0)+(m['취소 확인']||0))}</td><td>${c(m.tagged)}</td>
         <td><span class="ec-sub" style="margin:0">${esc(v.at)}</span></td><td><button class="ec-dl" data-a="rvday" data-d="${esc(dt)}">보기</button></td></tr>`; }).join('')
-      ||'<tr><td colspan="12" style="color:var(--muted)">이 달에는 아직 대조한 날짜가 없습니다. 판매 입력 대조에서 이카운트 파일을 올리면 여기에 쌓입니다.</td></tr>'}</tbody></table></div>
+      ||'<tr><td colspan="15" style="color:var(--muted)">이 달에는 아직 대조한 날짜가 없습니다. 판매 입력 대조에서 이카운트 파일을 올리면 여기에 쌓입니다.</td></tr>'}</tbody></table></div>
     <h3 style="font-size:15px;margin:var(--s5) 0 0">전표입력공유 <span class="ec-sub" style="display:inline">처리 안 된 것 ${n(share.length)}건 (문제 ${n(share.filter(x=>BAD_ST.includes(String(x.st).split(' · ')[0])).length)} · 선수금·배송방식 ${n(share.filter(x=>tracked(x.tags)).length)})</span></h3>
     <details class="ec-note" style="margin-top:4px"><summary>설명 보기</summary><div>대조에서 나온 문제 주문(미입력·금액불일치·결제유형·수량 등)과 진행을 따라가야 하는 선수금·배송방식(퀵·설치·차량 등) 주문이 모입니다.
       선수금은 '선수금 진행'(발주 필요 → 발주 완료 → 입고 완료 → 출고 완료), 배송방식은 '배송 상태'를 바꿔 가며 따라가고, 이카운트 전표까지 바꾸면 처리완료로 승인하세요. <span class="ec-badge" style="${tagStyle('선수금')}">선수금</span> 주문은 행이 옅은 빨간색, <span class="ec-badge" style="${tagStyle('퀵')}">배송방식</span>은 뱃지로 표시합니다. 위 유형·정렬로 골라 보세요.</div></details>
@@ -878,8 +896,20 @@ function covered(date,orders){
   if(!orders) return true;
   const live=orders.filter(o=>{ const ls=D.lines[o.order_id]||[]; return o.paid==='Y'&&o.canceled!=='Y'&&!(ls.length&&ls.every(l=>l.paywin==='Y')); }); return !live.length||sold.size*2>=live.length;
 }
+// 일별 금액 대조(Su, 2026-11-06) — 주문일(주문번호 날짜) 기준. 그 날짜 대조 결과의 주문 줄을 합친다.
+//   카페24 매출 = 결제된 주문의 실결제(+네이버페이 포인트). 취소 확인(카페24 취소인데 이카운트에 있음)은 0, 카페24에 없음은 0.
+//   이카운트 매출 = 같은 줄의 이카운트 합계(그 주문번호 전표 전부, 선수금 포함) + 카페24에 없는 이카운트 주문. 미입력은 0.
+//   뺀다: 취소·입금대기·개인결제창(판매 아님) · 파일 기간 밖(이카운트 쪽을 판단하지 않은 줄) — 차액이 그대로 문제 금액이 되게.
+const AMT_SKIP=new Set(['취소','입금대기','개인결제창','파일 기간 밖']);
+function amtOf(rows){
+  let c24=0,ec=0,skip=0;
+  for(const r of rows||[]){ if(AMT_SKIP.has(r.st)){ skip++; continue; }
+    if(r.st!=='취소 확인'&&r.st!=='카페24에 없음') c24+=Number(r.paid)||0;
+    ec+=Number(r.ec)||0; }
+  return {c24Amt:c24,ecAmt:ec,amtSkip:skip};
+}
 function buildSummary(rows){
-  const sm={total:rows.length,missAmt:0,issues:[]};   // issues = 전표입력공유용, 짧게
+  const sm={total:rows.length,missAmt:0,issues:[],...amtOf(rows)};   // issues = 전표입력공유용, 짧게
   for(const r of rows){ sm[r.st]=(sm[r.st]||0)+1; if(r.st==='미입력') sm.missAmt+=r.paid||0;
     if(tracked(r.tags)) sm.tagged=(sm.tagged||0)+1;
     if(BAD_ST.includes(r.st)||tracked(r.tags)) sm.issues.push({o:r.o,tags:r.tags,dres:r.dres,dday:r.dday,st:[r.st,...(r.more||[])].join(' · '),paid:r.paid,ec:r.ec,diff:r.diff,want:r.want,ecPay:r.ecPay,sup:r.sup,items:String(r.items||'').slice(0,120)}); }
@@ -1723,5 +1753,5 @@ window.loadEcountTab=async function(el,page){
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,OO,LISTS,kstDay,codeOf,loadOpen,undoFile,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,OO,amtOf,fillRVAmt,LISTS,kstDay,codeOf,loadOpen,undoFile,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();

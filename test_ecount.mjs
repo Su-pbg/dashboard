@@ -115,6 +115,10 @@ truthy('웹훅 배송완료 반영 + 미입력 주문은 진행표에 안 들어
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }
+// 일별 금액 대조(주문일 기준): 취소·입금대기·개인결제창·파일 기간 밖은 양쪽 다 뺌, 취소 확인·카페24에 없음은 카페24 0, 미입력은 이카운트 0
+eq('일별 금액 합계', E.amtOf([{ st: '정상', paid: 23000, ec: 23000 }, { st: '미입력', paid: 10000 }, { st: '금액불일치', paid: 5000, ec: 4000 }, { st: '취소', paid: 7000 }, { st: '입금대기', paid: 1 }, { st: '파일 기간 밖', paid: 9, ec: 9 }, { st: '취소 확인', paid: 3000, ec: 3000 }, { st: '카페24에 없음', paid: null, ec: 2000 }]), { c24Amt: 38000, ecAmt: 32000, amtSkip: 3 });
+try { E.RV.date = ''; E.S.logView = 'rv'; E.RV.month = DATE.slice(0, 7); E.RV.idx = { [DATE]: { at: DAY.at, file: DAY.file, summary: DAY.summary } }; E.RV.amt = {}; await E.fillRVAmt(); E.render();
+  truthy('월간요약 금액(옛 요약은 날짜 결과로 채움): 카페24 33,000 · 이카운트 23,000 · 차액 10,000', ['33,000', '23,000', '10,000', '이카운트 매출'].every((x) => root.innerHTML.includes(x))); } catch (e) { bad++; console.log('FAIL 월간요약 금액 ' + e.message); }
 try { E.RV.date = ''; E.S.logView = 'rv'; E.render(); truthy('대조 현황 탭 아래 판매입력 파일 이력', root.innerHTML.includes('판매입력 파일 이력')); E.S.logView = 'oo'; } catch (e) { bad++; console.log('FAIL 판매입력 파일 이력 ' + e.message); }
 
 // 데일리 상태
