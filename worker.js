@@ -3780,6 +3780,7 @@ __name(attachNames, "attachNames");
 var SLOT_MAP = {
   art: [
     // 글로벌 네비 (7)
+    { o: 0, name: "2026 블랙베이커리데이", cate: "1096", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },   // [2026-11-06] 네비 맨 앞에 새로 생김
     { o: 1, name: "NEW ARRIVAL", cate: "547", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 2, name: "\uD504\uB85C\uBAA8\uC158", cate: "514", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 3, name: "\uC544\uD2B8", cate: "608", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
@@ -3787,12 +3788,9 @@ var SLOT_MAP = {
     { o: 5, name: "\uB958\uC5F0\uD76C\uC758 \uC2DC\uAC04", cate: "474", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 6, name: "\uD5C8\uBA85\uC6B1\uC758 SAMUL", cate: "298", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 7, name: "\uC774\uD61C\uBBF8\uC758 \uC2E4\uBC84", cate: "416", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
-    // 상단 배너 5개 (2026-07-29 재확인)
-    { o: 8, name: "\uBC30\uB1081 \uD3A0\uD2B8\uB85C \uC2A4\uD29C\uB514\uC624", pno: "13625", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 9, name: "\uBC30\uB1082 \uC5D0\uB514\uAC15 \uD654\uBCD1", pno: "14761", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 10, name: "\uBC30\uB1083 \uC6B0\uB9AC \uC2DC\uB300\uB97C \uC218\uC9D1", pno: "13455", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 11, name: "\uBC30\uB1084 K-ART \uAC70\uC7A5", cate: "741", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 12, name: "\uBC30\uB1085 \uBE44\uC6C0\uC73C\uB85C \uCC44\uC6B4 \uD55C\uAD6D\uC758 \uBBF8", pno: "14310", section: "\uC0C1\uB2E8\uBC30\uB108" },
+    // 상단 배너: [2026-11-06] 뺐다. 배너는 기획전 상세(/promotion/detail.html?product_no=…)로 가고 몇 주마다 바뀌어서,
+    //   상품번호를 박아두면 바로 끊긴다(10월 아트 배너 5개 합계 2세션). 배너 클릭은 아래 '프로모션 상세' 줄(기획전별)에 들어 있다.
+    //   GA4 경로만으로는 같은 기획전이 배너에서 눌렸는지 목록에서 눌렸는지 가를 수 없다.
     // 숏컷(메인 배너 바로 아래 원형 아이콘 10개, 2026-07-29 확인 - 실제 href 있는 진짜 링크)
     { o: 13, name: "\uC624\uB9AC\uC9C0\uB110", cate: "234", section: "\uC20F\uCEF7" },
     { o: 14, name: "\uB9AC\uBBF8\uD2F0\uB4DC", cate: "272", section: "\uC20F\uCEF7" },
@@ -3848,7 +3846,7 @@ var SLOT_MAP = {
     { o: 55, name: "\uC724\uD615\uD0DD", pno: "4236", section: "\uCD94\uCC9C \uC791\uAC00" },
     { o: 56, name: "\uCCAD\uC2E0", pno: "4015", section: "\uCD94\uCC9C \uC791\uAC00" },
     // 프로모션 / 전시소식 진입점 (개별 상품은 링크 형태가 아니라 번호 미확보)
-    { o: 57, name: "\uD504\uB85C\uBAA8\uC158 (\uC804\uCCB4 \uCEA0\uD398\uC778)", promoPath: true, section: "\uD504\uB85C\uBAA8\uC158" },
+    { o: 57, name: "프로모션 상세 (배너·목록 포함)", promoPath: true, section: "\uD504\uB85C\uBAA8\uC158" },
     { o: 58, name: "\uC804\uC2DC\uC18C\uC2DD \uC804\uCCB4", cate: "874", section: "\uC804\uC2DC \uC18C\uC2DD" },
     // [2026-09-10] 메인에 새로 붙은 정렬 구좌. cate_no 는 608(아트)로 같고 sort_method 로만 갈린다.
     // 이걸 안 나누면 두 구좌 유입이 글로벌네비 '아트' 실적으로 잘못 더해진다.
@@ -3863,6 +3861,7 @@ var SLOT_MAP = {
   ],
   life: [
     // 글로벌 네비 (7)
+    { o: 0, name: "2026 블랙베이커리데이", cate: "1096", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },   // [2026-11-06] 네비 맨 앞에 새로 생김
     { o: 1, name: "NEW ARRIVAL", cate: "547", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 2, name: "\uD504\uB85C\uBAA8\uC158", cate: "514", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 3, name: "\uC544\uD2B8", cate: "608", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
@@ -3870,12 +3869,9 @@ var SLOT_MAP = {
     { o: 5, name: "\uB958\uC5F0\uD76C\uC758 \uC2DC\uAC04", cate: "474", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 6, name: "\uD5C8\uBA85\uC6B1\uC758 SAMUL", cate: "298", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
     { o: 7, name: "\uC774\uD61C\uBBF8\uC758 \uC2E4\uBC84", cate: "416", section: "\uAE00\uB85C\uBC8C\uB124\uBE44" },
-    // 상단 배너 5개 (2026-07-29 재확인)
-    { o: 8, name: "\uBC30\uB1081", cate: "939", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 9, name: "\uBC30\uB1082", cate: "623", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 10, name: "\uBC30\uB1083", cate: "910", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 11, name: "\uBC30\uB1084", cate: "919", section: "\uC0C1\uB2E8\uBC30\uB108" },
-    { o: 12, name: "\uBC30\uB1085", pno: "13941", section: "\uC0C1\uB2E8\uBC30\uB108" },
+    // 상단 배너: [2026-11-06] 뺐다. 배너는 기획전 상세(/promotion/detail.html?product_no=…)로 가고 몇 주마다 바뀌어서,
+    //   상품번호를 박아두면 바로 끊긴다(10월 아트 배너 5개 합계 2세션). 배너 클릭은 아래 '프로모션 상세' 줄(기획전별)에 들어 있다.
+    //   GA4 경로만으로는 같은 기획전이 배너에서 눌렸는지 목록에서 눌렸는지 가를 수 없다.
     // 숏컷 (전체상품/NEW/취향백서/선물추천/프로모션/with artist/PB Only/위베이크/뉴스레터,
     // life에만 있음(art엔 없음). 2026-07-29 재확인 - 실제 href 있는 진짜 링크)
     { o: 13, name: "\uC804\uCCB4\uC0C1\uD488", cate: "609", section: "\uC20F\uCEF7" },
@@ -3934,7 +3930,7 @@ var SLOT_MAP = {
     { o: 58, name: "\uD50C\uB808\uC787\uD2B8", pno: "9840", section: "\uCD94\uCC9C \uBE0C\uB79C\uB4DC" },
     { o: 59, name: "\uAE40\uD558\uC724", pno: "7718", section: "\uCD94\uCC9C \uBE0C\uB79C\uB4DC" },
     // 프로모션 진입점 (개별 상품은 링크 형태가 아니라 번호 미확보)
-    { o: 60, name: "\uD504\uB85C\uBAA8\uC158 (\uC804\uCCB4 \uCEA0\uD398\uC778)", promoPath: true, section: "\uD504\uB85C\uBAA8\uC158" },
+    { o: 60, name: "프로모션 상세 (배너·목록 포함)", promoPath: true, section: "\uD504\uB85C\uBAA8\uC158" },
     // LIFE 메인의 정렬 구좌 (GA4 에서 609&sort_method=6 / =5 확인)
     { o: 61, name: "\uC778\uAE30 \uC0C1\uD488", cate: "609", sort: "6", section: "\uC815\uB82C \uAD6C\uC88C" },
     { o: 62, name: "\uC2E0\uC0C1\uD488", cate: "609", sort: "5", section: "\uC815\uB82C \uAD6C\uC88C" },

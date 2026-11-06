@@ -2082,7 +2082,7 @@ function renderFunnel(d){
     return `<div class="page"><div class="page-name">${pg.name}</div>${rows}</div>`;}).join('')+'</div>';
 
   h+='<h2 class="sec">사이트 검색어</h2>';
-  h+='<p class="sec-desc">view_search_results 이벤트 기준 · 검색 횟수 많은 순</p>';
+  h+='<p class="sec-desc">그 검색어가 있었던 세션 수 · 많은 순 · 비교 기간 값은 없습니다</p>';
   h+='<div id="searchWrap"><div class="funnel"><div class="state"><div class="spinner"></div>검색어 불러오는 중…</div></div></div>';
 
   h+='<h2 class="sec">스크롤 도달률</h2>';
@@ -2489,7 +2489,7 @@ async function loadSearchTerms(){
       <div class="section-block-head">
         <span class="section-dot" style="background:${SRC==='ad'?'#FF9500':'#3182F6'};"></span>
         <span class="section-block-title">${SRC==='ad'?'광고 랜딩':SRC==='all'?'전체':'실제 검색'} 상위 ${rows.length}개</span>
-        <span class="section-block-total">${BY_SESSION?'세션':'검색'} ${fmt(totSearch)}${UNIT} · 고유 검색어 ${fmt(uniq)}개</span>
+        <span class="section-block-total">${BY_SESSION?'':'검색 '}${fmt(totSearch)}${UNIT} · 고유 검색어 ${fmt(uniq)}개</span>
         <a class="csv-btn" href="${csvUrl}" download>전체 ${fmt(cur.uniqueTerms||uniq)}개 엑셀 다운로드</a>
       </div>`;
 
@@ -2878,7 +2878,7 @@ function sectionTable(rows, id){
         </div>`
       : `<div class="slotbar-track"><div class="slotbar-fill" style="width:${widthPct}%;background:${color};"></div></div>`;
     html += `<div class="slotbar-row${showCmp?' tall':''}">
-      <div>${nameHtml}<div class="slotbar-meta">${r.order}번째 · ${(r.after.sessions/tot*100).toFixed(1)}%${metaExtra}</div></div>
+      <div>${nameHtml}<div class="slotbar-meta">${r.order===0?'맨 앞':r.order+'번째'} · ${(r.after.sessions/tot*100).toFixed(1)}%${metaExtra}</div></div>
       ${barHtml}
       <div><div class="slotbar-val">${fmt(r.after.sessions)}</div><div class="slotbar-sub">${fmtDwell(r.after.dwell)}</div></div>
     </div>`;
