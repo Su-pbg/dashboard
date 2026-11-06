@@ -639,7 +639,10 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
                   const o = orow[c] ?? "", v = nrow[c] ?? "", cc = c + 1;
                   const own = (is14 && cc === 13 && rr >= 5 && v !== "" && !(typeof v === "string" && v.startsWith("=")))
                     || (is13 && cc === 16 && rr >= 5) || (is64 && (cc === 3 || cc === 5 || cc === 7) && rr >= userRow);
-                  const want = (o === "" && !strict) || own ? null : o;
+                  // [2026-11-06] 원본이 빈 칸이면: strict 구간이라도 우리 쪽이 손입력 값(수식 아님)이면 둔다 — 광고비처럼 자동 시트에 직접 넣는 칸이 매일 밤 지워졌다(Su).
+                  //   strict 가 지우는 건 우리 쪽 '수식'(예전 슬랙봇 수식 잔재)뿐이다.
+                  const typed = v !== "" && !(typeof v === "string" && v.startsWith("="));
+                  const want = (o === "" && (!strict || typed)) || own ? null : o;
                   const same = want === null || want === v || (typeof want === "number" && typeof v === "number" && Math.abs(want - v) < 1e-9);
                   if (same) { close(); continue; }
                   const f = typeof want === "string" && want.startsWith("=");
@@ -886,10 +889,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             if (rawLast && rawLast < yest) {
               const tr = dayRow(rawLast), r0 = tr + 1, r1 = dayRow(yest);
               growRows(t, r1 + 9); await flush();
-              // [2026-10-31] C~AH 를 통째로 비우면 다른 단계가 써 둔 M(매출, sheet 단계)·AD(신규 상품 수, step=raw)까지 지운다 —
-              //   users2 가 밤에 ext 를 한 번 더 돌리자 10-20~29 SKU 가 전부 비고 요약 10월이 289 로 돌아갔다(10-30 실측). 두 열은 비켜서 비운다.
-              for (const [a, b] of [["C", "L"], ["N", "AC"], ["AE", "AH"]]) vals.push({ range: `'${t}'!${a}${r0}:${b}${r1 + 7}`, values: Array.from({ length: r1 + 7 - r0 + 1 }, () => Array(cNum(b) - cNum(a) + 1).fill("")) });
-              await flush();
+              // [2026-11-06] 줄을 비우지 않는다. 수식 칸은 아래 fmlCopy 가 덮고, 값 칸은 사람이 넣는 자리다(커머스 광고 T·Total 광고 X 등).
+              //   10-31 까지는 C~AH 를 통째로 비워서(M·AD 만 제외) 손입력 광고비가 매일 밤 지워졌다(Su). 매출 M 은 sheet 단계, SKU AD 는 step=raw 가 쓴다.
               await fmlCopy(t, tr, r0, r1 - r0 + 1);
               // [2026-10-29] 원본 마지막 줄에서 할인(J)·예치금(P)은 수식이 아니라 값(0)이라 fmlCopy 가 건너뛰어 10-20 이후가 비었다(peek 실측)
               //   → 같은 줄의 다른 칸처럼 RAW VLOOKUP 수식으로 채운다(RAW F=할인 6열, J=예치금 10열). 원본 팀이 값을 넣으면 part=sync 가 원본으로 바꾼다.
@@ -1041,7 +1042,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             if (n) { growRows(t, lastR + n + 1); copyRow(t, lastR, lastR + 1, n, "PASTE_FORMAT"); await flush(); }
             want.forEach((k, i) => { const delta = at[k] - at[lastK];
               const row = tmpl.map((v, j) => { if (j === 1) return kind === "m" ? date2ser(k + "-01") : kpiWeekLabel(k);
-                if (typeof v !== "string" || !v.startsWith("=")) return v ?? "";
+                if (typeof v !== "string" || !v.startsWith("=")) return null;   // [2026-11-06] 값 칸은 그대로(손입력 보존)
                 return v.replace(new RegExp(`(${src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'!)([A-Z]+):([A-Z]+)`, "g"), (all, pre, a, b) => (a === b && a !== "C" ? `${pre}${cA1(cNum(a) + delta)}:${cA1(cNum(a) + delta)}` : all))
                   .replace(/([A-Z]+)(\d+)(?![\d:(])/g, (all, col, r) => (+r === lastR ? `${col}${lastR + 1 + i}` : all)); });
               vals.push({ range: `'${t}'!A${lastR + 1 + i}:${cA1(row.length)}${lastR + 1 + i}`, values: [row] }); });
@@ -1065,7 +1066,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
               const row = tmpl.map((v, j) => { if (j === 1) return kpiWeekLabel(k, "주");
                 // [2026-10-31] 6-3 의 F(WAU)·I(새 사용자)는 값 칸이라 템플릿 값이 그대로 복사됐다 — 10월 4주가 3주 WAU 15,917 을 물려받았다(실측). step=wk 가 채우니 비운다.
                 if (t0 === "6-3. 유저(주별)" && (j === 5 || j === 8) && !(typeof v === "string" && v.startsWith("="))) return "";
-                if (typeof v !== "string" || !v.startsWith("=")) return v ?? "";
+                if (typeof v !== "string" || !v.startsWith("=")) return null;   // [2026-11-06] 값 칸은 그대로 둔다(손입력 광고비 보존·템플릿 값 복사 방지). Sheets API 는 null 을 건너뛴다
                 const keep = [];   // 다른 탭 참조(!A1:B2)는 잠시 빼 두고, 같은 탭 참조만 한 줄씩 내린다
                 let f = v.replace(/'[^']+'!\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?/g, (all) => { const m = all.match(/^(.*!)([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
                   // [2026-10-29] 범위가 아닌 단일 셀 참조('1-3…'!AN151 처럼 다른 주별 탭의 같은 줄)는 같은 줄 번호면 새 줄로 내린다 — 안 그러면 10월 4주가 3주 주문 건을 본다

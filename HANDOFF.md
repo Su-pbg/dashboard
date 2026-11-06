@@ -6,6 +6,7 @@
 2026-10-29 (Mac mini, Claude). Mac mini 를 유일한 로컬로 세팅(node 24·wrangler·openpyxl, 레포 4개 클론), 워커 배포 2회(95b634fb → 4015ff2b), KPI 시트 수집 효율화 기획(8단계), 에이전트 협업 세팅(AGENTS/HANDOFF/훅).
 
 ## 현재 상태
+- **[2026-11-06 클라우드 세션] 손입력 광고비가 매일 밤 지워지던 것 고침 — 배포 대기.** 원인 셋: ① `part=ext` 1-4 구간이 rawLast 이후 줄을 비움(M·AD 만 제외) ② `sync` strict 구간(원본 RAW 마지막 날까지)이 원본 빈 칸을 우리 쪽에도 빈 칸으로 강제 ③ 1-3/6-3/엠디별 줄 늘리기가 템플릿 값 칸까지 매일 다시 씀. 고침: ① 비우지 않음(수식만 fmlCopy) ② 우리 쪽 손입력 값(수식 아님)은 원본이 비어도 둠 ③ 값 칸은 null 로 보내 건드리지 않음(Sheets API 는 null 건너뜀). 지워진 광고비는 복구 못 함 — 시트 버전 기록에서 찾거나 다시 입력.
 - **[2026-11-05] 카페24 토큰 유실 사고 → 복구 완료.** 10:26 슬랙봇 상품 스냅샷 잡이 토큰 갱신 뒤 Gist 쓰기에 GitHub 500 → 새 리프레시 토큰 유실 → 워커·슬랙봇 전부 `invalid_grant`. 15:05 Su 가 `/cafe24auth` 로 재인증해 복구. 배포 워커 = 커밋 이후(버전 69e977df).
   - `GET /cafe24auth?key=…` → 카페24 동의 화면(state = KV 난수 10분) → 콜백에서 토큰 교환·Gist 교체·KV access_token 삭제. 스코프 13개 전부(앱 쓰기 포함, Su). 콜백 화면 새로고침하면 "state 불일치" 가 뜨지만 첫 요청은 이미 성공한 것 — Gist 커밋 시각으로 확인.
   - Gist PATCH 재시도: 워커 4회(`getCafe24AccessToken`), 슬랙봇 5회(`build_revenue_daily.save_refresh_token`, `report.py`). 실패 시 로그 `[심각]`.
