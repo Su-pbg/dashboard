@@ -7,8 +7,9 @@
 //     "pages":[ {"texts":["pass0 텍스트","pass1","pass2"]} , ... ],
 //     "expect":[ {"date":"2026-09-01","amount":9400,"merchant":"컴포즈커피"}, ... ] }
 //   실제 영수증 글자(카드번호·승인번호)가 들어 있으니 레포에 커밋하지 않는다.
+import { fileURLToPath } from 'url';
 import fs from 'fs'; import vm from 'vm'; import path from 'path';
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const html = fs.readFileSync(path.join(HERE, 'expense.html'), 'utf8');
 const blk = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]

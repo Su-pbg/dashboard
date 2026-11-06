@@ -18,11 +18,12 @@
 //   그래서 기본값을 상위 100개 · 동시 1개 · 1초 간격으로 묶어뒀다.
 //
 // 사용: DASHBOARD_KEY=... node scripts/check-search-results.mjs [--max 100] [--min 5] [--force]
+import { fileURLToPath } from 'url';
 
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const MAX = Number(arg('--max', 100));      // 기본 100개만. 전수는 돌리지 말 것 — 아래 경고 참조

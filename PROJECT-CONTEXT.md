@@ -30,7 +30,8 @@
 | 매출/카테고리 수집 `build_revenue_daily.py` 등 | `Su-pbg/slackbot` | 별도 레포 |
 
 ### 로컬 머신은 Mac mini 다 (2026-10-29, Su)
-맥북프로는 더 이상 로컬로 안 돌린다. 레포는 `~/Projects/dashboard`(맥북프로 시절 `~/dashboard` 가 아니다).
+레포는 `~/Projects/dashboard`(맥북프로 시절 `~/dashboard` 가 아니다).
+**[2026-11-06] 맥북프로도 다시 로컬로 쓴다** — 레포 `~/Desktop/업무/프린트베이커리/pbg-dashboard`. 경로에 한글이 있으니 스크립트에서 경로는 `fileURLToPath` 로 만든다(`URL.pathname` 은 퍼센트 인코딩된 채 남는다). 슬랙봇 러너는 Mac mini 에만.
 - 워커 키: `~/Projects/dashboard/.dashboard_key.local` (2026-10-29 새 값으로 교체. 맥북프로 파일은 옛 값이라 못 쓴다)
 - 배포 인증: `wrangler login`(브라우저) 대신 **API 토큰 파일** `.cloudflare_token.local` (gitignore). 없으면 Su 가
   Cloudflare → My Profile → API Tokens → "Edit Cloudflare Workers" 템플릿으로 만들어 넣는다.

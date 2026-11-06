@@ -15,3 +15,4 @@ expense-fixtures.local.json
 *.pem
 *.key
 성과공유_*.md
+handoff/

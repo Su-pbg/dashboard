@@ -1,6 +1,8 @@
 # HANDOFF — 세션 인수인계
 
 ## 마지막 세션
+2026-11-06 (MacBook Pro, Claude). 이 맥북프로를 두 번째 로컬로 세팅: 레포 `~/Desktop/업무/프린트베이커리/pbg-dashboard` 최신화, npm ci · openpyxl/requests · wrangler 4.155(npx) · 레포 git 사용자 Su-pbg. 한글 경로에서 `new URL(import.meta.url).pathname` 이 퍼센트 인코딩돼 ENOENT → `fileURLToPath` 로 4곳 고침(test_expense · build-weekly-notion · build-weekly-deck · check-search-results). 테스트 전부 통과. `.dashboard_key.local`·`.cloudflare_token.local` 은 이 맥에 없음(Mac mini 에서 옮겨야 함).
+
 2026-11-05 (Mac mini, Claude). 카페24 토큰 유실 복구(재인증 라우트 `/cafe24auth`) · Gist 쓰기 재시도(워커·슬랙봇) · 쿠폰 API 개통 · 데일리 전표 할인 표시 기획(Su 선택 대기).
 
 2026-10-29 (Mac mini, Claude). Mac mini 를 유일한 로컬로 세팅(node 24·wrangler·openpyxl, 레포 4개 클론), 워커 배포 2회(95b634fb → 4015ff2b), KPI 시트 수집 효율화 기획(8단계), 에이전트 협업 세팅(AGENTS/HANDOFF/훅).
@@ -47,6 +49,7 @@
 | 2026-10-29 | 6-3 WAU·새 사용자 = 대시보드 정의(totalUsers·봇 제외). GA4 원값 아님 | 원값은 손입력의 2배 |
 | 2026-10-29 | 전체 재수집은 월말이 아니라 **월초 1~5일**. 매일은 당월+전월 | 전월 환불 흡수 후 확정 |
 | 2026-10-29 | 수집 효율화는 한 단계씩 배포·실측 후 다음으로 | 토큰·위험 |
+| 2026-11-06 | 맥북프로도 로컬로 다시 쓴다(Mac mini 와 병행). 슬랙봇 self-hosted 러너는 Mac mini 그대로 | Su |
 | 2026-11-05 | 카페24 앱 스코프는 13개 전부 받는다(앱 쓰기 포함). 재인증은 `/cafe24auth` 로만 | Su, 재인증 반복 방지 |
 | 2026-10-30 | slackbot 은 비공개 유지, 잡은 Mac mini self-hosted 러너로 | 히스토리에 cafe24 refresh token 85건 → 공개 불가. 시크릿은 GitHub 에 그대로 |
 

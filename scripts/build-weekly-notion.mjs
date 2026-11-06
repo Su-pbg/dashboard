@@ -13,11 +13,12 @@
 //
 // 비교는 전월 같은 일수 · 직전 주 · 전년 동월. revenue-daily.json 은 slackbot 이 최근
 // 95일만 남기고 재생성하므로 과거분은 revenue-daily-archive.json 에서 합쳐 읽는다.
+import { fileURLToPath } from 'url';
 
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const arg = (k, d = null) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 
