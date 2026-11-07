@@ -11,7 +11,7 @@
 - **[2026-11-06] 대시보드 P0 고침**(index.html, 배포됨·실화면 확인): 바로구매 0 → '주문서 진입 경로'(워커 entry*) · 사이트 검색어 카드(트렌드용 searchterms 응답을 읽게) · 끝난 기획전/끊긴 배너/유입 없는 구좌는 표 아래 접힘 · '1:60' · 기본 탭 growth. **워커 배포함(16:3x, 버전 c92e71c6, 맥북프로 wrangler OAuth)**: SLOT_MAP 상단배너 10줄 삭제(고정 상품번호라 배너 바뀌면 끊김, 배너 클릭은 '프로모션 상세 (배너·목록 포함)' 줄에 있음) · 네비 '2026 블랙베이커리데이'(1096) 추가.
 - **[2026-11-06] 대시보드 점검 → 개선안: `plans/2026-11-06-dashboard-fix.md`** (10월 실데이터 점검 → 기획 에이전트 재검증 → 디자인 검수). 아직 아무것도 안 고침. 에이전트 정의 `.claude/agents/planner.md`·`design-reviewer.md` — 기획은 화면 숫자·원천 대조 먼저, 있는 데이터로만.
 - **[2026-11-06] 판매 입력 대조에 일별 금액 대조 추가**(`ecount-tab.js` `amtOf`·`fillRVAmt`). 주문일 기준 · 카페24 실결제 ↔ 이카운트 합계(선수금 포함) · 차액. 실데이터로는 아직 안 봤다(맥북프로에 키 없음·로그인 안 됨) — 화면에서 차액이 큰 날짜를 열어 금액불일치·미입력과 맞는지 확인할 것.
-- **[2026-11-06 클라우드 세션] 손입력 광고비가 매일 밤 지워지던 것 고침 — 배포함(c92e71c6, 16:3x). 오늘 밤 크론 뒤 KPI 시트 손입력 광고비가 남는지 확인할 것.** 원인 셋: ① `part=ext` 1-4 구간이 rawLast 이후 줄을 비움(M·AD 만 제외) ② `sync` strict 구간(원본 RAW 마지막 날까지)이 원본 빈 칸을 우리 쪽에도 빈 칸으로 강제 ③ 1-3/6-3/엠디별 줄 늘리기가 템플릿 값 칸까지 매일 다시 씀. 고침: ① 비우지 않음(수식만 fmlCopy) ② 우리 쪽 손입력 값(수식 아님)은 원본이 비어도 둠 ③ 값 칸은 null 로 보내 건드리지 않음(Sheets API 는 null 건너뜀). 지워진 광고비는 복구 못 함 — 시트 버전 기록에서 찾거나 다시 입력.
+- **[2026-11-06 클라우드 세션] 손입력 광고비가 매일 밤 지워지던 것 고침 — 배포함(c92e71c6, 16:3x). → 11-07 확인: 크론(07:00~08:10 KST) 고친 코드로 돎. 1-4 광고비(T·X)는 10-25 까지 남아 있음. 다만 원본 KPI 시트도 10-25 까지만 있어 '우리 시트에만 손입력한 값'이 살아남는지는 아직 시험 안 됨 — 10-26 이후 광고비를 넣은 다음 날 다시 볼 것(scripts/sheet-peek).** 원인 셋: ① `part=ext` 1-4 구간이 rawLast 이후 줄을 비움(M·AD 만 제외) ② `sync` strict 구간(원본 RAW 마지막 날까지)이 원본 빈 칸을 우리 쪽에도 빈 칸으로 강제 ③ 1-3/6-3/엠디별 줄 늘리기가 템플릿 값 칸까지 매일 다시 씀. 고침: ① 비우지 않음(수식만 fmlCopy) ② 우리 쪽 손입력 값(수식 아님)은 원본이 비어도 둠 ③ 값 칸은 null 로 보내 건드리지 않음(Sheets API 는 null 건너뜀). 지워진 광고비는 복구 못 함 — 시트 버전 기록에서 찾거나 다시 입력.
 - **[2026-11-05] 카페24 토큰 유실 사고 → 복구 완료.** 10:26 슬랙봇 상품 스냅샷 잡이 토큰 갱신 뒤 Gist 쓰기에 GitHub 500 → 새 리프레시 토큰 유실 → 워커·슬랙봇 전부 `invalid_grant`. 15:05 Su 가 `/cafe24auth` 로 재인증해 복구. 배포 워커 = 커밋 이후(버전 69e977df).
   - `GET /cafe24auth?key=…` → 카페24 동의 화면(state = KV 난수 10분) → 콜백에서 토큰 교환·Gist 교체·KV access_token 삭제. 스코프 13개 전부(앱 쓰기 포함, Su). 콜백 화면 새로고침하면 "state 불일치" 가 뜨지만 첫 요청은 이미 성공한 것 — Gist 커밋 시각으로 확인.
   - Gist PATCH 재시도: 워커 4회(`getCafe24AccessToken`), 슬랙봇 5회(`build_revenue_daily.save_refresh_token`, `report.py`). 실패 시 로그 `[심각]`.
@@ -58,6 +58,7 @@
 | 2026-10-30 | slackbot 은 비공개 유지, 잡은 Mac mini self-hosted 러너로 | 히스토리에 cafe24 refresh token 85건 → 공개 불가. 시크릿은 GitHub 에 그대로 |
 
 ## 메모
+- [2026-11-07] 리모트에서 구글 로그인 없이 KPI 시트 읽기: `scripts/sheet-peek/README.md`(wrangler dev --remote, 읽기 전용, 배포 안 함). 크론 단계 로그는 `npx wrangler kv key get kpijob --namespace-id 58e3e3a76f9d408ea0536cdac1b3c783 --remote`.
 - 배포 전 확인법: Cloudflare API `.../workers/services/proud-sea-35f9/environments/production/content`(multipart)에서 worker.js 를 꺼내 마지막 배포 커밋과 diff. 11-06 배포 전 확인: 배포본 = ce59a8f 와 0줄 차이. 맥북프로는 `wrangler login`(OAuth, sugim@) 돼 있어 `npx wrangler deploy` 가능.
 - **로컬 두 대(Mac mini · 맥북프로).** SessionStart 훅이 `git pull --rebase --autostash` 를 먼저 돈다(실패하면 rebase 되돌리고 `[주의]` 출력). push 는 자동으로 안 한다 — 작업 끝나면 직접 push. 같은 파일을 두 대에서 동시에 고치지 않는다.
 - 워커 배포는 auto 모드 분류기가 막는다. Su 가 그 턴에 직접 "배포해" 라고 해야 통과. 허용 규칙 추가도 하드 블록.

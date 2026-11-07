@@ -1,0 +1,6 @@
+{
+  // 배포 금지 — `wrangler dev --remote` 전용. name 이 같아야 proud-sea-35f9 의 시크릿(GA_SA_KEY)을 빌려 쓴다.
+  "name": "proud-sea-35f9",
+  "main": "w.js",
+  "compatibility_date": "2026-07-14"
+}
