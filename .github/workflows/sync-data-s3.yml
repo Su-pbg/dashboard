@@ -1,0 +1,58 @@
+name: sync-data-s3
+# [2026-11-09] 현황판 데이터 JSON 을 비공개 S3 로 올린다.
+#   이 레포(공개 Pages)를 닫고 백오피스(bo.printbakery.com) 현황판으로 옮기면서, 데이터는 api-ts 가
+#   S3 에서 읽어 로그인한 사람에게만 준다 (GET /v1/admin/dashboard/data/<파일>).
+#   데이터를 만드는 쪽(slackbot 자동 커밋, 이 레포의 update-* 워크플로우, 손 편집)은 그대로 이 레포에 커밋하고,
+#   여기서 main 의 파일을 S3 로 따라 올린다.
+#
+# AWS 키는 레포에 두지 않는다 — GitHub OIDC 로 역할을 잠깐 빌린다 (이 레포 main 에서만, 버킷 dashboard/* PutObject 만).
+# 변수(Settings → Secrets and variables → Actions → Variables, 비밀 아님):
+#   DASHBOARD_S3_ROLE_ARN  업로드 역할 ARN
+#   DASHBOARD_DATA_BUCKET  비공개 버킷 이름 (api-ts 의 같은 이름 env 와 같은 값)
+#   AWS_REGION             예: ap-northeast-2
+#
+# 이 레포의 update-* 워크플로우가 GITHUB_TOKEN 으로 푸시한 커밋은 push 이벤트를 만들지 않는다 → workflow_run 으로 받는다.
+
+on:
+  push:
+    branches: [main]
+    paths: ['*.json', '.github/workflows/sync-data-s3.yml']
+  workflow_run:
+    workflows: [update-data, update-members, update-new-members, update-search-results]
+    types: [completed]
+  schedule:
+    - cron: '17 * * * *'   # 안전망: 매시간
+  workflow_dispatch:
+
+concurrency:
+  group: sync-data-s3
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.DASHBOARD_S3_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Upload data JSON to S3
+        env:
+          BUCKET: ${{ vars.DASHBOARD_DATA_BUCKET }}
+        run: |
+          if [ -z "$BUCKET" ]; then echo "::error::DASHBOARD_DATA_BUCKET 변수가 없다"; exit 1; fi
+          # api-ts src/util/DashboardData.ts 의 허용 목록과 같게 유지한다
+          for f in traffic-daily.json revenue-daily.json revenue-daily-archive.json goals.json \
+                   supplier-managers.json experiments.json pnl.json trend-metrics.json \
+                   shopping-insight.json keyword-pool.json search-results.json brand-review.json \
+                   radar-config.json product-snapshot.json data.json; do
+            [ -f "$f" ] || continue
+            aws s3 cp "$f" "s3://$BUCKET/dashboard/$f" --content-type application/json --cache-control "private, no-store" --only-show-errors
+            echo "uploaded $f"
+          done

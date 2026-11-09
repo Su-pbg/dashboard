@@ -8,6 +8,31 @@ var CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 var TOKEN_TTL_MS = 12 * 3600 * 1e3;
+
+// ===== 현황판 데이터 파일 읽기 (2026-11-09) =====
+// 데이터 JSON 은 이제 비공개 S3 에 있고 api-ts 가 내준다 (공개 GitHub Pages 를 닫기 위해).
+// 워커는 서비스 토큰으로 읽는다: GET {API_BASE}/v1/admin/dashboard/service-data/<파일>
+// 시크릿: DASHBOARD_SERVICE_TOKEN (api-ts 의 같은 이름 env 와 같은 값). 변수: API_BASE (기본 https://api.printbakery.com)
+async function readDataJson(env, name) {
+  if (env.DASHBOARD_SERVICE_TOKEN) {
+    try {
+      const base = env.API_BASE || "https://api.printbakery.com";
+      const r = await fetch(`${base}/v1/admin/dashboard/service-data/${encodeURIComponent(name)}`, {
+        headers: { "X-Service-Token": env.DASHBOARD_SERVICE_TOKEN }
+      });
+      if (r.ok) return await r.json();
+    } catch (e) {
+    }
+  }
+  // 전환 기간: api-ts 운영에 경로가 아직 없거나 실패하면 예전 Pages 에서 읽는다 (레포를 비공개로 돌리면 이 길은 막힌다)
+  try {
+    const r = await fetch("https://su-pbg.github.io/dashboard/" + name + "?ts=" + Date.now());
+    return r.ok ? await r.json() : null;
+  } catch (e) {
+    return null;
+  }
+}
+__name(readDataJson, "readDataJson");
 var _enc = new TextEncoder();
 async function hmacHex(secret, msg) {
   const k = await crypto.subtle.importKey(
@@ -163,8 +188,9 @@ var worker_default = {
     //   ETag 는 GitHub Pages 가 레포의 다른 파일이 바뀔 때도(봇 커밋) 바뀌어서 쓰지 않는다. updatedAt 은 파일 맨 앞에 있다.
     let src = "";
     try {
-      const h = await fetch("https://su-pbg.github.io/dashboard/revenue-daily.json?ts=" + Date.now(), { headers: { Range: "bytes=0-99" } });
-      src = ((await h.text()).match(/"updatedAt"\s*:\s*"([^"]+)"/) || [])[1] || "";
+      // [2026-11-09] Pages 를 닫으므로 api-ts(비공개 S3)에서 읽는다. api-ts 가 60초 캐시.
+      const j = await readDataJson(env, "revenue-daily.json");
+      src = j && j.updatedAt ? String(j.updatedAt) : "";
     } catch (e) { }
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
@@ -234,12 +260,7 @@ var worker_default = {
         }
         return json({ token: await issueToken(env), ttlMs: TOKEN_TTL_MS });
       }
-      // ===== 영수증 AI 읽기 (경비환급 페이지 전용, 로그인 없음) =====
-      // [2026-10-06] 경비환급은 전 팀이 로그인 없이 쓰므로 인증 검사보다 앞에 둔다.
-      // 대신 우리 페이지(Origin)에서 온 요청만 받고, 워커 인스턴스별로 IP당 호출 수를 제한한다.
-      if (request.method === "POST" && url.pathname === "/receipt") {
-        return await handleReceipt(request, env);
-      }
+      // [2026-11-09] 경비환급 영수증 읽기(/receipt, 로그인 없던 경로)는 없앴다.
       // ===== 카페24 웹훅 수신 (주문 처리 '진행 중 주문' 실시간) =====
       // [2026-10-15] 카페24 개발자센터 WebHook 에 등록한 이벤트가 오면(90024 배송상태 변경 등) 그 주문의 상태만 KV 에 적는다.
       //   확인: X-API-Key 헤더가 CAFE24_WEBHOOK_KEY 시크릿과 같아야 하고, 보낸 IP 가 카페24 대역이어야 한다(문서의 IP 목록).
@@ -1134,8 +1155,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         if (q.get("peek")) { const pr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(q.get("peek"))}?valueRenderOption=${q.get("render") || "UNFORMATTED_VALUE"}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: { Authorization: "Bearer " + tok } });
           const pj = await pr.json().catch(() => ({})); return json({ ok: pr.ok, range: pj.range, values: pj.values || [], error: pj.error?.message }, pr.ok ? 200 : pr.status); }
 
-        const GHP = "https://su-pbg.github.io/dashboard/";
-        const grab = async (f) => { const r = await fetch(GHP + f); return r.ok ? (await r.json()).daily || [] : []; };
+        // [2026-11-09] Pages 대신 api-ts(비공개 S3)에서 읽는다.
+        const grab = async (f) => { const j = await readDataJson(env, f); return j ? j.daily || [] : []; };
         const [arc, cur] = await Promise.all([grab("revenue-daily-archive.json"), grab("revenue-daily.json")]);
         const byDate = /* @__PURE__ */ new Map();
         for (const d of [...arc, ...cur]) if (d && d.date) byDate.set(d.date, d);
@@ -2970,129 +2991,6 @@ function csv(rows, status = 200, filename) {
   return new Response(filename ? "\uFEFF" + body : body, { status, headers });
 }
 __name(csv, "csv");
-// ===== 영수증 AI 읽기 =====
-// Google Gemini API(무료 등급)로 영수증 이미지를 읽어 일자·사용처·금액·승인번호·전체 글자를 JSON 으로 돌려준다.
-// 시크릿: GEMINI_API_KEY (필수), GEMINI_MODEL (선택, 기본 gemini-3.8-flash)
-// 무료 등급은 결제 수단이 없어 과금되지 않는다. 한도(분당·일일)를 넘으면 429 → 페이지가 기본 엔진으로 되돌아간다.
-var RECEIPT_ORIGINS = ["https://su-pbg.github.io"];
-var RECEIPT_MAX_B64 = 6e6;
-var RECEIPT_PER_MIN = 20;
-var _rcptHits = /* @__PURE__ */ new Map();
-var RECEIPT_PROMPT = [
-  "이 이미지는 한국 회사 경비 처리용 영수증(카드 매출전표, 간이영수증, 해외 SW 인보이스 등)이다.",
-  "다음을 JSON 으로만 답하라.",
-  "- date: 결제(거래) 일자 YYYY-MM-DD. 출력일·인쇄일이 아니라 거래일. 모르면 빈 문자열.",
-  "- merchant: 가맹점(상호)명. 지점명이 있으면 포함(예: 스타벅스 농대입구역점). 카드사·결제대행사 이름은 넣지 않는다.",
-  "- amount: 실제 결제된 원화 합계(부가세 포함, 할인 후). 원화가 없으면 null.",
-  "- currency: KRW 또는 USD 또는 OTHER (영수증의 결제 통화).",
-  "- foreignAmount: 외화 결제면 외화 합계, 아니면 null.",
-  "- approvalNo: 카드 승인번호(숫자). 없으면 빈 문자열.",
-  "- page: 여러 장짜리 인보이스의 쪽 표시(예: 2/2). 없으면 빈 문자열.",
-  "- fullText: 영수증의 글자를 위에서 아래로 줄바꿈 포함해 그대로 옮긴 것. 카드번호는 마지막 4자리만 남기고 *로 가린다.",
-  "숫자는 콤마 없이. 추측이 필요하면 가장 그럴듯한 값을 넣고, 전혀 보이지 않으면 비운다."
-].join("\n");
-var RECEIPT_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    date: { type: "STRING" },
-    merchant: { type: "STRING" },
-    amount: { type: "NUMBER", nullable: true },
-    currency: { type: "STRING", enum: ["KRW", "USD", "OTHER"] },
-    foreignAmount: { type: "NUMBER", nullable: true },
-    approvalNo: { type: "STRING" },
-    page: { type: "STRING" },
-    fullText: { type: "STRING" }
-  },
-  required: ["date", "merchant", "amount", "currency", "fullText"]
-};
-var CAFE24_HOOK_IPS = ["119.205.223.208", "119.205.223.209", "119.205.223.213", "119.205.223.214", "119.205.223.215", "203.245.45.182", "203.245.45.183"];
-async function handleCafe24Hook(request, env) {
-  const kv0 = env.CAFE24_TOKEN_KV;
-  if (!kv0) return json({ error: "no kv" }, 503);
-  const key = request.headers.get("X-API-Key") || "";
-  const ip = request.headers.get("CF-Connecting-IP") || "";
-  if (!env.CAFE24_WEBHOOK_KEY || !safeEqual(key, env.CAFE24_WEBHOOK_KEY)) return json({ error: "bad key" }, 401);
-  if (!CAFE24_HOOK_IPS.includes(ip)) return json({ error: "bad ip" }, 403);
-  let b = {};
-  try { b = await request.json(); } catch (e) { return json({ error: "bad json" }, 400); }
-  const r = b.resource || {}, ev = Number(b.event_no) || 0, id = String(r.order_id || "");
-  if (!/^\d{8}-\d{7}$/.test(id)) return json({ ok: true, ignored: "no order_id" });
-  const now = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 19).replace("T", " ");
-  // 주문 단위 상태 — 같은 주문의 이전 값 위에 바뀐 것만 덮는다
-  const k = "ecopen:o:" + id, prev = JSON.parse((await kv0.get(k)) || "null") || {};
-  const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
-  const next = { ...prev, order_id: id, order_date: String(r.order_date || prev.order_date || "").slice(0, 10), at: now, ev };
-  if (r.shipping_status) next.ship_status = String(r.shipping_status);
-  if (r.paid) next.paid = String(r.paid);
-  if (r.actual_payment_amount != null) next.payment_amount = n(r.actual_payment_amount);
-  if (ev === 90026 || ev === 90072) next.cancel_event = now;           // 취소상태 변경
-  if (ev === 90027 || ev === 90074) next.return_event = now;           // 반품상태 변경
-  if (ev === 90029 || ev === 90073) next.refund_event = now;           // 환불상태 변경
-  if (ev === 90070) next.deleted = true;
-  await kv0.put(k, JSON.stringify(next), { expirationTtl: 120 * 86400 });
-  // 최근 변경 목록(화면이 "무엇이 바뀌었나"를 빨리 읽게) — 200개까지
-  const lk = "ecopen:recent", recent = JSON.parse((await kv0.get(lk)) || "[]");
-  recent.unshift({ id, ev, at: now, ship_status: next.ship_status || "" });
-  await kv0.put(lk, JSON.stringify(recent.slice(0, 200)));
-  return json({ ok: true, order_id: id, ev });
-}
-__name(handleCafe24Hook, "handleCafe24Hook");
-async function handleReceipt(request, env) {
-  const origin = request.headers.get("Origin") || "";
-  const cors = { ...CORS, "Access-Control-Allow-Origin": RECEIPT_ORIGINS.includes(origin) ? origin : RECEIPT_ORIGINS[0] };
-  const out = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
-  if (!RECEIPT_ORIGINS.includes(origin)) return out({ error: "허용되지 않은 출처" }, 403);
-  if (!env.GEMINI_API_KEY) return out({ error: "AI 읽기가 아직 설정되지 않았어요 (GEMINI_API_KEY)", code: "nokey" }, 503);
-  const ip = request.headers.get("CF-Connecting-IP") || "?";
-  const now = Date.now();
-  const hits = (_rcptHits.get(ip) || []).filter((t) => now - t < 6e4);
-  if (hits.length >= RECEIPT_PER_MIN) return out({ error: "잠시 후 다시 시도하세요 (분당 한도)" }, 429);
-  hits.push(now);
-  _rcptHits.set(ip, hits);
-  let body;
-  try {
-    body = await request.json();
-  } catch (e) {
-    return out({ error: "잘못된 요청" }, 400);
-  }
-  const data = String(body.image || "").replace(/^data:[^,]+,/, "");
-  const mime = /^image\/(jpeg|png|webp)$/.test(body.mime || "") ? body.mime : "image/jpeg";
-  if (!data || data.length > RECEIPT_MAX_B64) return out({ error: "이미지가 없거나 너무 큼" }, 400);
-  let model = env.GEMINI_MODEL || "gemini-3.8-flash";
-  // 진단용: DASHBOARD_KEY 를 같이 보낼 때만 모델을 바꿔볼 수 있다 (한도·가용 모델 확인).
-  if (body.model && body.key && body.key === env.DASHBOARD_KEY) model = String(body.model).slice(0, 60);
-  const ym = /^\d{4}-\d{2}$/.test(body.ym || "") ? `\n참고: 신청 월은 ${body.ym} 이다(연도가 안 보이면 이 연도로).` : "";
-  const call = (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-    body: JSON.stringify({
-      contents: [{ parts: [{ inline_data: { mime_type: mime, data } }, { text: RECEIPT_PROMPT + ym }] }],
-      generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: RECEIPT_SCHEMA }
-    })
-  });
-  let r = await call(model);
-  // [2026-10-07] 모델명을 박아두면 언젠가 404 가 된다 (gemini-2.5-flash 가 그랬고, 그동안 AI 읽기가 통째로 죽어 있었다).
-  // 구글이 404 본문에 후속 모델을 적어주므로 그 이름으로 한 번만 다시 부른다. 그래도 안 되면 그대로 502.
-  if (r.status === 404) {
-    const t404 = await r.text();
-    const alt = [...t404.matchAll(/models\/([A-Za-z0-9.\-]+)/g)].map((x) => x[1]).find((n) => n !== model);
-    if (!alt) return out({ error: "Gemini 오류 404", detail: t404.slice(0, 300) }, 502);
-    model = alt;
-    r = await call(model);
-  }
-  // code 로 성격을 구분해 돌려준다. 페이지가 "다시 걸어볼 것(quota·busy)" 과 "포기할 것(nokey)" 을 가려야 한다.
-  if (r.status === 429) return out({ error: "Gemini 한도 초과", code: "quota", detail: (await r.text()).slice(0, 600) }, 429);
-  if (r.status === 503 || r.status === 500) return out({ error: "Gemini 혼잡", code: "busy", detail: (await r.text()).slice(0, 300) }, 503);
-  if (!r.ok) return out({ error: `Gemini 오류 ${r.status}`, code: "err", detail: (await r.text()).slice(0, 300) }, 502);
-  const j = await r.json();
-  const txt = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-  try {
-    return out({ ok: true, model, usage: j?.usageMetadata || null, data: JSON.parse(txt) });
-  } catch (e) {
-    return out({ error: "응답 해석 실패", detail: txt.slice(0, 300) }, 502);
-  }
-}
-__name(handleReceipt, "handleReceipt");
 // [2026-10-12] 위탁 정산용 거래처 LIST 읽기. 시트 ID 는 비밀이 아니다(접근은 공유 설정이 막는다).
 // 거래처 LIST 탭에는 연락처가 있어 정산에 쓰는 열(입점여부·브랜드명·공급사코드)만 남긴다.
 // 월별 매출 목표(원). KPI 시트 '0. 요약' 5행과 같은 값이다. 바뀌면 여기만 고친다.
