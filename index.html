@@ -822,6 +822,12 @@ async function dashLogin(pw){
   if(!r.ok || !j.token) throw new Error(j.error||'로그인 실패');
   try{ localStorage.setItem(TOKEN_KEY, j.token); }catch(e){ sessionStorage.setItem(TOKEN_KEY, j.token); }
 }
+// [2026-11-09] 데이터 JSON 은 정적 파일이 아니라 워커 /data/ 에서 로그인 토큰으로 받는다.
+// (예전엔 같은 폴더의 ./xxx.json — 공개 Pages 라 로그인 없이 누구나 열 수 있었다.) Response 를 그대로 돌려준다.
+function dfetch(path){
+  const name=String(path).replace(/^\.\//,'').split('?')[0];
+  return fetch(WORKER+'/data/'+name,{cache:'no-store',headers:authHeaders()});
+}
 let NOCACHE=false;  // '새로고침' 눌렀을 때만 true → 서버 캐시 무시
 
 // ===== 워커 요청 합치기 =====
@@ -1002,7 +1008,7 @@ let TRAFFIC_CACHE=null;
 async function trafficRangeSum(s0,e0){
   if(!TRAFFIC_CACHE){
     try{
-      const r=await fetch('./traffic-daily.json',{cache:'no-store'});
+      const r=await dfetch('traffic-daily.json');
       TRAFFIC_CACHE=await r.json();
     }catch(e){ TRAFFIC_CACHE={daily:[]}; }
   }
@@ -1120,8 +1126,8 @@ async function ensureRevenue(){
   if(REVENUE_CACHE) return REVENUE_CACHE;
   if(!REVENUE_LOADING){
     REVENUE_LOADING = Promise.all([
-      fetch('./revenue-daily.json',{cache:'no-store'}).then(r=>r.json()),
-      fetch('./revenue-daily-archive.json',{cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+      dfetch('revenue-daily.json').then(r=>r.json()),
+      dfetch('revenue-daily-archive.json').then(r=>r.json()).catch(()=>null),
     ]).then(([j,a])=>{
       if(a){
         const byDate={};
@@ -1170,7 +1176,7 @@ let GOALS=null;
 async function ensureGoals(){
   if(GOALS!==null) return GOALS;
   try{
-    const r=await fetch('./goals.json',{cache:'no-store'});
+    const r=await dfetch('goals.json');
     GOALS = r.ok ? await r.json() : false;
   }catch(e){ GOALS=false; }
   return GOALS;
@@ -2119,7 +2125,7 @@ let SUPMAP=null, SUPMGRS=[], SUPOVER={}, SUPBASE={};
 async function supplierMap(force){
   if(SUPMAP && !force) return SUPMAP;
   let base={}, over={};
-  try{ base=(await (await fetch('supplier-managers.json',{cache:'no-store'})).json()).suppliers||{}; }catch(e){}
+  try{ base=(await (await dfetch('supplier-managers.json')).json()).suppliers||{}; }catch(e){}
   try{ over=(await (await fetch(WORKER+'/supplier-map',{cache:'no-store',headers:authHeaders()})).json()).overrides||{}; }catch(e){}
   SUPBASE=base; SUPOVER=over;
   SUPMAP={};
@@ -3222,7 +3228,7 @@ async function loadExperiments(){
   if(!wrap) return;
   let cfg=null;
   try{
-    const r=await fetch('./experiments.json',{cache:'no-store'});
+    const r=await dfetch('experiments.json');
     if(!r.ok) throw new Error('없음');
     cfg=await r.json();
   }catch(e){ wrap.innerHTML=''; return; }
@@ -3267,7 +3273,7 @@ let PNL=null;
 async function ensurePnl(){
   if(PNL!==null) return PNL;
   try{
-    const r=await fetch('./pnl.json',{cache:'no-store'});
+    const r=await dfetch('pnl.json');
     PNL = r.ok ? await r.json() : false;
   }catch(e){ PNL=false; }
   return PNL;

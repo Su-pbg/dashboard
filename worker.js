@@ -8,6 +8,55 @@ var CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 var TOKEN_TTL_MS = 12 * 3600 * 1e3;
+
+// ===== 레포 데이터 파일 읽기 (2026-11-09) =====
+// 예전에는 화면·워커가 GitHub Pages(su-pbg.github.io/dashboard/*.json)에서 직접 받았다.
+// Pages 는 공개라 손익·매출·공급사 파일이 로그인 없이 열렸다 → 레포를 비공개로 돌리고
+// 데이터는 워커가 GitHub API 로 읽어 로그인한 사람에게만 준다 (GET /data/<파일>).
+// 시크릿: GH_DATA_TOKEN — 이 레포 Contents: Read-only 만 가진 fine-grained 토큰.
+//   없으면 공개 raw 주소로 읽는다(레포가 아직 공개일 때만 동작 — 전환 기간용).
+// 선택 변수: DATA_REPO (기본 Su-pbg/dashboard), DATA_REF (기본 main)
+var DATA_FILES = /* @__PURE__ */ new Set([
+  "traffic-daily.json", "revenue-daily.json", "revenue-daily-archive.json", "goals.json",
+  "supplier-managers.json", "experiments.json", "pnl.json", "trend-metrics.json",
+  "shopping-insight.json", "keyword-pool.json", "search-results.json", "brand-review.json",
+  "radar-config.json", "product-snapshot.json", "data.json"
+]);
+var DATA_CACHE_SEC = 300;
+async function readRepoFile(env, name, ctx) {
+  if (!DATA_FILES.has(name)) return null;
+  const repo = env.DATA_REPO || "Su-pbg/dashboard", ref = env.DATA_REF || "main";
+  const cacheKey = new Request(`https://repo-data.local/${repo}/${ref}/${name}`);
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  if (cache) {
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+  }
+  const r = env.GH_DATA_TOKEN
+    ? await fetch(`https://api.github.com/repos/${repo}/contents/${encodeURIComponent(name)}?ref=${encodeURIComponent(ref)}`, {
+        headers: { Authorization: "Bearer " + env.GH_DATA_TOKEN, Accept: "application/vnd.github.raw", "User-Agent": "pbg-dashboard-worker" }
+      })
+    : await fetch(`https://raw.githubusercontent.com/${repo}/${ref}/${name}`);
+  if (!r.ok) return new Response(r.status === 404 ? "" : "upstream " + r.status, { status: r.status === 404 ? 404 : 502 });
+  const res = new Response(r.body, {
+    status: 200,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `max-age=${DATA_CACHE_SEC}` }
+  });
+  if (cache) {
+    const [a, b] = res.body.tee();
+    const out = new Response(a, res);
+    const put = cache.put(cacheKey, new Response(b, res));
+    if (ctx && ctx.waitUntil) ctx.waitUntil(put); else await put;
+    return out;
+  }
+  return res;
+}
+__name(readRepoFile, "readRepoFile");
+async function readRepoJson(env, name) {
+  const r = await readRepoFile(env, name);
+  return r && r.ok ? await r.json() : null;
+}
+__name(readRepoJson, "readRepoJson");
 var _enc = new TextEncoder();
 async function hmacHex(secret, msg) {
   const k = await crypto.subtle.importKey(
@@ -163,8 +212,9 @@ var worker_default = {
     //   ETag 는 GitHub Pages 가 레포의 다른 파일이 바뀔 때도(봇 커밋) 바뀌어서 쓰지 않는다. updatedAt 은 파일 맨 앞에 있다.
     let src = "";
     try {
-      const h = await fetch("https://su-pbg.github.io/dashboard/revenue-daily.json?ts=" + Date.now(), { headers: { Range: "bytes=0-99" } });
-      src = ((await h.text()).match(/"updatedAt"\s*:\s*"([^"]+)"/) || [])[1] || "";
+      // [2026-11-09] Pages 를 닫으므로 레포에서 읽는다(5분 캐시). 앞부분만 본다.
+      const h = await readRepoFile(env, "revenue-daily.json");
+      src = h && h.ok ? (((await h.text()).slice(0, 400).match(/"updatedAt"\s*:\s*"([^"]+)"/) || [])[1] || "") : "";
     } catch (e) { }
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
@@ -291,6 +341,17 @@ var worker_default = {
       const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
       if (!keyOk && !tokOk) {
         return json({ error: "\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." }, 403);
+      }
+      // ===== 데이터 파일 (로그인 필요) =====
+      // [2026-11-09] GET /data/<파일>.json — 화면이 정적 파일 대신 여기서 받는다. 허용 목록(DATA_FILES)만.
+      if (request.method === "GET" && url.pathname.startsWith("/data/")) {
+        const name = url.pathname.slice(6);
+        if (!/^[a-z0-9-]+\.json$/.test(name) || !DATA_FILES.has(name)) return json({ error: "not found" }, 404);
+        const r = await readRepoFile(env, name);
+        const h = new Headers(r.headers);
+        for (const [k, v] of Object.entries(CORS)) h.set(k, v);
+        h.set("Cache-Control", "private, no-store");
+        return new Response(r.body, { status: r.status, headers: h });
       }
       // ===== 상품 운영 작업 목록 =====
       // [2026-10-20] MD 가 수시로 보는 화면이라 '뭘 했는지' 가 남아야 한다. 안 남으면 같은 걸 계속 다시 본다.
@@ -1134,8 +1195,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         if (q.get("peek")) { const pr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(q.get("peek"))}?valueRenderOption=${q.get("render") || "UNFORMATTED_VALUE"}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: { Authorization: "Bearer " + tok } });
           const pj = await pr.json().catch(() => ({})); return json({ ok: pr.ok, range: pj.range, values: pj.values || [], error: pj.error?.message }, pr.ok ? 200 : pr.status); }
 
-        const GHP = "https://su-pbg.github.io/dashboard/";
-        const grab = async (f) => { const r = await fetch(GHP + f); return r.ok ? (await r.json()).daily || [] : []; };
+        // [2026-11-09] Pages 대신 레포에서 읽는다 (readRepoFile).
+        const grab = async (f) => { const j = await readRepoJson(env, f); return j ? j.daily || [] : []; };
         const [arc, cur] = await Promise.all([grab("revenue-daily-archive.json"), grab("revenue-daily.json")]);
         const byDate = /* @__PURE__ */ new Map();
         for (const d of [...arc, ...cur]) if (d && d.date) byDate.set(d.date, d);
@@ -2974,7 +3035,7 @@ __name(csv, "csv");
 // Google Gemini API(무료 등급)로 영수증 이미지를 읽어 일자·사용처·금액·승인번호·전체 글자를 JSON 으로 돌려준다.
 // 시크릿: GEMINI_API_KEY (필수), GEMINI_MODEL (선택, 기본 gemini-3.8-flash)
 // 무료 등급은 결제 수단이 없어 과금되지 않는다. 한도(분당·일일)를 넘으면 429 → 페이지가 기본 엔진으로 되돌아간다.
-var RECEIPT_ORIGINS = ["https://su-pbg.github.io"];
+var RECEIPT_ORIGINS = ["https://su-pbg.github.io", "https://bo.printbakery.com", "https://dev-bo.printbakery.com"];
 var RECEIPT_MAX_B64 = 6e6;
 var RECEIPT_PER_MIN = 20;
 var _rcptHits = /* @__PURE__ */ new Map();
