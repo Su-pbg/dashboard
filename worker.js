@@ -9,54 +9,19 @@ var CORS = {
 };
 var TOKEN_TTL_MS = 12 * 3600 * 1e3;
 
-// ===== 레포 데이터 파일 읽기 (2026-11-09) =====
-// 예전에는 화면·워커가 GitHub Pages(su-pbg.github.io/dashboard/*.json)에서 직접 받았다.
-// Pages 는 공개라 손익·매출·공급사 파일이 로그인 없이 열렸다 → 레포를 비공개로 돌리고
-// 데이터는 워커가 GitHub API 로 읽어 로그인한 사람에게만 준다 (GET /data/<파일>).
-// 시크릿: GH_DATA_TOKEN — 이 레포 Contents: Read-only 만 가진 fine-grained 토큰.
-//   없으면 공개 raw 주소로 읽는다(레포가 아직 공개일 때만 동작 — 전환 기간용).
-// 선택 변수: DATA_REPO (기본 Su-pbg/dashboard), DATA_REF (기본 main)
-var DATA_FILES = /* @__PURE__ */ new Set([
-  "traffic-daily.json", "revenue-daily.json", "revenue-daily-archive.json", "goals.json",
-  "supplier-managers.json", "experiments.json", "pnl.json", "trend-metrics.json",
-  "shopping-insight.json", "keyword-pool.json", "search-results.json", "brand-review.json",
-  "radar-config.json", "product-snapshot.json", "data.json"
-]);
-var DATA_CACHE_SEC = 300;
-async function readRepoFile(env, name, ctx) {
-  if (!DATA_FILES.has(name)) return null;
-  const repo = env.DATA_REPO || "Su-pbg/dashboard", ref = env.DATA_REF || "main";
-  const cacheKey = new Request(`https://repo-data.local/${repo}/${ref}/${name}`);
-  const cache = typeof caches !== "undefined" ? caches.default : null;
-  if (cache) {
-    const hit = await cache.match(cacheKey);
-    if (hit) return hit;
-  }
-  const r = env.GH_DATA_TOKEN
-    ? await fetch(`https://api.github.com/repos/${repo}/contents/${encodeURIComponent(name)}?ref=${encodeURIComponent(ref)}`, {
-        headers: { Authorization: "Bearer " + env.GH_DATA_TOKEN, Accept: "application/vnd.github.raw", "User-Agent": "pbg-dashboard-worker" }
-      })
-    : await fetch(`https://raw.githubusercontent.com/${repo}/${ref}/${name}`);
-  if (!r.ok) return new Response(r.status === 404 ? "" : "upstream " + r.status, { status: r.status === 404 ? 404 : 502 });
-  const res = new Response(r.body, {
-    status: 200,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `max-age=${DATA_CACHE_SEC}` }
+// ===== 현황판 데이터 파일 읽기 (2026-11-09) =====
+// 데이터 JSON 은 이제 비공개 S3 에 있고 api-ts 가 내준다 (공개 GitHub Pages 를 닫기 위해).
+// 워커는 서비스 토큰으로 읽는다: GET {API_BASE}/v1/admin/dashboard/service-data/<파일>
+// 시크릿: DASHBOARD_SERVICE_TOKEN (api-ts 의 같은 이름 env 와 같은 값). 변수: API_BASE (기본 https://api.printbakery.com)
+async function readDataJson(env, name) {
+  if (!env.DASHBOARD_SERVICE_TOKEN) return null;
+  const base = env.API_BASE || "https://api.printbakery.com";
+  const r = await fetch(`${base}/v1/admin/dashboard/service-data/${encodeURIComponent(name)}`, {
+    headers: { "X-Service-Token": env.DASHBOARD_SERVICE_TOKEN }
   });
-  if (cache) {
-    const [a, b] = res.body.tee();
-    const out = new Response(a, res);
-    const put = cache.put(cacheKey, new Response(b, res));
-    if (ctx && ctx.waitUntil) ctx.waitUntil(put); else await put;
-    return out;
-  }
-  return res;
+  return r.ok ? await r.json() : null;
 }
-__name(readRepoFile, "readRepoFile");
-async function readRepoJson(env, name) {
-  const r = await readRepoFile(env, name);
-  return r && r.ok ? await r.json() : null;
-}
-__name(readRepoJson, "readRepoJson");
+__name(readDataJson, "readDataJson");
 var _enc = new TextEncoder();
 async function hmacHex(secret, msg) {
   const k = await crypto.subtle.importKey(
@@ -212,9 +177,9 @@ var worker_default = {
     //   ETag 는 GitHub Pages 가 레포의 다른 파일이 바뀔 때도(봇 커밋) 바뀌어서 쓰지 않는다. updatedAt 은 파일 맨 앞에 있다.
     let src = "";
     try {
-      // [2026-11-09] Pages 를 닫으므로 레포에서 읽는다(5분 캐시). 앞부분만 본다.
-      const h = await readRepoFile(env, "revenue-daily.json");
-      src = h && h.ok ? (((await h.text()).slice(0, 400).match(/"updatedAt"\s*:\s*"([^"]+)"/) || [])[1] || "") : "";
+      // [2026-11-09] Pages 를 닫으므로 api-ts(비공개 S3)에서 읽는다. api-ts 가 60초 캐시.
+      const j = await readDataJson(env, "revenue-daily.json");
+      src = j && j.updatedAt ? String(j.updatedAt) : "";
     } catch (e) { }
     const fresh = src && src !== last.src, due = last.day !== today && hour >= 7;
     // [2026-10-27] 한 번에 다 하면 서브요청 한도(50)를 넘는다 → 틱(10분)마다 한 단계씩: users → scan → ext → sheet
@@ -336,17 +301,6 @@ var worker_default = {
       const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
       if (!keyOk && !tokOk) {
         return json({ error: "\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." }, 403);
-      }
-      // ===== 데이터 파일 (로그인 필요) =====
-      // [2026-11-09] GET /data/<파일>.json — 화면이 정적 파일 대신 여기서 받는다. 허용 목록(DATA_FILES)만.
-      if (request.method === "GET" && url.pathname.startsWith("/data/")) {
-        const name = url.pathname.slice(6);
-        if (!/^[a-z0-9-]+\.json$/.test(name) || !DATA_FILES.has(name)) return json({ error: "not found" }, 404);
-        const r = await readRepoFile(env, name);
-        const h = new Headers(r.headers);
-        for (const [k, v] of Object.entries(CORS)) h.set(k, v);
-        h.set("Cache-Control", "private, no-store");
-        return new Response(r.body, { status: r.status, headers: h });
       }
       // ===== 상품 운영 작업 목록 =====
       // [2026-10-20] MD 가 수시로 보는 화면이라 '뭘 했는지' 가 남아야 한다. 안 남으면 같은 걸 계속 다시 본다.
@@ -1190,8 +1144,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         if (q.get("peek")) { const pr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(q.get("peek"))}?valueRenderOption=${q.get("render") || "UNFORMATTED_VALUE"}&dateTimeRenderOption=SERIAL_NUMBER`, { headers: { Authorization: "Bearer " + tok } });
           const pj = await pr.json().catch(() => ({})); return json({ ok: pr.ok, range: pj.range, values: pj.values || [], error: pj.error?.message }, pr.ok ? 200 : pr.status); }
 
-        // [2026-11-09] Pages 대신 레포에서 읽는다 (readRepoFile).
-        const grab = async (f) => { const j = await readRepoJson(env, f); return j ? j.daily || [] : []; };
+        // [2026-11-09] Pages 대신 api-ts(비공개 S3)에서 읽는다.
+        const grab = async (f) => { const j = await readDataJson(env, f); return j ? j.daily || [] : []; };
         const [arc, cur] = await Promise.all([grab("revenue-daily-archive.json"), grab("revenue-daily.json")]);
         const byDate = /* @__PURE__ */ new Map();
         for (const d of [...arc, ...cur]) if (d && d.date) byDate.set(d.date, d);

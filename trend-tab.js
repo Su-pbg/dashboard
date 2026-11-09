@@ -660,7 +660,7 @@ window.loadTrendTab=async function(){
   const c=document.getElementById('content');
   c.innerHTML='<div class="state"><div class="spinner"></div>트렌드 불러오는 중…</div>';
   try{
-    const [d,sh]=await Promise.all([dfetch('trend-metrics.json').then(r=>r.json()),dfetch('shopping-insight.json').then(r=>r.ok?r.json():null).catch(()=>null)]);
+    const [d,sh]=await Promise.all([fetch('trend-metrics.json'+bust()).then(r=>r.json()),fetch('shopping-insight.json'+bust()).then(r=>r.ok?r.json():null).catch(()=>null)]);
     S.data=d; S.shop=sh;
   }catch(e){c.innerHTML='<div class="state">trend-metrics.json 을 불러오지 못했습니다</div>';return;}
   const run=S.data.runs[S.data.runs.length-1]; const rows=run.rows;
@@ -710,10 +710,10 @@ window.loadTrendTab=async function(){
   document.getElementById('trTheme').onchange=e=>{S.theme=e.target.value;S.limit=60;renderTable();};
   document.getElementById('trNew').onchange=e=>{S.onlyNew=e.target.checked;renderTable();};
   document.getElementById('trRise').onchange=e=>{S.onlyRising=e.target.checked;renderTable();};
-  dfetch('keyword-pool.json').then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
-  dfetch('search-results.json').then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();renderAction();}}).catch(()=>{});
+  fetch('keyword-pool.json'+bust()).then(r=>r.json()).then(p=>{S.pool=p;renderPool();renderRising();}).catch(()=>{document.getElementById('trPool').innerHTML='<div class="tr-sub">keyword-pool.json 을 불러오지 못했습니다</div>';});
+  fetch('search-results.json'+bust()).then(r=>r.ok?r.json():null).then(x=>{if(x){S.sres=x;renderSearch();renderAction();}}).catch(()=>{});
   wfetch(WORKER+'/?'+q()+'&tab=searchterms').then(t=>{S.terms=t;renderSearch();}).catch(e=>{S.terms={error:String(e&&e.message||e)};renderSearch();});
-  dfetch('brand-review.json').then(r=>r.json()).then(j=>{
+  fetch('brand-review.json'+bust()).then(r=>r.json()).then(j=>{
     S.brev=j; renderAction();
     // [2026-10-22] 사람이 안 가른 이름은 워커가 Gemini 로 분류한다(결과는 KV 캐시 — 신규분만 호출).
     //   정규식으로는 사이잘(재질)과 파펠리나(브랜드)를 못 가른다. 사람이 정한 건 모델보다 우선.
@@ -730,18 +730,18 @@ window.loadTrendTab=async function(){
         renderAction(); })
       .catch(()=>{});   // 한도·혼잡이면 사람 목록만으로 돈다
   }).catch(()=>{});
-  dfetch('radar-config.json').then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
+  fetch('radar-config.json'+bust()).then(r=>r.json()).then(c=>{S.cfg=c;renderRising();}).catch(()=>{});
   // 상품 스냅샷은 5.8MB 라 마지막에 따로 받는다. 받기 전에는 '우리 상품' 대조 없이 목록만 뜬다.
   // 등급은 22개월 매출 원장이 필요하다. 화면이 먼저 뜬 뒤 붙는다.
   Promise.all([
-    dfetch('revenue-daily.json').then(r=>r.json()).catch(()=>({daily:[]})),
-    dfetch('revenue-daily-archive.json').then(r=>r.ok?r.json():{daily:[]}).catch(()=>({daily:[]})),
+    fetch('revenue-daily.json'+bust()).then(r=>r.json()).catch(()=>({daily:[]})),
+    fetch('revenue-daily-archive.json'+bust()).then(r=>r.ok?r.json():{daily:[]}).catch(()=>({daily:[]})),
   ]).then(([cur,arc])=>{
     const seen={}; for(const d of [...(arc.daily||[]),...(cur.daily||[])]) seen[d.date]=d;
     GRADE=buildGrade(Object.keys(seen).sort().map(k=>seen[k]));
     renderTable(); renderAction();
   }).catch(()=>{});
-  dfetch('product-snapshot.json').then(r=>r.json()).then(j=>{
+  fetch('product-snapshot.json'+bust()).then(r=>r.json()).then(j=>{
     S.prodsRaw=Object.values(j.products||{});          // 금액 카드는 품절·미진열도 봐야 한다
     S.prods=Object.values(j.products||{}).filter(p=>p.selling&&p.display&&!p.soldOut)
       .map(p=>{const t=((p.name||'')+' '+(p.tags||[]).join(' ')+' '+(p.categories||[]).join(' ')).replace(/\s+/g,'');return {q:p.q30||0,s:t,sl:t.toLowerCase()};});
