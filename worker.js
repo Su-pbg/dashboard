@@ -14,12 +14,23 @@ var TOKEN_TTL_MS = 12 * 3600 * 1e3;
 // 워커는 서비스 토큰으로 읽는다: GET {API_BASE}/v1/admin/dashboard/service-data/<파일>
 // 시크릿: DASHBOARD_SERVICE_TOKEN (api-ts 의 같은 이름 env 와 같은 값). 변수: API_BASE (기본 https://api.printbakery.com)
 async function readDataJson(env, name) {
-  if (!env.DASHBOARD_SERVICE_TOKEN) return null;
-  const base = env.API_BASE || "https://api.printbakery.com";
-  const r = await fetch(`${base}/v1/admin/dashboard/service-data/${encodeURIComponent(name)}`, {
-    headers: { "X-Service-Token": env.DASHBOARD_SERVICE_TOKEN }
-  });
-  return r.ok ? await r.json() : null;
+  if (env.DASHBOARD_SERVICE_TOKEN) {
+    try {
+      const base = env.API_BASE || "https://api.printbakery.com";
+      const r = await fetch(`${base}/v1/admin/dashboard/service-data/${encodeURIComponent(name)}`, {
+        headers: { "X-Service-Token": env.DASHBOARD_SERVICE_TOKEN }
+      });
+      if (r.ok) return await r.json();
+    } catch (e) {
+    }
+  }
+  // 전환 기간: api-ts 운영에 경로가 아직 없거나 실패하면 예전 Pages 에서 읽는다 (레포를 비공개로 돌리면 이 길은 막힌다)
+  try {
+    const r = await fetch("https://su-pbg.github.io/dashboard/" + name + "?ts=" + Date.now());
+    return r.ok ? await r.json() : null;
+  } catch (e) {
+    return null;
+  }
 }
 __name(readDataJson, "readDataJson");
 var _enc = new TextEncoder();
