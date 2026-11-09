@@ -5,10 +5,11 @@ name: sync-data-s3
 #   데이터를 만드는 쪽(slackbot 자동 커밋, 이 레포의 update-* 워크플로우, 손 편집)은 그대로 이 레포에 커밋하고,
 #   여기서 main 의 파일을 S3 로 따라 올린다.
 #
-# 시크릿(Settings → Secrets → Actions):
-#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — 이 버킷의 dashboard/* 에 PutObject 만 되는 IAM 키
-#   AWS_REGION            예: ap-northeast-2
-#   DASHBOARD_DATA_BUCKET 비공개 버킷 이름 (api-ts 의 같은 이름 env 와 같은 값)
+# AWS 키는 레포에 두지 않는다 — GitHub OIDC 로 역할을 잠깐 빌린다 (이 레포 main 에서만, 버킷 dashboard/* PutObject 만).
+# 변수(Settings → Secrets and variables → Actions → Variables, 비밀 아님):
+#   DASHBOARD_S3_ROLE_ARN  업로드 역할 ARN
+#   DASHBOARD_DATA_BUCKET  비공개 버킷 이름 (api-ts 의 같은 이름 env 와 같은 값)
+#   AWS_REGION             예: ap-northeast-2
 #
 # 이 레포의 update-* 워크플로우가 GITHUB_TOKEN 으로 푸시한 커밋은 push 이벤트를 만들지 않는다 → workflow_run 으로 받는다.
 
@@ -29,6 +30,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   sync:
@@ -36,16 +38,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { ref: main }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.DASHBOARD_S3_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
       - name: Upload data JSON to S3
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-          BUCKET: ${{ secrets.DASHBOARD_DATA_BUCKET }}
+          BUCKET: ${{ vars.DASHBOARD_DATA_BUCKET }}
         run: |
-          if [ -z "$BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ]; then
-            echo "::error::DASHBOARD_DATA_BUCKET / AWS 키 시크릿이 없다"; exit 1
-          fi
+          if [ -z "$BUCKET" ]; then echo "::error::DASHBOARD_DATA_BUCKET 변수가 없다"; exit 1; fi
           # api-ts src/util/DashboardData.ts 의 허용 목록과 같게 유지한다
           for f in traffic-daily.json revenue-daily.json revenue-daily-archive.json goals.json \
                    supplier-managers.json experiments.json pnl.json trend-metrics.json \
