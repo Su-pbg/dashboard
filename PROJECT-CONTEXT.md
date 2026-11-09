@@ -70,12 +70,7 @@ dashboard/scripts/update-members.mjs ──> revenue-daily.json 의 totalMembers
 
 ### 워커 주요 엔드포인트
 
-**인증을 타지 않는 경로가 하나 있다 — `POST /receipt`** (2026-10-06).
-경비환급 페이지를 전 팀이 로그인 없이 쓰기 때문에 **인증 검사보다 앞**에 있다.
-막는 건 Origin 화이트리스트(`RECEIPT_ORIGINS` = `https://su-pbg.github.io`)와 IP당 분당 20회뿐.
-→ **워커 라우팅을 건드릴 때 이 블록을 인증 뒤로 밀지 말 것.** 밀면 경비환급이 통째로 죽는다.
-영수증 이미지(base64, 최대 6MB) → Gemini → `{date,merchant,amount,currency,foreignAmount,approvalNo,page,fullText}`.
-시크릿 `GEMINI_API_KEY`(필수) · `GEMINI_MODEL`(기본 `gemini-2.5-flash`). 무료 등급이라 한도 넘으면 429.
+**인증을 타지 않는 경로는 없다.** (`POST /receipt` 와 경비환급 페이지는 2026-11-09 에 없앴다. 시크릿 `GEMINI_API_KEY` 는 `/classify` 등이 계속 쓴다.)
 
 나머지는 전부 **인증 필요**:
 `?bs=&be=&as=&ae=&tab=...`
