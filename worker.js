@@ -2804,6 +2804,14 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           return json({ error: "\uC7A5\uBC14\uAD6C\uB2C8 \uBD84\uC11D \uC2E4\uD328: " + String(e && e.message || e) }, 500);
         }
       }
+      if (q.get("tab") === "segcross") {
+        try {
+          const cur = await buildSegmentCross(propertyId, token, ranges.after.start, ranges.after.end, q.get("excl"), q.get("autoExclLowEngagement") === "1");
+          return jsonCached({ periodAfter: `${ranges.after.start} ~ ${ranges.after.end}`, segcross: cur }, 200);
+        } catch (e) {
+          return json({ error: "\uAD50\uCC28 \uAD6C\uBD84 \uC2E4\uD328: " + String(e && e.message || e) }, 500);
+        }
+      }
       if (q.get("tab") === "segfunnel") {
         const wantCmp = q.get("cmp") === "1";
         try {
@@ -4270,6 +4278,49 @@ async function buildSegmentFunnel(propertyId, token, startDate, endDate, exclRaw
   };
 }
 __name(buildSegmentFunnel, "buildSegmentFunnel");
+// [2026-11-11] 겹치지 않는 구분: 신규·재방문 × 기기 × 유입 채널을 한 번에 교차해서 한 세션이 정확히 한 칸에만 들어가게 한다.
+//   (segfunnel 은 세 구분을 따로 조회해 서로 겹치고, 유입은 상위 12개만 남기며, 신규/재방문의 (not set) 세션은 버린다.)
+//   같은 제외 필터(exclFilter)를 세션·구매 두 조회에 똑같이 건다. total = 이 조회의 합계라서 칸 합과 항상 맞는다.
+async function buildSegmentCross(propertyId, token, startDate, endDate, exclRaw, autoExclLowEngagement) {
+  let badPairs = [], badCampaigns = [];
+  if (autoExclLowEngagement) {
+    ({ badPairs, badCampaigns } = await findLowQualityTraffic(propertyId, token, startDate, endDate));
+  }
+  const exclFilter = buildExclusionFilter(exclRaw, badPairs, badCampaigns);
+  const dims = [{ name: "newVsReturning" }, { name: "deviceCategory" }, { name: "sessionDefaultChannelGroup" }];
+  const sessRows = await runReport(propertyId, token, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: dims,
+    metrics: [{ name: "sessions" }],
+    ...exclFilter ? { dimensionFilter: exclFilter } : {},
+    limit: 5e3
+  });
+  const buyFilter = andFilters(exclFilter, { filter: { fieldName: "eventName", stringFilter: { matchType: "EXACT", value: "purchase" } } });
+  const buyRows = await runReport(propertyId, token, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [...dims, { name: "eventName" }],
+    metrics: [{ name: "sessions" }],
+    dimensionFilter: buyFilter,
+    limit: 5e3
+  });
+  const chan = (v) => v === "Paid Social" ? "\uC720\uB8CCSNS" : v === "Paid Search" ? "\uC720\uB8CC\uAC80\uC0C9" : v === "Direct" ? "\uC9C1\uC811"
+    : (v === "Organic Search" || v === "Organic Shopping") ? "\uC790\uC5F0\uAC80\uC0C9" : "\uAE30\uD0C0";
+  const user = (v) => v === "new" ? "\uC2E0\uADDC" : v === "returning" ? "\uC7AC\uBC29\uBB38" : "\uBBF8\uBD84\uB958";
+  const dev = (v) => v === "mobile" ? "\uBAA8\uBC14\uC77C" : "PC\u00B7\uD0DC\uBE14\uB9BF";
+  const cells = {};
+  const cellOf = (r) => {
+    const k = [user(r.dimensionValues[0].value), dev(r.dimensionValues[1].value), chan(r.dimensionValues[2].value)];
+    const id = k.join("|");
+    return cells[id] || (cells[id] = { user: k[0], device: k[1], channel: k[2], sessions: 0, purchase: 0 });
+  };
+  let sessions = 0, purchase = 0;
+  for (const r of sessRows) { const n = Number(r.metricValues[0].value); cellOf(r).sessions += n; sessions += n; }
+  for (const r of buyRows) { const n = Number(r.metricValues[0].value); cellOf(r).purchase += n; purchase += n; }
+  const list = Object.values(cells).map((c) => ({ ...c, cvr: c.sessions ? c.purchase / c.sessions * 100 : 0 }))
+    .sort((a, b) => b.sessions - a.sessions);
+  return { total: { sessions, purchase, cvr: sessions ? purchase / sessions * 100 : 0 }, cells: list };
+}
+__name(buildSegmentCross, "buildSegmentCross");
 async function buildUtmPerformance(propertyId, token, startDate, endDate, exclRaw, autoExclLowEngagement) {
   const excl = (exclRaw || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
   let badPairs = [], badCampaigns = [];
