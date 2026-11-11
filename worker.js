@@ -2056,6 +2056,48 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
           return json({ error: "\uCF54\uD638\uD2B8 \uB9AC\uD3EC\uD2B8 \uC2E4\uD328: " + String(e && e.message || e) }, 500);
         }
       }
+      // [2026-11-11] 오늘 지금까지의 실매출 — 매출 파일(revenue-daily.json)은 하루 한 번 전날분만 만들어서 오늘 값이 없다.
+      //   GET ?tab=todaysales&date=YYYY-MM-DD[&until=HH:MM] (date 기본=오늘 KST, until 이 있으면 그 시각까지 들어온 주문만)
+      //   정의는 /kpisheet 와 같다: 결제완료(paid=T) 주문의 payment_amount(실결제금액)=net, 상품매출+배송비=gmv.
+      //   타 조직 개인결제창(품목이 전부 그런 주문)은 뺀다. 캐시하지 않는다(실시간). 비교는 화면이 어제를 같은 시각으로 한 번 더 부른다.
+      if (q.get("tab") === "todaysales") {
+        try {
+          const kst = new Date(Date.now() + 9 * 3600 * 1000);
+          const date = /^\d{4}-\d{2}-\d{2}$/.test(q.get("date") || "") ? q.get("date") : kst.toISOString().slice(0, 10);
+          const until = /^\d{2}:\d{2}$/.test(q.get("until") || "") ? q.get("until") : "";
+          const tok = await getCafe24AccessToken(env);
+          if (!tok) return json({ error: "cafe24 인증 실패" }, 200);
+          const n0 = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+          const other = (nm) => isExcludedPaywin(nm) || (nm.indexOf("개인결제") >= 0 && !PAYWIN_KEEP.test(nm)
+            && /^\s*(COM|HQ|IP|PB'?S|PBG결제|커뮤니티|판교|운영기획팀|저작권사업팀)/i.test(nm));
+          let orders = [], truncated = false;
+          for (let p2 = 0; p2 < ORDER_MAX_PAGES; p2++) {
+            const j = await cafe24Get(env.CAFE24_MALL_ID, tok,
+              `orders?start_date=${date}&end_date=${date}&date_type=order_date&limit=${ORDER_PAGE}&offset=${p2 * ORDER_PAGE}&embed=items`, false, env);
+            const arr = j.orders || [];
+            orders = orders.concat(arr);
+            if (arr.length < ORDER_PAGE) break;
+            if (p2 === ORDER_MAX_PAGES - 1) truncated = true;
+          }
+          let net = 0, gmv = 0, count = 0, unpaid = 0, canceled = 0, excluded = 0;
+          for (const o of orders) {
+            const hhmm = String(o.order_date || "").slice(11, 16);
+            if (until && hhmm && hhmm > until) continue;
+            const its = o.items || [];
+            if (its.length && its.every((it) => other(it.product_name || it.product_name_default || ""))) { excluded++; continue; }
+            if (o.canceled === "T") { canceled++; continue; }
+            if (o.paid !== "T") { unpaid++; continue; }
+            const a = o.actual_order_amount || {};
+            net += n0(o.payment_amount);
+            gmv += n0(a.order_price_amount) + n0(a.shipping_fee);
+            count++;
+          }
+          return json({ date, until: until || null, net: Math.round(net), gmv: Math.round(gmv), count, unpaid, canceled, excluded,
+            scanned: orders.length, truncated, at: new Date().toISOString() }, 200);
+        } catch (e) {
+          return json({ error: "오늘 매출 조회 실패: " + String(e && e.message || e) }, 500);
+        }
+      }
       if (q.get("tab") === "suppliersales") {
         try {
           const r = await buildSupplierSales(
