@@ -361,7 +361,7 @@
   }
   /* [2026-10-12] 사이트 로그인: 들어올 때 한 번, 화면 전체를 덮는다(왼쪽 메뉴 포함).
      예전(2026-10-06)엔 메인 영역만 덮어 메뉴마다 따로 로그인하는 것처럼 보였다.
-     경비환급 직접 링크(?m=expense)만 로그인 없이 연다 — 다른 팀이 그 링크로 쓴다. */
+     (경비환급은 2026-11-09 에 없앴다) */
   #authGate{display:none;position:fixed;inset:0;background:var(--paper);align-items:center;justify-content:center;z-index:1000;}
   #authGate.on{display:flex;}
   /* ── 왼쪽 메뉴 (어드민 레이아웃) ── */
@@ -382,13 +382,10 @@
   .nav-tag{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted);background:var(--fill);border-radius:6px;padding:2px 6px;}
   .nav-item.active .nav-tag{background:#fff;color:var(--accent-press);}
   .main{margin-left:var(--side-w);min-width:0;}
-  #expenseView[hidden]{display:none;}
   #settleView[hidden]{display:none;}
   #ecountView[hidden]{display:none;}
   .nav-item.nav-sub{height:38px;padding-left:44px;font-size:14px;font-weight:500;}   /* 큰 카테고리 아래 하위 메뉴 */
   /* 큰 카테고리 '이카운트 판매 입력' — 누르면 판매입력 파일 이력. 하위: 데일리 전표 생성 · 품목코드 맵핑 */
-  #expenseView.wrap{max-width:1440px;}   /* 경비환급은 1440 로 고정. 본문 기본값(1600)보다 좁다 — 영수증 표가 너무 늘어지면 읽기 나빠서. */
-  #expenseFrame{display:block;width:100%;height:1200px;border:0;background:transparent;}
   @media(max-width:860px){
     :root{--side-w:0px;}
     .side{position:sticky;top:0;width:auto;height:auto;bottom:auto;flex-direction:row;align-items:center;gap:var(--s3);padding:var(--s2) var(--s3);overflow-x:auto;overflow-y:visible;}
@@ -416,15 +413,13 @@
   </div>
 </div>
 
-<!-- [2026-10-06] 어드민 레이아웃: 왼쪽 상위 메뉴(대시보드 / 트렌드 분석 / 경비환급) + 오른쪽 본문.
-     대시보드·트렌드 분석만 로그인이 필요하고, 경비환급은 로그인 없이 쓴다. -->
+<!-- [2026-10-06] 어드민 레이아웃: 왼쪽 상위 메뉴 + 오른쪽 본문. 모든 메뉴가 로그인이 필요하다(경비환급은 2026-11-09 에 없앴다). -->
 <div class="shell">
 <aside class="side" id="side">
   <a class="side-brand" id="sideBrand" href="./" title="대시보드 처음으로"><small>PrintBakery</small><b>Admin</b></a>
   <nav class="side-nav" id="nav" aria-label="상위 메뉴">
     <button class="nav-item" data-menu="dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>대시보드</button>
     <button class="nav-item" data-menu="trend"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>트렌드 분석</button>
-    <button class="nav-item" data-menu="expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>경비환급</button>
     <button class="nav-item" data-menu="settle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>위탁 정산</button>
     <button class="nav-item nav-group" data-menu="eclog"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>주문 처리</button>
     <button class="nav-item nav-sub" data-menu="ecdaily">데일리 전표 생성</button>
@@ -473,14 +468,6 @@
 
   <div id="dataHealth"></div>
   <div id="content"><div class="state"><div class="spinner"></div>데이터 불러오는 중…</div></div>
-</div>
-
-<!-- 경비환급: 별도 페이지(expense.html)를 안에 끼워 넣는다. 로그인·데이터 요청과 무관하게 동작. -->
-<div class="wrap" id="expenseView" hidden>
-  <p class="eyebrow">PrintBakery</p>
-  <h1>경비환급 엑셀 만들기</h1>
-  <p class="sub">영수증 PDF를 올리면 경비환급신청서 엑셀을 만들어줘요 · 로그인 없이 쓸 수 있고, 파일은 이 브라우저 안에서만 처리돼요</p>
-  <iframe id="expenseFrame" title="경비환급 엑셀 만들기" scrolling="no" loading="lazy"></iframe>
 </div>
 
 
@@ -625,7 +612,7 @@ const DASH_TABS=TABS.filter(t=>t.id!=='trend');
 const URL_Q=new URLSearchParams(location.search);
 const URL_TAB=URL_Q.get('tab');
 const SAVED_TAB=localStorage.getItem('pbg_dashboard_tab');
-const MENUS=['dashboard','trend','expense','settle','eclog','ecdaily','ecrecon','ecmap'];
+const MENUS=['dashboard','trend','settle','eclog','ecdaily','ecrecon','ecmap'];
 let MENU = URL_Q.get('m')==='ecount' ? 'ecmap'   // [2026-10-14] 예전 '전표 입력 대조' 주소
          : MENUS.includes(URL_Q.get('m')) ? URL_Q.get('m')
          : (URL_TAB==='trend' ? 'trend'
@@ -3720,8 +3707,7 @@ function drawRevenueTrend(){
 
 // 비밀번호 게이트. 비번은 워커 시크릿(DASH_PW)에만 있고 이 파일에는 없다.
 // 맞으면 워커가 12시간짜리 서명 토큰을 준다.
-// [2026-10-06 상위 메뉴] 로그인은 '대시보드'·'트렌드 분석'에만 건다. 경비환급은 로그인도, 데이터 요청도 없다.
-//   로그인 창(authGate)은 처음부터 떠 있지 않고, 로그인이 필요한 메뉴를 열었는데 토큰이 없을 때만 뜬다.
+// [2026-10-06 상위 메뉴] 로그인 창(authGate)은 처음부터 떠 있지 않고, 로그인이 필요한 메뉴를 열었는데 토큰이 없을 때만 뜬다.
 let ENTERED=false;
 function showGate(on,expired){
   const g=document.getElementById('authGate'); g.classList.toggle('on',!!on);
@@ -3732,9 +3718,8 @@ function showGate(on,expired){
 //   · 워커 요청이 403(권한 없음)을 받으면 — 모든 fetch 를 한 곳에서 본다(wfetch 를 안 타는 요청이 20곳 넘다).
 //   · 토큰 시간이 지나면 — 1분마다, 그리고 탭으로 돌아올 때 확인.
 //   다시 로그인하면 보던 화면을 다시 불러온다(LOADED_TAB 을 비워 load() 가 돈다).
-//   경비환급(/receipt)의 403 은 출처 제한이라 제외한다.
 function authExpired(){
-  if(MENU==='expense' || document.getElementById('authGate').classList.contains('on')) return;
+  if(document.getElementById('authGate').classList.contains('on')) return;
   clearToken(); LOADED_TAB=null; WREQ.clear();
   showGate(true,true);
 }
@@ -3749,8 +3734,8 @@ function authExpired(){
     return r;
   };
 }
-setInterval(()=>{ if(MENU!=='expense' && ENTERED && !authToken()) authExpired(); },60000);
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden && MENU!=='expense' && ENTERED && !authToken()) authExpired(); });
+setInterval(()=>{ if(ENTERED && !authToken()) authExpired(); },60000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ENTERED && !authToken()) authExpired(); });
 function applyMenuView(){
   const trend=(MENU==='trend');
   if(trend){ if(TAB!=='trend'){ DASH_TAB=TAB; TAB='trend'; } }
@@ -3816,18 +3801,14 @@ async function enterEcount(){
     await window.loadEcountTab($('ecountContent'), {eclog:'log',ecdaily:'daily',ecrecon:'recon',ecmap:'map'}[MENU]);
   }catch(e){ $('ecountContent').innerHTML='<div class="err">이카운트 전표 입력 화면을 불러오지 못했습니다. 새로고침해 주세요.</div>'; }
 }
-function ensureExpenseFrame(){
-  const f=$('expenseFrame');
-  if(!f.getAttribute('src')) f.setAttribute('src','expense.html?embed=1');
-}
 // [2026-10-19] 메뉴를 바꿀 때 브라우저 기록을 한 칸 쌓는다(pushState). 전엔 replaceState 만 써서 뒤로가기가 대시보드 밖(이전 사이트)으로 나갔다.
 //   뒤로가기(popstate)로 돌아올 땐 fromHistory=true 로 불러 기록을 또 쌓지 않는다.
 function setMenu(m,fromHistory){
   if(!fromHistory&&m!==MENU){ try{ history.pushState({m},'',location.pathname+'?m='+m); }catch(e){} }
   MENU=m;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.menu===m));
-  const ex=(m==='expense'), st=(m==='settle'), ec=(m==='eclog'||m==='ecdaily'||m==='ecrecon'||m==='ecmap');
-  $('dashView').hidden=ex||st||ec; $('expenseView').hidden=!ex; $('settleView').hidden=!st; $('ecountView').hidden=!ec;
+  const st=(m==='settle'), ec=(m==='eclog'||m==='ecdaily'||m==='ecrecon'||m==='ecmap');
+  $('dashView').hidden=st||ec; $('settleView').hidden=!st; $('ecountView').hidden=!ec;
   if(ec){
     try{ history.replaceState(null,'',location.pathname+'?m='+m); }catch(e){}
     const EC={eclog:['주문 처리','진행 중인 주문(선수금 · 배송)과 날짜별 카페24 ↔ 이카운트 대조 현황, 판매입력 파일 이력을 봐요'],
@@ -3848,13 +3829,6 @@ function setMenu(m,fromHistory){
     window.scrollTo(0,0);
     if(!authToken()){ showGate(true); return; }
     enterSettle();
-    return;
-  }
-  if(ex){
-    showGate(false); ensureExpenseFrame();
-    try{ history.replaceState(null,'',location.pathname+'?m=expense'); }catch(e){}
-    document.title='경비환급 · PrintBakery';
-    window.scrollTo(0,0);
     return;
   }
   document.title='PrintBakery Product Dashboard';
@@ -3887,16 +3861,8 @@ document.getElementById('nav').addEventListener('click',(e)=>{
   const b=e.target.closest('.nav-item'); if(!b) return;
   setMenu(b.dataset.menu);
 });
-// 경비환급 화면의 높이는 안쪽 페이지가 알려준다(스크롤이 두 겹이 되지 않게)
-window.addEventListener('message',(e)=>{
-  if(e.origin!==location.origin) return;
-  const d=e.data;
-  if(d&&d.type==='pbg-expense-h'&&d.h) $('expenseFrame').style.height=Math.max(640,d.h)+'px';
-});
 // 처음 화면: 토큰이 남아 있으면 바로 들어간다. 없거나 지났으면 사이트 로그인 창이 화면 전체에 뜬다.
-// 경비환급 직접 링크만 로그인 없이 열린다.
 // 로그인이 필요한 메뉴인데 토큰이 없으면 로그인 창이 뜨고, 그 전에는 load()가 호출되지 않는다(데이터 요청 자체가 안 나감).
-// 경비환급 메뉴는 토큰이 없어도 그대로 열린다.
 // [2026-10-20] 새 배포가 올라오면 알려준다.
 //   GitHub Pages 가 index.html 에 10분 캐시를 걸어서, 고쳐 배포해도 브라우저가 옛 화면을 계속 보여준다.
 //   "바뀐 게 없는데" 가 여기서 나왔다. 탭 스크립트는 no-cache 로 바꿨지만 index.html 자체는 못 바꾸므로
