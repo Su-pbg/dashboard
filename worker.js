@@ -3085,6 +3085,8 @@ async function readSettleSheet(env) {
 }
 __name(readSettleSheet, "readSettleSheet");
 function json(obj, status = 200) {
+  // [2026-11-15] 인증 실패면 왜 실패했는지(재인증이 필요한지)를 같이 내려 준다. 토큰 값은 들어가지 않는다.
+  if (obj && obj.error === "cafe24 \uC778\uC99D \uC2E4\uD328" && LAST_AUTH_ERROR) obj = { ...obj, reason: LAST_AUTH_ERROR };
   return new Response(JSON.stringify(obj), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", ...CORS }
@@ -3224,63 +3226,115 @@ __name(productNo, "productNo");
 // (probecustomers 로 products·categories 양쪽에서 확인) 앱 기본값은 2026-03-01.
 var CAFE24_API_VERSION = "2026-03-01";
 var LAST_TOKEN_SCOPES = null;
-// force=true 면 KV 캐시를 무시하고 새로 발급받는다 (죽은 토큰이 캐시에 남은 경우).
-async function getCafe24AccessToken(env, force) {
+// [2026-11-15] 토큰 갱신은 한 번에 하나만.
+//   카페24는 리프레시 토큰을 쓸 때마다 새것으로 바꾼다. 캐시가 비거나 죽었을 때 한 화면의 조회 여러 개가
+//   같은 순간 각자 갱신하면(401 을 본 조회마다 강제 갱신) Gist 에 죽은 토큰이 남고, 그 뒤로는 재인증 전까지
+//   전부 "cafe24 인증 실패"가 된다 — 2026-11-15 19:37(KST) 에 3초 간격으로 두 번 갱신된 뒤 실제로 그렇게 됐다.
+//   - 같은 isolate: C24_BUSY_UNTIL(값만 본다. 다른 요청의 Promise 를 기다리지 않는다) + C24_LAST_ISSUED
+//   - 다른 isolate: KV refresh_lock (60초). KV 는 즉시 일관적이지 않아 완벽한 잠금은 아니지만 창을 크게 줄인다.
+//   - 401 재시도는 죽은 토큰(deadTok)을 넘긴다 → 그 사이 누가 이미 새로 받았으면 그걸 쓴다.
+var C24_BUSY_UNTIL = 0;
+var C24_LAST_ISSUED = null;
+var LAST_AUTH_ERROR = null;
+var c24Sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function c24AuthFail(env, where, status, body) {
+  const detail = String(body || "").replace(/\s+/g, " ").slice(0, 200);
+  const reauth = where === "token" && /invalid_grant|invalid refresh|expired/i.test(detail);
+  LAST_AUTH_ERROR = { at: new Date().toISOString(), where, status, detail, reauth };
+  console.log(`[cafe24 인증 실패] ${where} status=${status} body=${detail}`);
+  try { if (env.CAFE24_TOKEN_KV) await env.CAFE24_TOKEN_KV.put("cafe24_auth_error", JSON.stringify(LAST_AUTH_ERROR), { expirationTtl: 86400 }); } catch (e) { }
+  return null;
+}
+__name(c24AuthFail, "c24AuthFail");
+// force=true 면 KV 캐시를 무시하고 새로 발급받는다 (죽은 토큰이 캐시에 남은 경우). deadTok = 방금 401 을 받은 토큰.
+async function getCafe24AccessToken(env, force, deadTok) {
   const kv = env.CAFE24_TOKEN_KV;
-  if (kv && !force) {
-    const cached = await kv.get("access_token", { type: "json" });
-    if (cached && cached.expiresAt > Date.now() + 6e4) {
-      LAST_TOKEN_SCOPES = cached.scopes || null;
-      return cached.token;
+  const usable = (c) => !!(c && c.token && c.token !== deadTok && c.expiresAt > Date.now() + 6e4);
+  const readCache = async () => {
+    if (!kv) return null;
+    const c = await kv.get("access_token", { type: "json" });
+    return usable(c) ? c : null;
+  };
+  const use = (c) => { LAST_TOKEN_SCOPES = c.scopes || null; return c.token; };
+  if (!force || deadTok) {
+    const c = await readCache();
+    if (c) return use(c);
+  }
+  // 같은 isolate 에서 누가 갱신 중이면 끝나길 기다렸다가 그 토큰을 쓴다 (최대 16초)
+  for (let i = 0; i < 40; i++) {
+    if ((!force || deadTok) && usable(C24_LAST_ISSUED)) return use(C24_LAST_ISSUED);
+    if (C24_BUSY_UNTIL <= Date.now()) break;
+    await c24Sleep(400);
+  }
+  C24_BUSY_UNTIL = Date.now() + 25e3;
+  let locked = false;
+  try {
+    if (kv) {
+      // 다른 isolate 가 갱신 중이면 기다렸다가 캐시를 쓴다 (최대 약 8초)
+      for (let i = 0; i < 10; i++) {
+        if (!(await kv.get("refresh_lock"))) break;
+        await c24Sleep(800);
+        const c = await readCache();
+        if (c) return use(c);
+      }
+      await kv.put("refresh_lock", String(Date.now()), { expirationTtl: 60 });
+      locked = true;
     }
-  }
-  const gistUrl = `https://api.github.com/gists/${env.CAFE24_GIST_ID}`;
-  const ghHeaders = { "Authorization": `token ${env.CAFE24_GH_PAT}`, "Accept": "application/vnd.github+json", "User-Agent": "pbg-dashboard-worker" };
-  const gistRes = await fetch(gistUrl, { headers: ghHeaders });
-  if (!gistRes.ok) {
-    const body = await gistRes.text();
-    console.log(`[cafe24 \uC778\uC99D \uC2E4\uD328] Gist \uC870\uD68C \uC2E4\uD328 status=${gistRes.status} body=${body.slice(0, 300)}`);
-    return null;
-  }
-  const gistJson = await gistRes.json();
-  const refreshToken = gistJson?.files?.["token.txt"]?.content?.trim();
-  if (!refreshToken) {
-    console.log("[cafe24 \uC778\uC99D \uC2E4\uD328] Gist\uC5D0 token.txt\uAC00 \uC5C6\uC74C");
-    return null;
-  }
-  const basic = btoa(`${env.CAFE24_ADMIN_CLIENT_ID}:${env.CAFE24_ADMIN_CLIENT_SECRET}`);
-  const tokenRes = await fetch(`https://${env.CAFE24_MALL_ID}.cafe24api.com/api/v2/oauth/token`, {
-    method: "POST",
-    headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`
-  });
-  if (!tokenRes.ok) {
-    const body = await tokenRes.text();
-    console.log(`[cafe24 \uC778\uC99D \uC2E4\uD328] \uD1A0\uD070 \uBC1C\uAE09 \uC2E4\uD328 status=${tokenRes.status} body=${body.slice(0, 300)}`);
-    return null;
-  }
-  const tokenJson = await tokenRes.json();
-  if (tokenJson.refresh_token) {
-    // [2026-11-05] Gist 쓰기 재시도 4회 — GitHub 500 한 번에 새 리프레시 토큰을 잃으면 전부 invalid_grant(재인증만 복구)
-    let patchOk = false;
-    for (let i = 0; i < 4 && !patchOk; i++) {
-      if (i) await new Promise((r) => setTimeout(r, 1500 * i));
-      const patchRes = await fetch(gistUrl, {
-        method: "PATCH",
-        headers: ghHeaders,
-        body: JSON.stringify({ files: { "token.txt": { content: tokenJson.refresh_token } } })
-      }).catch(() => null);
-      patchOk = !!(patchRes && patchRes.ok);
-      if (!patchOk) console.log(`[\uACBD\uACE0] Gist \uAC31\uC2E0 \uC2E4\uD328 ${i + 1}/4 status=${patchRes ? patchRes.status : "fetch"}`);
+    const gistUrl = `https://api.github.com/gists/${env.CAFE24_GIST_ID}`;
+    const ghHeaders = { "Authorization": `token ${env.CAFE24_GH_PAT}`, "Accept": "application/vnd.github+json", "User-Agent": "pbg-dashboard-worker" };
+    const basic = btoa(`${env.CAFE24_ADMIN_CLIENT_ID}:${env.CAFE24_ADMIN_CLIENT_SECRET}`);
+    let tokenJson = null, usedRefresh = null;
+    for (let attempt = 0; attempt < 2 && !tokenJson; attempt++) {
+      const gistRes = await fetch(gistUrl, { headers: ghHeaders });
+      if (!gistRes.ok) return c24AuthFail(env, "gist", gistRes.status, await gistRes.text());
+      const gistJson = await gistRes.json();
+      const refreshToken = gistJson?.files?.["token.txt"]?.content?.trim();
+      if (!refreshToken) return c24AuthFail(env, "gist", 200, "token.txt 없음");
+      if (attempt && refreshToken === usedRefresh) break;   // Gist 가 그대로면 다시 해도 같다
+      usedRefresh = refreshToken;
+      const tokenRes = await fetch(`https://${env.CAFE24_MALL_ID}.cafe24api.com/api/v2/oauth/token`, {
+        method: "POST",
+        headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`
+      });
+      if (tokenRes.ok) { tokenJson = await tokenRes.json(); break; }
+      await c24AuthFail(env, "token", tokenRes.status, await tokenRes.text());
+      // 그 사이 다른 곳에서 토큰을 바꿨을 수 있다 — 잠깐 기다려 캐시를 보고, 없으면 Gist 를 다시 읽어 한 번 더
+      if (attempt === 0) {
+        await c24Sleep(1500);
+        const c = await readCache();
+        if (c) return use(c);
+      }
     }
-    if (!patchOk) console.log("[\uC2EC\uAC01] Gist \uC5D0 \uC0C8 \uB9AC\uD504\uB808\uC2DC \uD1A0\uD070\uC744 \uBABB \uC37C\uB2E4 \u2014 /cafe24auth \uC7AC\uC778\uC99D \uD544\uC694");
-  }
-  LAST_TOKEN_SCOPES = tokenJson.scopes || null;
-  if (kv && tokenJson.access_token) {
+    if (!tokenJson || !tokenJson.access_token) return null;
+    if (tokenJson.refresh_token) {
+      // [2026-11-05] Gist 쓰기 재시도 4회 — GitHub 500 한 번에 새 리프레시 토큰을 잃으면 전부 invalid_grant(재인증만 복구)
+      let patchOk = false;
+      for (let i = 0; i < 4 && !patchOk; i++) {
+        if (i) await c24Sleep(1500 * i);
+        const patchRes = await fetch(gistUrl, {
+          method: "PATCH",
+          headers: ghHeaders,
+          body: JSON.stringify({ files: { "token.txt": { content: tokenJson.refresh_token } } })
+        }).catch(() => null);
+        patchOk = !!(patchRes && patchRes.ok);
+        if (!patchOk) console.log(`[경고] Gist 갱신 실패 ${i + 1}/4 status=${patchRes ? patchRes.status : "fetch"}`);
+      }
+      if (!patchOk) console.log("[심각] Gist 에 새 리프레시 토큰을 못 썼다 — /cafe24auth 재인증 필요");
+    }
+    LAST_TOKEN_SCOPES = tokenJson.scopes || null;
+    LAST_AUTH_ERROR = null;
     const expiresAt = Date.now() + (tokenJson.expires_in ? tokenJson.expires_in * 1e3 : 72e5) - 3e5;
-    await kv.put("access_token", JSON.stringify({ token: tokenJson.access_token, expiresAt, scopes: tokenJson.scopes || null }), { expirationTtl: 7200 });
+    C24_LAST_ISSUED = { token: tokenJson.access_token, expiresAt, scopes: tokenJson.scopes || null };
+    if (kv) {
+      await kv.put("access_token", JSON.stringify(C24_LAST_ISSUED), { expirationTtl: 7200 });
+      try { await kv.delete("cafe24_auth_error"); } catch (e) { }
+    }
+    return tokenJson.access_token;
+  } finally {
+    C24_BUSY_UNTIL = 0;
+    if (locked) { try { await kv.delete("refresh_lock"); } catch (e) { } }
   }
-  return tokenJson.access_token || null;
 }
 __name(getCafe24AccessToken, "getCafe24AccessToken");
 var ORDER_PAGE = 500;
@@ -3311,7 +3365,7 @@ async function cafe24Get(mallId, tok, path, _retried, env, _retried401) {
     }
     if (r.status === 401 && env && !_retried401) {
       console.log(`[cafe24] \uC8FD\uC740 \uD1A0\uD070 \uAC10\uC9C0 \u2014 \uAC15\uC81C \uAC31\uC2E0 \uD6C4 1\uD68C \uC7AC\uC2DC\uB3C4 (${path.split("?")[0]})`);
-      const fresh = await getCafe24AccessToken(env, true);
+      const fresh = await getCafe24AccessToken(env, true, tok);
       if (fresh && fresh !== tok) return cafe24Get(mallId, fresh, path, _retried, env, true);
     }
     throw new Error(`${path.split("?")[0]} ${r.status}: ${body.slice(0, 250)}`);
