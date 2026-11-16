@@ -525,7 +525,8 @@ async function applyHooks(){
   if(!OO.list) return;
   try{ const f=kstDay(0); const h=await getJSON(`${WORKER}/?bs=${f}&be=${f}&as=${f}&ae=${f}&tab=openhooks&nocache=1`);
     OO.hookAt=(h.recent||[])[0]?h.recent[0].at:''; let ch=0;
-    for(const x of OO.list){ const st=h.states[x.o.order_id]; if(!st) continue;
+    // [2026-11-17] 목록을 받은 시각(OO.at)보다 나중에 온 웹훅만 덮는다 — 옛 웹훅 값이 새 조회를 가리지 않게
+    for(const x of OO.list){ const st=h.states[x.o.order_id]; if(!st||String(st.at||'')<String(OO.at||'')) continue;
       if(st.ship_status&&st.ship_status!==x.o.ship_status){ x.o.ship_status=st.ship_status; x.o.hook_at=st.at; ch++; }
       if(st.deleted||st.paid==='F'){ x.gone=true; ch++; } }
     if(ch){ OO.list=OO.list.filter(x=>!x.gone&&(['F','M'].includes(x.o.ship_status)||tracked(x.tags))); }

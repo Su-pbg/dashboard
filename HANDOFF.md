@@ -1,6 +1,8 @@
 # HANDOFF — 세션 인수인계
 
 ## 마지막 세션
+2026-11-17 (Claude). 주문 처리 '진행 중 주문'이 11-09 부터 배송전으로 멈춘 것 고침(브랜치 `fix/cafe24-hook-restore`). **워커 배포·main 반영 전** — Su 지시 대기.
+
 2026-11-06 (MacBook Pro, Claude). 이 맥북프로를 두 번째 로컬로 세팅: 레포 `~/Desktop/업무/프린트베이커리/pbg-dashboard` 최신화, npm ci · openpyxl/requests · wrangler 4.155(npx) · 레포 git 사용자 Su-pbg. 한글 경로에서 `new URL(import.meta.url).pathname` 이 퍼센트 인코딩돼 ENOENT → `fileURLToPath` 로 4곳 고침(test_expense · build-weekly-notion · build-weekly-deck · check-search-results). 테스트 전부 통과. `.dashboard_key.local`·`.cloudflare_token.local` 은 이 맥에 없음(Mac mini 에서 옮겨야 함).
 
 2026-11-05 (Mac mini, Claude). 카페24 토큰 유실 복구(재인증 라우트 `/cafe24auth`) · Gist 쓰기 재시도(워커·슬랙봇) · 쿠폰 API 개통 · 데일리 전표 할인 표시 기획(Su 선택 대기).
@@ -8,6 +10,7 @@
 2026-10-29 (Mac mini, Claude). Mac mini 를 유일한 로컬로 세팅(node 24·wrangler·openpyxl, 레포 4개 클론), 워커 배포 2회(95b634fb → 4015ff2b), KPI 시트 수집 효율화 기획(8단계), 에이전트 협업 세팅(AGENTS/HANDOFF/훅).
 
 ## 현재 상태
+- **[2026-11-17] 카페24 웹훅 수신 복구**(worker.js · ecount-tab.js · test_cafe24_hook.mjs, 미배포): 11-09 `/receipt` 제거 커밋(88aa678)에서 `handleCafe24Hook`·`CAFE24_HOOK_IPS` 가 같이 지워져 `/hook/cafe24` 가 500 → KV `ecopen:o:*` 가 11-09 값으로 멈춤 → 그 값이 새 조회를 덮어 배송완료 주문이 배송전으로 보임. 함수를 되살리고, 웹훅 값은 조회보다 새것(워커: 최근 10분, 화면: 목록 받은 시각 이후)일 때만 덮게 바꿈. 배포 뒤 확인: 빈 POST `/hook/cafe24` 가 401, `tab=openhooks` 에 새 시각.
 - **[2026-11-06] 대시보드 P0 고침**(index.html, 배포됨·실화면 확인): 바로구매 0 → '주문서 진입 경로'(워커 entry*) · 사이트 검색어 카드(트렌드용 searchterms 응답을 읽게) · 끝난 기획전/끊긴 배너/유입 없는 구좌는 표 아래 접힘 · '1:60' · 기본 탭 growth. **워커 배포함(16:3x, 버전 c92e71c6, 맥북프로 wrangler OAuth)**: SLOT_MAP 상단배너 10줄 삭제(고정 상품번호라 배너 바뀌면 끊김, 배너 클릭은 '프로모션 상세 (배너·목록 포함)' 줄에 있음) · 네비 '2026 블랙베이커리데이'(1096) 추가.
 - **[2026-11-06] 대시보드 점검 → 개선안: `plans/2026-11-06-dashboard-fix.md`** (10월 실데이터 점검 → 기획 에이전트 재검증 → 디자인 검수). 아직 아무것도 안 고침. 에이전트 정의 `.claude/agents/planner.md`·`design-reviewer.md` — 기획은 화면 숫자·원천 대조 먼저, 있는 데이터로만.
 - **[2026-11-06] 판매 입력 대조에 일별 금액 대조 추가**(`ecount-tab.js` `amtOf`·`fillRVAmt`). 주문일 기준 · 카페24 실결제 ↔ 이카운트 합계(선수금 포함) · 차액. 실데이터로는 아직 안 봤다(맥북프로에 키 없음·로그인 안 됨) — 화면에서 차액이 큰 날짜를 열어 금액불일치·미입력과 맞는지 확인할 것.
@@ -44,6 +47,7 @@
 ## 결정 사항 (누적)
 | 날짜 | 결정 | 근거 |
 |---|---|---|
+| 2026-11-17 | 진행 중 주문은 카페24 조회 값이 기준. 웹훅 값은 조회보다 새것일 때만 덮음 | 웹훅이 끊기면 옛 값이 일주일 덮었음 |
 | 2026-10-07 | Gemini 유료 전환 안 함. 기본 OCR 이 본선 | 무료 한도 20건/일 |
 | 2026-10-13 | 몰 검색어는 브랜드 발견에 안 씀(소싱 신호로만) | 이미 온 사람의 수요 |
 | 2026-10-27 | KPI 시트 매출 = 슬랙봇 net − 타팀 개인결제창. 선수금은 안 뺌 | Su |

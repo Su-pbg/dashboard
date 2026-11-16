@@ -2558,16 +2558,19 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         const hookIds = [...new Set(hookRecent.map((x) => x.id))];
         const hooked = {};
         if (kv0 && hookIds.length) (await Promise.all(hookIds.map((id) => kv0.get("ecopen:o:" + id)))).forEach((v, i) => { if (v) hooked[hookIds[i]] = JSON.parse(v); });
+        const hookCut = new Date(Date.now() + 9 * 3600 * 1e3 - 600 * 1e3).toISOString().slice(0, 19).replace("T", " ");
         const out = [], lines = [];
         for (const o of orders) {
           const h = hooked[o.order_id];
-          if (h && h.ship_status) o.shipping_status = h.ship_status;
-          if (h && h.deleted) continue;
+          // [2026-11-17] 방금 받은 조회가 기준이다. 웹훅 값은 최근 10분 안에 온 것만 덮는다(웹훅이 끊기면 옛 상태가 새 조회를 가리던 문제).
+          const hFresh = h && String(h.at || "") >= hookCut;
+          if (hFresh && h.ship_status) o.shipping_status = h.ship_status;
+          if (hFresh && h.deleted) continue;
           if (o.paid !== "T" || o.canceled === "T" || !["F", "M"].includes(o.shipping_status)) continue;
           const its = (o.items || []).filter((it) => !isExcludedPaywin(it.product_name));
           if (!its.length) continue;
           out.push({ order_id: o.order_id, order_date: String(o.order_date || "").slice(0, 10), ship_status: o.shipping_status || "",
-            payment_amount: n(o.payment_amount), naver_point: n(o.naver_point), hook_at: (hooked[o.order_id] || {}).at || "" });
+            payment_amount: n(o.payment_amount), naver_point: n(o.naver_point), hook_at: hFresh ? h.at : "" });
           for (const it of its) lines.push({ order_id: o.order_id, product_no: it.product_no, product_name: it.product_name || "", option_value: it.option_value || "",
             qty: n(it.quantity), status: it.order_status || "", canceled: isCanceledStatus(it.order_status) ? "Y" : "N",
             supplier_name: it.supplier_name || "", shipped: String(it.shipped_date || "").slice(0, 10), variant_code: it.variant_code || "" });
@@ -3041,6 +3044,40 @@ function csv(rows, status = 200, filename) {
   return new Response(filename ? "\uFEFF" + body : body, { status, headers });
 }
 __name(csv, "csv");
+// ===== 카페24 웹훅 수신 =====
+// [2026-11-17] 11-09 /receipt 를 지울 때 같이 지워져 웹훅이 500 이던 것을 되살림(그동안 배송 상태가 11-09 값에 멈춰 있었다).
+var CAFE24_HOOK_IPS = ["119.205.223.208", "119.205.223.209", "119.205.223.213", "119.205.223.214", "119.205.223.215", "203.245.45.182", "203.245.45.183"];
+async function handleCafe24Hook(request, env) {
+  const kv0 = env.CAFE24_TOKEN_KV;
+  if (!kv0) return json({ error: "no kv" }, 503);
+  const key = request.headers.get("X-API-Key") || "";
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  if (!env.CAFE24_WEBHOOK_KEY || !safeEqual(key, env.CAFE24_WEBHOOK_KEY)) return json({ error: "bad key" }, 401);
+  if (!CAFE24_HOOK_IPS.includes(ip)) return json({ error: "bad ip" }, 403);
+  let b = {};
+  try { b = await request.json(); } catch (e) { return json({ error: "bad json" }, 400); }
+  const r = b.resource || {}, ev = Number(b.event_no) || 0, id = String(r.order_id || "");
+  if (!/^\d{8}-\d{7}$/.test(id)) return json({ ok: true, ignored: "no order_id" });
+  const now = new Date(Date.now() + 9 * 3600 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+  // 주문 단위 상태 — 같은 주문의 이전 값 위에 바뀐 것만 덮는다
+  const k = "ecopen:o:" + id, prev = JSON.parse((await kv0.get(k)) || "null") || {};
+  const n = (v) => { const x = Number(v); return isFinite(x) ? x : 0; };
+  const next = { ...prev, order_id: id, order_date: String(r.order_date || prev.order_date || "").slice(0, 10), at: now, ev };
+  if (r.shipping_status) next.ship_status = String(r.shipping_status);
+  if (r.paid) next.paid = String(r.paid);
+  if (r.actual_payment_amount != null) next.payment_amount = n(r.actual_payment_amount);
+  if (ev === 90026 || ev === 90072) next.cancel_event = now;           // 취소상태 변경
+  if (ev === 90027 || ev === 90074) next.return_event = now;           // 반품상태 변경
+  if (ev === 90029 || ev === 90073) next.refund_event = now;           // 환불상태 변경
+  if (ev === 90070) next.deleted = true;
+  await kv0.put(k, JSON.stringify(next), { expirationTtl: 120 * 86400 });
+  // 최근 변경 목록(화면이 "무엇이 바뀌었나"를 빨리 읽게) — 200개까지
+  const lk = "ecopen:recent", recent = JSON.parse((await kv0.get(lk)) || "[]");
+  recent.unshift({ id, ev, at: now, ship_status: next.ship_status || "" });
+  await kv0.put(lk, JSON.stringify(recent.slice(0, 200)));
+  return json({ ok: true, order_id: id, ev });
+}
+__name(handleCafe24Hook, "handleCafe24Hook");
 // [2026-10-12] 위탁 정산용 거래처 LIST 읽기. 시트 ID 는 비밀이 아니다(접근은 공유 설정이 막는다).
 // 거래처 LIST 탭에는 연락처가 있어 정산에 쓰는 열(입점여부·브랜드명·공급사코드)만 남긴다.
 // 월별 매출 목표(원). KPI 시트 '0. 요약' 5행과 같은 값이다. 바뀌면 여기만 고친다.
