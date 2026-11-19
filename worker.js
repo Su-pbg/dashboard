@@ -309,7 +309,14 @@ var worker_default = {
         await kvA.delete("access_token");
         return json({ ok: !!(gr && gr.ok), gist: gr ? gr.status : "fetch", scopes: tj.scopes || null, expires_in: tj.expires_in || null, next: gr && gr.ok ? "끝. 주문처리 새로고침" : "Gist 쓰기 실패 — /cafe24auth?key=… 부터 다시" });
       }
-      // [2026-11-19] 'PB 배송' 공급사코드 목록 (공개, 읽기 전용) — api-ts GEO 대상 목록이 읽는다. 키 없이 열리게 인증보다 앞에 둔다.
+      // [2026-11-19] /pb-delivery-suppliers 공개 라우트 삭제 — 대시보드는 공개하면 안 되는 사이트 (사용자). 아래 인증 뒤로 옮김
+      const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      const keyOk = !!env.DASHBOARD_KEY && safeEqual(q.get("key") || "", env.DASHBOARD_KEY);
+      const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
+      if (!keyOk && !tokOk) {
+        return json({ error: "\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." }, 403);
+      }
+      // [2026-11-19] 'PB 배송' 공급사코드 목록 (인증 필요, 읽기 전용) — api-ts GEO 대상 목록이 읽는다
       //   거래처 LIST '카페 24 등록 공급사' 탭 '배송 방식' = 'PB 배송' 인 공급사코드만 내보낸다 (이름·요율·연락처 등은 내보내지 않음). 5분 캐시
       if (url.pathname === "/pb-delivery-suppliers") {
         const cache = caches.default, ck = new Request("https://kpi.local/pb-delivery-suppliers");
@@ -325,18 +332,12 @@ var worker_default = {
           const cCode = rows[h].findIndex((c) => clean(c) === "공급사코드"), cM = rows[h].findIndex((c) => clean(c) === "배송방식");
           const codes = [...new Set(rows.slice(h + 1).filter((r) => clean(r[cM]) === "PB배송").map((r) => String(r[cCode] || "").trim()).filter((c) => /^S[0-9A-Z]{7}$/.test(c)))].sort();
           const res = json({ ok: true, at: new Date().toISOString(), count: codes.length, codes });
-          res.headers.set("Cache-Control", "public, max-age=300");
+          res.headers.set("Cache-Control", "private, no-store");
           await cache.put(ck, res.clone()).catch(() => undefined);
           return res;
         } catch (e) {
           return json({ ok: false, error: e && e.message }, 500);
         }
-      }
-      const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-      const keyOk = !!env.DASHBOARD_KEY && safeEqual(q.get("key") || "", env.DASHBOARD_KEY);
-      const tokOk = !keyOk && await verifyToken(env, bearer || q.get("t") || "");
-      if (!keyOk && !tokOk) {
-        return json({ error: "\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." }, 403);
       }
       // ===== 상품 운영 작업 목록 =====
       // [2026-10-20] MD 가 수시로 보는 화면이라 '뭘 했는지' 가 남아야 한다. 안 남으면 같은 걸 계속 다시 본다.
