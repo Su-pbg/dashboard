@@ -179,6 +179,8 @@ var worker_default = {
   //   slackbot 이 revenue-daily.json 을 새로 올리면(ETag 가 바뀌면) 바로 시트를 다시 쓴다.
   //   07시가 지나도 그날 한 번도 안 돌았으면 그냥 한 번 돈다(선수금 처리완료 반영 등 안전망).
   async scheduled(event, env, ctx) {
+    // [2026-11-19] 매일 10시(KST) 공급사 배송 방식 시트 → api-ts DB. 아래 KPI 작업과 따로 돈다
+    if (event.cron === "0 1 * * *") ctx.waitUntil(syncSupplierDelivery(env).then((r) => console.log("supplier-delivery", JSON.stringify(r).slice(0, 300))).catch((e) => console.log("supplier-delivery 실패", e && e.message)));
     const kv = env.CAFE24_TOKEN_KV;
     if (!kv || !env.DASHBOARD_KEY) return;
     const SHEET = "1YAm7ec7C0nw7g3n0MVcM5T625OEW60V-ORLxghmz8QQ";
@@ -1900,6 +1902,11 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
       // 이카운트 판매내역서(고객 이름·연락처 포함)는 여기로 보내지 않는다 — 화면에서만 처리한다.
       // POST 는 '상품명 브랜드 → 공급사코드' 수동 연결. 거래처 LIST 의 공급사명·브랜드명으로 못 찾는 것만 쓴다.
       // ponytail: /supplier-map 과 같이 맵 전체를 키 하나에 둔다.
+      // [2026-11-19] 공급사 배송 방식 시트 → api-ts DB 바로 실행 (거래처 LIST 를 고친 뒤 크론을 기다리지 않을 때)
+      if (url.pathname === "/supplier-delivery-sync") {
+        try { return json(await syncSupplierDelivery(env)); } catch (e) { return json({ ok: false, error: e && e.message }, 500); }
+      }
+
       if (url.pathname === "/settle") {
         const kv0 = env.CAFE24_TOKEN_KV;
         const MAP_KEY = "settlemap:v1", SHEET_KEY = "settle:sheet:v3";
@@ -3121,6 +3128,29 @@ async function readSettleSheet(env) {
   return { sheets, sheetAt: new Date().toISOString(), saEmail: sa.client_email };
 }
 __name(readSettleSheet, "readSettleSheet");
+// [2026-11-19] 공급사 배송 방식 → api-ts DB(tbcafe24_supplier.delivery_method). 정본은 거래처 LIST '카페 24 등록 공급사' 탭 '배송 방식' 열.
+//   api-ts 가 'PB 배송'→P, '업체 배송'→C, 그 밖→null 로 바꿔 저장하고, 바뀐 게 있으면 상품 상세 GEO 대상 목록을 다시 만든다.
+//   매일 10시(KST) 크론 + /supplier-delivery-sync 로 바로 실행. 시크릿: API_SERVICE_TOKEN (api-ts 의 BATCH_SERVICE_TOKEN 과 같은 값)
+async function syncSupplierDelivery(env) {
+  if (!env.API_SERVICE_TOKEN) return { ok: false, error: "API_SERVICE_TOKEN 이 설정돼 있지 않습니다" };
+  const { sheets } = await readSettleSheet(env);
+  const tab = Object.keys(sheets).find((k) => k.replace(/\s/g, "") === "카페24등록공급사");
+  const rows = tab ? sheets[tab] : [];
+  const clean = (c) => String(c ?? "").replace(/[*\s]/g, "");
+  const h = rows.findIndex((r) => r.some((c) => clean(c) === "공급사코드") && r.some((c) => clean(c) === "배송방식"));
+  if (h < 0) return { ok: false, error: "'카페 24 등록 공급사' 탭에서 공급사코드·배송 방식 머리글을 찾지 못했습니다" };
+  const cCode = rows[h].findIndex((c) => clean(c) === "공급사코드"), cM = rows[h].findIndex((c) => clean(c) === "배송방식");
+  const items = rows.slice(h + 1).map((r) => ({ code: String(r[cCode] || "").trim(), method: String(r[cM] ?? "").trim() })).filter((x) => /^S0/.test(x.code));
+  const base = env.API_BASE || "https://api.printbakery.com";
+  const r = await fetch(`${base}/v1/admin/supplier/delivery-methods`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Service-Token": env.API_SERVICE_TOKEN },
+    body: JSON.stringify({ items })
+  });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, sent: items.length, result: j };
+}
+__name(syncSupplierDelivery, "syncSupplierDelivery");
 function json(obj, status = 200) {
   // [2026-11-15] 인증 실패면 왜 실패했는지(재인증이 필요한지)를 같이 내려 준다. 토큰 값은 들어가지 않는다.
   if (obj && obj.error === "cafe24 \uC778\uC99D \uC2E4\uD328" && LAST_AUTH_ERROR) obj = { ...obj, reason: LAST_AUTH_ERROR };
