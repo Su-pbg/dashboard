@@ -62,7 +62,8 @@
 | 2026-10-30 | slackbot 은 비공개 유지, 잡은 Mac mini self-hosted 러너로 | 히스토리에 cafe24 refresh token 85건 → 공개 불가. 시크릿은 GitHub 에 그대로 |
 
 ## 메모
-- **2026-11-20 자동 KPI 시트 복구** — `0. 요약`·`1-3. 자사몰: GMV(주별)` 탭이 없고 `1-1`·`1-2` 가 옛 28열 레이아웃이라 `part=ext` 가 "Unable to parse range" 로 실패하고 있었다(누가 11-18 에 탭을 바꿨는지는 모른다). `/kpisheet` POST(`formulasFrom`)로 네 탭을 원본 수식 그대로 다시 만들고, 딸린 `6-1`·`6-2`·`6-3`·`7. 쿠폰` 참조를 원본 수식으로 맞춘 뒤 ext→wk→sheet→cat→sync 를 손으로 다시 돌렸다(전부 ok). 원본에 수식이 없는 `1-2` 39행(2026-11)과 `0. 요약` 67행은 10월 줄 수식을 한 줄 내려 채웠다 — 12월 줄은 아직 비어 있어 12월에 같은 일을 해야 한다. 네 탭은 숫자 서식만 맞췄고 색·테두리·열 너비는 원본에서 안 가져왔다. 코드는 안 바꿨다.
+- **2026-11-20 자동 KPI 시트 복구** — `0. 요약`·`1-3. 자사몰: GMV(주별)` 탭이 없고 `1-1`·`1-2` 가 옛 28열 레이아웃이라 `part=ext` 가 "Unable to parse range" 로 실패하고 있었다(누가 11-18 에 탭을 바꿨는지는 모른다). `/kpisheet` POST(`formulasFrom`)로 네 탭을 원본 수식 그대로 다시 만들고, 딸린 `6-1`·`6-2`·`6-3`·`7. 쿠폰` 참조를 원본 수식으로 맞춘 뒤 ext→wk→sheet→cat→sync 를 손으로 다시 돌렸다(전부 ok). 원본에 수식이 없는 `1-2` 39행(2026-11)과 `0. 요약` 67행은 10월 줄 수식을 한 줄 내려 채웠다다. 네 탭은 숫자 서식만 맞췄고 색·테두리·열 너비는 원본에서 안 가져왔다. 코드는 안 바꿨다.
+- **2026-11-20 자동 KPI 시트 빈 수식 채움** — 수식만 177칸(값은 안 씀): `1-2` 40행(12월), `6-2` 38~40행(E MAU·G 새 사용자는 손입력이라 비워 둠), `0. 요약` 66~70행(10~12월·Q4·합계), `7. 쿠폰` 321·323·333~336행 비율 칸. `2-2. 외부몰(월별)` 38~41행(9~12월)은 안 채웠다 — `2-4. 외부몰(일별)`이 2026-09-13 줄까지만 있어 합칠 범위가 없다. 그래서 `0. 요약` 외부몰 칸은 10월부터 빈칸이다.
 - [2026-11-07] 리모트에서 구글 로그인 없이 KPI 시트 읽기: `scripts/sheet-peek/README.md`(wrangler dev --remote, 읽기 전용, 배포 안 함). 크론 단계 로그는 `npx wrangler kv key get kpijob --namespace-id 58e3e3a76f9d408ea0536cdac1b3c783 --remote`.
 - 배포 전 확인법: Cloudflare API `.../workers/services/proud-sea-35f9/environments/production/content`(multipart)에서 worker.js 를 꺼내 마지막 배포 커밋과 diff. 11-06 배포 전 확인: 배포본 = ce59a8f 와 0줄 차이. 맥북프로는 `wrangler login`(OAuth, sugim@) 돼 있어 `npx wrangler deploy` 가능.
 - **로컬 두 대(Mac mini · 맥북프로).** SessionStart 훅이 `git pull --rebase --autostash` 를 먼저 돈다(실패하면 rebase 되돌리고 `[주의]` 출력). push 는 자동으로 안 한다 — 작업 끝나면 직접 push. 같은 파일을 두 대에서 동시에 고치지 않는다.
