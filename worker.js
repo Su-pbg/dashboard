@@ -187,6 +187,15 @@ async function kpiRawDays(env, from, to) {
 }
 __name(kpiRawDays, "kpiRawDays");
 
+// [2026-11-21] 마감 때 다시 받을 날짜들(KST 오늘 기준). 월요일 → 지난주 월~일, 1일 → 지난달 1일~말일. 둘 다면 합친다.
+function kpiCloseDays(today) {
+  const t = Date.parse(today + "T00:00:00Z"), iso = (x) => new Date(x).toISOString().slice(0, 10), out = [];
+  if (new Date(t).getUTCDay() === 1) for (let i = 7; i >= 1; i--) out.push(iso(t - i * 864e5));
+  if (today.slice(8) === "01") { const e = t - 864e5; for (let x = Date.parse(iso(e).slice(0, 8) + "01T00:00:00Z"); x <= e; x += 864e5) if (!out.includes(iso(x))) out.push(iso(x)); }
+  return out.sort();
+}
+// [2026-11-21] 일별 범위 합계는 sumif 로 — 어제 줄이 RAW 채워지기 전 #N/A 여도 그때까지 쌓인 값이 나온다(진행 중인 주·월).
+function kpiSumIf(f) { return String(f).replace(/\bsum\(('[^']+'!\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\)/gi, 'sumif($1,"<>#N/A")'); }
 var worker_default = {
   // [2026-10-27] KPI 시트 자동 갱신 — Cloudflare 크론(06~10시 KST, 20분마다).
   //   slackbot 이 revenue-daily.json 을 새로 올리면(ETag 가 바뀌면) 바로 시트를 다시 쓴다.
@@ -217,6 +226,12 @@ var worker_default = {
       if (step === "users") {
         const U = JSON.parse((await kv.get("kpiusers:v1")) || "{}"); const yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
         const missing = []; for (let d = KPI_EXT_FROM.user; d <= yest; d = new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10)) if (!U[d] || U[d].src !== "c24" || d >= new Date(kst.getTime() - 3 * 864e5).toISOString().slice(0, 10)) missing.push(d);
+        // [2026-11-21] 마감 갱신: 월요일엔 지난주(월~일) 7일, 1일엔 지난달 전체를 한 번씩 다시 받는다(Su 지시 — 주·월 합계는 일별 수식이라 일별만 맞추면 된다).
+        //   받은 날은 job.closed 에 적어 같은 작업에서 두 번 받지 않는다(안 적으면 이 단계가 안 끝난다).
+        job.closed = job.closed || [];
+        for (const d of kpiCloseDays(today)) if (d >= KPI_EXT_FROM.user && !missing.includes(d)) missing.push(d);
+        for (let i = missing.length - 1; i >= 0; i--) if (job.closed.includes(missing[i])) missing.splice(i, 1);
+        missing.sort(); job.closed.push(...missing.slice(0, 3));
         for (const d of missing.slice(0, 3)) job.log.push("users " + d + " " + (await call("/kpisheet?feed=users&date=" + d)).slice(0, 80));
         if (missing.length <= 3) job.todo.shift();
       } else if (step === "weeks") {
@@ -1137,7 +1152,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
                   const m1 = !m && all.match(/^(.*!)([A-Z]+)(\d+)$/);
                   keep.push(m && +m[3] === ta && +m[5] === tb ? `${m[1]}${m[2]}${na}:${m[4]}${nb}` : m1 && +m1[3] === lastR ? `${m1[1]}${m1[2]}${R}` : all); return `\u0000${keep.length - 1}\u0000`; });
                 f = f.replace(/(^|[^A-Z$\u0000])([A-Z]{1,2})(\d+)(?![\d(])/g, (all, pre, col, r) => (+r >= 5 && +r <= lastR ? `${pre}${col}${+r + 1 + i}` : all));
-                return f.replace(/\u0000(\d+)\u0000/g, (all, n) => keep[+n]); });
+                return kpiSumIf(f.replace(/\u0000(\d+)\u0000/g, (all, n) => keep[+n])); });
               vals.push({ range: `'${t}'!A${R}:${cA1(row.length)}${R}`, values: [row] }); });
             note[t0] = want.length ? `+${want.length}줄 (${want.join(",")})` : "변경 없음";
             await flush();
@@ -1494,8 +1509,8 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         {
           const gw = await formulaGrid(T.w); let nW = 0;
           gw.forEach((row, i) => { const f = String(row[2] || "");
-            const mm = f.match(/^=sum\('([^']+)'!C(\d+):C(\d+)\)$/i);
-            if (i >= 4 && mm) { writes.push({ range: `'${T.w}'!P${i + 1}:P${i + 1}`, values: [[`=sum('${mm[1]}'!M${mm[2]}:M${mm[3]})`]] }); nW++; } });
+            const mm = f.match(/^=sum(?:if)?\('([^']+)'!C(\d+):C(\d+)(?:,"<>#N\/A")?\)$/i);
+            if (i >= 4 && mm) { writes.push({ range: `'${T.w}'!P${i + 1}:P${i + 1}`, values: [[kpiSumIf(`=sum('${mm[1]}'!M${mm[2]}:M${mm[3]})`)]] }); nW++; } });
           filled.주별매출 = nW;
         }
         // 0. 요약 — 달성율 행(목표는 시트 5행 값 그대로) + 아래 요약표의 자사몰 GMV·매출(D·J)과 그에 딸린 비중·합계·YoY
