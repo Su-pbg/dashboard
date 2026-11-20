@@ -86,6 +86,19 @@ var KPI_ORIG_ID = "1F-vT9k5bindzk_QXzlz1dKTF43-eyw4L9ialfvDtWbU";
 //   전에는 1~7일=1주 로 잘라서 10월 4주가 3주와 같은 날짜를 더했다.
 var kpiWed = (d) => { const t = Date.parse(String(d).slice(0, 10) + "T00:00:00Z"), dow = new Date(t).getUTCDay(); return new Date(t + (2 - ((dow + 6) % 7)) * 864e5).toISOString().slice(0, 10); };
 var kpiWeekKey = (d) => { const w = kpiWed(d); return `${w.slice(0, 7)}-W${Math.floor((+w.slice(8, 10) - 1) / 7) + 1}`; };
+// [2026-11-20] 사용자 수(활성·새 사용자)는 카페24 접속통계 기준이다. 원본 시트 손입력 값이 카페24 방문자(visit_count)·처음 방문자(first_visit_count)와 일치했고(Su 확인),
+//   GA4 로 채운 10-20 이후 값만 기준이 달라 어긋나 있었다. 기간의 일별 값을 더해 돌려준다. 하루라도 비거나 0 이면 null(아직 집계 전일 수 있다 — 호출 쪽이 502 로 다시 시도).
+async function kpiC24Visitors(env, s0, e0) {
+  const tok = await getCafe24AccessToken(env); if (!tok) return null;
+  const r = await fetch(`https://ca-api.cafe24data.com/visitors/view?mall_id=${env.CAFE24_MALL_ID}&shop_no=1&start_date=${s0}&end_date=${e0}&format_type=day&limit=1000`, { headers: { Authorization: "Bearer " + tok } });
+  if (!r.ok) return null;
+  const v = ((await r.json().catch(() => ({}))).view || []).filter((x) => x && x.date), by = {};
+  for (const x of v) by[String(x.date).slice(0, 10)] = x;
+  let dau = 0, nu = 0, days = 0;
+  for (let d = s0; d <= e0; d = new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10)) { const x = by[d]; if (!x || !(+x.visit_count > 0)) return null; dau += +x.visit_count; nu += +x.first_visit_count || 0; days++; }
+  return { dau, nu, days };
+}
+__name(kpiC24Visitors, "kpiC24Visitors");
 var kpiWeekDays = (k) => { const y = +k.slice(0, 4), m = +k.slice(5, 7), n = +k.slice(-1); const first = new Date(Date.UTC(y, m - 1, 1)), off = (3 - first.getUTCDay() + 7) % 7;
   const wed = Date.UTC(y, m - 1, 1 + off + (n - 1) * 7); return [new Date(wed - 2 * 864e5).toISOString().slice(0, 10), new Date(wed + 4 * 864e5).toISOString().slice(0, 10)]; };
 var kpiWeekLabel = (k, suffix = "주차") => `${k.slice(0, 4)}년 ${+k.slice(5, 7)}월 ${k.slice(-1)}${suffix}`;
@@ -203,14 +216,14 @@ var worker_default = {
     try {
       if (step === "users") {
         const U = JSON.parse((await kv.get("kpiusers:v1")) || "{}"); const yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
-        const missing = []; for (let d = KPI_EXT_FROM.user; d <= yest; d = new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10)) if (!U[d] || d >= new Date(kst.getTime() - 3 * 864e5).toISOString().slice(0, 10)) missing.push(d);
+        const missing = []; for (let d = KPI_EXT_FROM.user; d <= yest; d = new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10)) if (!U[d] || U[d].src !== "c24" || d >= new Date(kst.getTime() - 3 * 864e5).toISOString().slice(0, 10)) missing.push(d);
         for (const d of missing.slice(0, 3)) job.log.push("users " + d + " " + (await call("/kpisheet?feed=users&date=" + d)).slice(0, 80));
         if (missing.length <= 3) job.todo.shift();
       } else if (step === "weeks") {
         // [2026-10-29] 6-3 주별 WAU·새 사용자. 캐시에 없는 주와, 최근 2주(진행 중이거나 GA4 가 늦을 수 있음)를 틱당 2개씩 다시 받는다.
         const W = JSON.parse((await kv.get("kpiweeks:v1")) || "{}"); const yest = new Date(kst.getTime() - 864e5).toISOString().slice(0, 10);
         const ks = []; for (let d = KPI_EXT_FROM.week; d <= yest; d = new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10)) { const k = kpiWeekKey(d); if (!ks.includes(k)) ks.push(k); }
-        const need = ks.filter((k) => !W[k] || ks.indexOf(k) >= ks.length - 2);
+        const need = ks.filter((k) => !W[k] || W[k].src !== "c24" || ks.indexOf(k) >= ks.length - 2);
         for (const k of need.slice(0, 2)) job.log.push("week " + k + " " + (await call("/kpisheet?feed=users&week=" + k)).slice(0, 80));
         if (need.length <= 2) job.todo.shift();
       } else if (step === "scan") {
@@ -737,8 +750,10 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         const rows = await runReport(env.GA4_PROPERTY_ID && String(env.GA4_PROPERTY_ID).trim() || "333394141", await getAccessToken(JSON.parse(env.GA_SA_KEY)),
           { dateRanges: [{ startDate: s0, endDate: e0 }], dimensions: [{ name: "year" }], metrics: [{ name: "activeUsers" }, { name: "newUsers" }] });
         const mv = (rows[0] && rows[0].metricValues) || [], active = mv[0] ? +mv[0].value : null, newU = mv[1] ? +mv[1].value : null;
+        const yW = new Date(Date.now() + 9 * 36e5 - 864e5).toISOString().slice(0, 10), c24 = await kpiC24Visitors(env, s0, e0 < yW ? e0 : yW);
+        if (!c24) return json({ error: "카페24 접속통계에 그 주 방문자가 없습니다", week: wkk }, 502);
         const all = JSON.parse((await kvU.get("kpiweeks:v1")) || "{}");
-        all[wkk] = { wau: KPI_WAU_RAW ? active : tot, nu: KPI_WAU_RAW ? newU : (k["신규 방문자"] ?? null), join: k["신규 가입"] ?? null, from: s0, to: e0,
+        all[wkk] = { wau: c24.dau, nu: c24.nu, join: k["신규 가입"] ?? null, from: s0, to: e0, src: "c24",
           raw: { active, newU }, excl: { tot, nu: k["신규 방문자"] ?? null } };
         await kvU.put("kpiweeks:v1", JSON.stringify(all));
         return json({ ok: true, week: wkk, ...all[wkk] });
@@ -750,8 +765,10 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         const k = {}; for (const x of o.kpis || []) k[x.label] = x.after;
         const dau = o.usersInRange && o.usersInRange.after;
         if (dau == null) return json({ error: "GA4 응답에 활성 사용자가 없습니다", keys: Object.keys(o) }, 502);
+        const c24 = await kpiC24Visitors(env, d, d);
+        if (!c24) return json({ error: "카페24 접속통계에 그날 방문자가 없습니다", date: d }, 502);
         const all = JSON.parse((await kvU.get("kpiusers:v1")) || "{}");
-        all[d] = { dau, nu: k["신규 방문자"] ?? null, join: k["신규 가입"] ?? null };
+        all[d] = { dau: c24.dau, nu: c24.nu, join: k["신규 가입"] ?? null, src: "c24", ga: { dau, nu: k["신규 방문자"] ?? null } };
         await kvU.put("kpiusers:v1", JSON.stringify(all));
         return json({ ok: true, date: d, ...all[d] });
       }
