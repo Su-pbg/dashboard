@@ -14,7 +14,6 @@ Cloudflare Worker `proud-sea-35f9`(API·KPI 시트 크론, 무료 플랜 **호�
 |---|---|
 | `index.html` | 대시보드 본체(~200KB 단일 파일). `WORKER` 상수 551행 부근 |
 | `trend-tab.js` · `settle-tab.js` · `ecount-tab.js` | 트렌드 · 위탁 정산 · 주문 처리 탭 |
-| `expense.html` | 경비환급(로그인 없음, tesseract + Gemini `/receipt`) |
 | `worker.js` | 워커 전체(~4,800행, **이미 번들됨**). 상단 45~150행 KPI 메모·`kpiScanMonth`·`kpiRawDays`, 150~240행 `scheduled`(크론 단계), `/kpisheet` 315행~, `part=ext` 750행~ |
 | `wrangler.jsonc` | 배포 설정. `no_bundle: true`, 크론 01~10시 KST |
 | `scripts/*.mjs` · `scripts/*.py` | 수집(fetch-data, check-search-results) · 레이더 점수/사전/이력 |
@@ -28,7 +27,7 @@ Cloudflare Worker `proud-sea-35f9`(API·KPI 시트 크론, 무료 플랜 **호�
 python3 -m http.server 8000                       # 프론트 로컬(워커는 배포본, CORS *)
 node --check worker.js                            # 워커 문법 — 커밋 전 필수
 node -e "const fs=require('fs');const s=fs.readFileSync('index.html','utf8');fs.writeFileSync('/tmp/c.js',[...s.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n'))" && node --check /tmp/c.js
-node test_expense.mjs; node test_ecount.mjs; node test_paywin.mjs; node test_ecrecon_worker.mjs
+node test_ecount.mjs; node test_paywin.mjs; node test_ecrecon_worker.mjs
 python3 scripts/radar_score.py                    # 레이더 자체검사
 CLOUDFLARE_API_TOKEN=$(cat .cloudflare_token.local) npx wrangler deploy   # 배포 — Su 가 그 턴에 직접 지시해야 분류기 통과
 ```
