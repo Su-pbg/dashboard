@@ -1547,7 +1547,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
             const pct = (r) => ({ repeatCell: { range: { sheetId: SID, startRowIndex: r - 1, endRowIndex: r, startColumnIndex: 3, endColumnIndex: 20 },
               cell: { userEnteredFormat: { numberFormat: { type: "PERCENT", pattern: "0%" } } }, fields: "userEnteredFormat.numberFormat" } });
             await sheetsPost([pct(rateRow), pct(r9), { updateCells: { range: { sheetId: SID, startRowIndex: rateRow - 1, endRowIndex: rateRow, startColumnIndex: 2, endColumnIndex: 3 },
-              rows: [{ values: [{ note: "달성율 = 실적(매출) ÷ 목표 — 선수금 포함\n실적(매출) = 거래액 − 할인 − 쿠폰 − 적립금 − 예치금 − 네이버 포인트(원본 KPI 시트와 같은 수식)\n선수금 미완납 = '선수금' 탭에서 처리완료 전 금액(이카운트 대조 2026-09~)\n달성율(선수금 제외) = (실적 − 선수금 미완납) ÷ 목표\n매일 아침 자동 갱신" }] }], fields: "note" } }]);
+              rows: [{ values: [{ note: "달성율 = 실적(매출) ÷ 목표 — 선수금 포함\n실적(매출) = 슬랙봇 매출총액 − 타팀 개인결제창\n선수금 미완납 = '선수금' 탭에서 처리완료 전 금액(이카운트 대조 2026-09~)\n달성율(선수금 제외) = (실적 − 선수금 미완납) ÷ 목표\n매일 아침 자동 갱신" }] }], fields: "note" } }]);
           }
           // '선수금' 탭 — 이카운트 대조에서 선수금 표시가 붙은 주문 전부(처리완료 포함). 0. 요약 수식이 이걸 읽는다.
           {
@@ -1567,9 +1567,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
         let wj = { totalUpdatedCells: 0 };
         try {
           wj.totalUpdatedCells = await protectedWrite(writes, {
-            // [2026-11-21] 1-4 매출(M)도 강제로 덮지 않는다(Su "맞춰봐"). 슬랙봇 기준 값으로 덮으면 원본(거래액−할인−쿠폰−적립금−예치금−네이버포인트 수식)과
-            //   2025-01 부터 달라져 0. 요약 실적이 원본보다 낮게 나왔다(2026-07 2.58억 vs 3.66억). M 에 수식이 있으면 그 수식을 그대로 둔다.
-            [T.d]: [],
+            [T.d]: ["M"],   // 매출만 우리 값(슬랙봇 기준). 나머지는 원본 수식
             [T.w]: ["P"], [T.s]: null, "선수금": null });
         } catch (e) { return json({ error: String(e.message || e), saEmail: sa.client_email, filled }, 500); }
         // 5-1/5-2 카테고리별 — B열 라벨로 행을 찾아 우리 구간만 덮는다
