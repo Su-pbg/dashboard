@@ -9,7 +9,7 @@ let bad = 0, ok = 0;
 const eq = (name, got, want) => { const g = JSON.stringify(got), w = JSON.stringify(want); if (g === w) ok++; else { bad++; console.log(`FAIL ${name}\n  got  ${g}\n  want ${w}`); } };
 
 let src = readFileSync(new URL('./worker.js', import.meta.url), 'utf8');
-src = src.replace(/export\s*\{\s*worker_default\s+as\s+default\s*\};?/, 'globalThis.__worker = worker_default; globalThis.__t = { kpiCloseDays, kpiSumIf };');
+src = src.replace(/export\s*\{\s*worker_default\s+as\s+default\s*\};?/, 'globalThis.__worker = worker_default; globalThis.__t = { kpiCloseDays, kpiSumIf, kpiShiftRows };');
 const load = (nowIso) => {
   const now = Date.parse(nowIso);
   class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(now); } static now() { return now; } }
@@ -30,6 +30,10 @@ eq('1일이 월요일 → 지난달 + 지난주(겹침 없이)', [feb.length, fe
 eq('sum → sumif', T.kpiSumIf("=sum('1-4. 자사몰: GMV(일별)'!C1055:C1061)"), `=sumif('1-4. 자사몰: GMV(일별)'!C1055:C1061,"<>#N/A")`);
 eq('이미 sumif 면 그대로', T.kpiSumIf(`=sumif('1-4. 자사몰: GMV(일별)'!C1055:C1061,"<>#N/A")`), `=sumif('1-4. 자사몰: GMV(일별)'!C1055:C1061,"<>#N/A")`);
 eq('같은 탭 합계·다른 수식은 그대로', T.kpiSumIf('=sum(C5:C9)/D5'), '=sum(C5:C9)/D5');
+// 줄 내리기: 열만 고정($C151)한 참조도 줄은 내린다. 2026-11-21 주별 ROAS 가 =$C151/Y152 로 써져 앞 주 거래액을 봤다
+eq('$C151 도 내림', T.kpiShiftRows('=iferror($C151/Y151,"")', 151, 4), '=iferror($C155/Y155,"")');
+eq('$C$151 은 그대로', T.kpiShiftRows('=$C$151/Y151', 151, 1), '=$C$151/Y152');
+eq('기준 줄 아래·머리글 줄은 그대로', T.kpiShiftRows('=C3+C200', 151, 1), '=C3+C200');
 
 // ③④ 크론 users 단계 — 받은 날짜를 세고, 단계가 끝나는지 본다
 const run = async (nowIso) => {

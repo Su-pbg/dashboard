@@ -195,6 +195,8 @@ function kpiCloseDays(today) {
   return out.sort();
 }
 // [2026-11-21] 일별 범위 합계는 sumif 로 — 어제 줄이 RAW 채워지기 전 #N/A 여도 그때까지 쌓인 값이 나온다(진행 중인 주·월).
+// [2026-11-21] 같은 탭 참조를 n 줄 내린다. $C151 처럼 열만 고정한 참조도 줄은 내린다 — 안 내려서 주별 ROAS 가 계속 기준 줄 거래액($C151)을 봤다(실측). $C$151 은 그대로 둔다
+function kpiShiftRows(f, lastR, n) { return String(f).replace(/(^|[^A-Z$\u0000])(\$?[A-Z]{1,2})(\d+)(?![\d(])/g, (all, pre, col, r) => (+r >= 5 && +r <= lastR ? `${pre}${col}${+r + n}` : all)); }
 function kpiSumIf(f) { return String(f).replace(/\bsum\(('[^']+'!\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\)/gi, 'sumif($1,"<>#N/A")'); }
 var worker_default = {
   // [2026-10-27] KPI 시트 자동 갱신 — Cloudflare 크론(06~10시 KST, 20분마다).
@@ -1151,7 +1153,7 @@ ${docs.map((d, i) => `[${i}]\n${d}`).join("\n---\n")}`;
                   // [2026-10-29] 범위가 아닌 단일 셀 참조('1-3…'!AN151 처럼 다른 주별 탭의 같은 줄)는 같은 줄 번호면 새 줄로 내린다 — 안 그러면 10월 4주가 3주 주문 건을 본다
                   const m1 = !m && all.match(/^(.*!)([A-Z]+)(\d+)$/);
                   keep.push(m && +m[3] === ta && +m[5] === tb ? `${m[1]}${m[2]}${na}:${m[4]}${nb}` : m1 && +m1[3] === lastR ? `${m1[1]}${m1[2]}${R}` : all); return `\u0000${keep.length - 1}\u0000`; });
-                f = f.replace(/(^|[^A-Z$\u0000])([A-Z]{1,2})(\d+)(?![\d(])/g, (all, pre, col, r) => (+r >= 5 && +r <= lastR ? `${pre}${col}${+r + 1 + i}` : all));
+                f = kpiShiftRows(f, lastR, 1 + i);
                 return kpiSumIf(f.replace(/\u0000(\d+)\u0000/g, (all, n) => keep[+n])); });
               vals.push({ range: `'${t}'!A${R}:${cA1(row.length)}${R}`, values: [row] }); });
             note[t0] = want.length ? `+${want.length}줄 (${want.join(",")})` : "변경 없음";
