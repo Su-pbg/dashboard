@@ -487,7 +487,7 @@ function rvHtml(){
 //   ② 배송방식(퀵·설치·차량 등) — 배송 상태별(일정 조율중 → … → 설치완료)
 //   ③ 그 밖에 배송 가야 하는 주문(배송전) · 배송 중인 주문
 // 선수금·배송방식 표시는 대조 현황 월간요약(issues)에서, 진행 단계·메모·처리완료는 공유 메모에서 가져온다. 처리완료면 뺀다.
-const OO={list:null,err:null,loading:false,exp:{},card:'',q:''};
+const OO={list:null,err:null,loading:false,exp:{},card:'',q:'',sel:{},bto:'',bmsg:null,vis:[]};   // sel: 일괄 변경용 체크(주문번호), bmsg: 적용 결과·되돌리기
 async function loadOpen(){
   OO.loading=true; OO.err=null; render();
   try{
@@ -656,9 +656,13 @@ function openCard(){
     if(k==='adv') return `<span class="ec-badge" style="${tagStyle('선수금')}">${esc(String(x.tags).split(' · ').find(t=>/^선수금/.test(t)&&!isLater(t))||'선수금')}</span>`;
     if(k==='ship') return `<span class="ec-badge" style="${tagStyle(x.shipTag)}">${esc(x.shipTag)}</span>`;
     return `<span class="ec-badge ec-info">일반</span>`; };
+  OO.vis=list||[];
+  const selK=(()=>{ for(const x of OO.vis) if(OO.sel[x.o.order_id]) return ooKind(x); return null; })();   // 같은 구분끼리만 함께 고른다
+  const canSel=x=>{ const k=ooKind(x); return (k==='adv'||k==='ship')&&(!selK||k===selK); };
   const row=x=>{ const o=x.o, id=esc(o.order_id), dt=o.order_date, age=ooAge(dt), k=ooKind(x);
     const first=x.ls[0], more=x.ls.length-1, later=String(x.tags).split(' · ').filter(isLater);
-    return `<tr style="${k==='adv'?ADV_BAR:''}${OO.detail===o.order_id?';outline:2px solid var(--accent)':''}">
+    return `<tr style="${k==='adv'?ADV_BAR:''}${OO.detail===o.order_id?';outline:2px solid var(--accent)':''}${OO.sel[o.order_id]?';background:var(--fill)':''}">
+      <td><input type="checkbox" data-a="oosel" data-o="${id}" ${OO.sel[o.order_id]?'checked':''} ${canSel(x)?'':'disabled'} aria-label="일괄 변경 선택"></td>
       <td style="white-space:nowrap">${esc(dt.slice(5).replace('-','/'))}<div class="ec-sub" style="${age>=7?'color:var(--down);font-weight:700':''}">${age}일</div></td>
       <td><b style="font-family:ui-monospace,Menlo,monospace;font-size:12px">${id}</b></td>
       <td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">${kindPill(x)}${k==='adv'?sel('rvast',LISTS.ast,x.nt.ast,o.order_id,dt,'진행'):k==='ship'?sel('rvdst',LISTS.dst,x.nt.dst,o.order_id,dt,'상태'):''}</div>${later.length?`<div class="ec-sub">${esc(later.join(' · '))}</div>`:''}</td>
@@ -672,14 +676,44 @@ function openCard(){
   // 고른 칸의 목록은 같은 화면 아래에 붙는다(카드·진행표는 그대로 두고 아래로 내려가며 본다)
   const listHtml=list?`<div id="ooList" style="margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--hair)"><div class="ec-row"><b style="font-size:15px">${esc(title)} <span class="ec-sub" style="display:inline">${n(list.length)}건</span></b>
       <input class="ec-in" id="ecOoQ" value="${esc(OO.q||'')}" placeholder="주문번호·상품·공급사 검색" style="width:200px"><span style="flex:1"></span><button class="ec-dl" data-a="oocard" data-k="">목록 닫기</button></div>
-    <div class="ec-scroll"><table class="ec-t" style="min-width:960px"><thead><tr><th>주문일</th><th>주문번호</th><th>구분 · 진행</th><th class="l">상품 (누르면 상세)</th><th style="text-align:right">실결제</th><th>카페24</th><th>메모</th><th>완료</th></tr></thead>
-      <tbody>${list.map(row).join('')||`<tr><td colspan="8" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>
+    ${bulkBar(selK)}
+    <div class="ec-scroll"><table class="ec-t" style="min-width:1000px"><thead><tr><th><input type="checkbox" data-a="oosall" ${list&&list.filter(canSel).length&&list.filter(canSel).every(x=>OO.sel[x.o.order_id])?'checked':''} ${list&&list.some(canSel)?'':'disabled'} aria-label="같은 구분 전체 선택"></th><th>주문일</th><th>주문번호</th><th>구분 · 진행</th><th class="l">상품 (누르면 상세)</th><th style="text-align:right">실결제</th><th>카페24</th><th>메모</th><th>완료</th></tr></thead>
+      <tbody>${list.map(row).join('')||`<tr><td colspan="9" style="color:var(--muted)">해당하는 주문이 없습니다.</td></tr>`}</tbody></table></div>
     <div class="ec-sub">줄을 누르면 주문 상세(수령인·배송지·품목·대조 결과). 선수금은 '진행', 퀵·설치·차량은 '상태'를 바꿔 가며 따라갑니다. 완료를 체크하면 목록에서 빠집니다.</div></div>`:'';
   return `<div class="ec-card"><h2>진행 중 주문 <span class="ec-sub" style="display:inline">카페24에서 배송이 안 끝난 주문 · 최근 60일 · ${n(L.length)}건${OO.at?` · ${esc(OO.at)} 기준`:''}${OO.hookAt?` · 웹훅 마지막 ${esc(String(OO.hookAt).slice(5,16))}`:''}</span>
       <span style="float:right;display:flex;gap:6px">${old?`<button class="ec-dl" data-a="oocard" data-k="old" style="color:var(--down);font-weight:700;${selKey==='old'?'outline:2px solid var(--down)':''}">7일 지남 ${n(old)}</button>`:''}<button class="ec-dl" data-a="ooreload">새로고침</button></span></h2>
     ${OO.truncated?'<div class="ec-stat err">주문이 너무 많아 일부만 받았습니다.</div>':''}
     ${groupsHtml}${listHtml}
     <details class="ec-note"><summary>설명 보기</summary><div>① 대조 안 된 주문은 판매 입력 대조를 돌리면 ②로 내려옵니다(미입력이면 데일리 전표 생성에서 판매입력 파일을 만드세요). ② 칸을 누르면 그 주문 목록, 줄을 누르면 상세. '주문 접수'는 아직 진행 단계를 고르지 않은 주문, '배송완료'는 카페24 배송완료인데 처리완료를 안 한 주문입니다. 선수금·배송방식 구분은 판매 입력 대조를 돌린 주문에만 붙고, 아직 대조 안 한 주문은 일반 주문에 나옵니다. 완료를 체크한 주문은 빠집니다.</div></details></div>`;
+}
+// 일괄 상태 변경(Su, 2026-11-23): 줄 체크 → 막대에서 상태 고르고 적용. 줄마다 고치는 것과 같은 saveNote 를 건수만큼 보낸다. 확인 팝업 없이 적용하고 '되돌리기'로 복구.
+function bulkOpts(k){ return k==='adv'?{f:'ast',L:LISTS.ast,t:'선수금 진행'}:{f:'dst',L:LISTS.dst,t:'배송 상태'}; }
+function bulkBar(selK){
+  const ids=OO.vis.filter(x=>OO.sel[x.o.order_id]), m=OO.bmsg;
+  if(!ids.length&&!m) return '';
+  const msg=m?`<span class="ec-sub" style="margin:0;display:inline;${m.fail?'color:var(--down);font-weight:600':''}">${esc(m.text)}</span>${m.undo&&m.undo.length?` <a href="#" data-a="oobundo" style="font-weight:600">되돌리기</a>`:''}`:'';
+  if(!ids.length) return `<div class="ec-row" style="margin:var(--s3) 0">${msg}</div>`;
+  const b=bulkOpts(selK), to=b.L.includes(OO.bto)?OO.bto:b.L[0];
+  return `<div class="ec-row" style="gap:8px;align-items:center;flex-wrap:wrap;margin:var(--s3) 0;padding:8px 12px;border:1px solid var(--hair);border-radius:8px;background:var(--fill)"><b>${n(ids.length)}건 선택</b><span class="ec-sub" style="margin:0;display:inline">${b.t}을(를)</span>
+    <select class="ec-in" id="ecOoBto" style="height:28px">${b.L.map(v=>`<option ${v===to?'selected':''}>${esc(v)}</option>`).join('')}</select>
+    <button class="ec-dl" data-a="oobapply">선택한 주문에 적용</button><button class="ec-dl" data-a="oobclr">선택 해제</button>${msg}</div>`;
+}
+async function bulkApply(){
+  const ids=OO.vis.filter(x=>OO.sel[x.o.order_id]); if(!ids.length) return;
+  const b=bulkOpts(ooKind(ids[0])), to=b.L.includes(OO.bto)?OO.bto:b.L[0];
+  const prev=ids.map(x=>({d:x.o.order_date,o:x.o.order_id,v:(x.nt||{})[b.f]||''}));
+  const res=await Promise.allSettled(ids.map(x=>saveNote(x.o.order_date,x.o.order_id,{[b.f]:to})));
+  const ok=prev.filter((_,i)=>res[i].status==='fulfilled'), bad=prev.filter((_,i)=>res[i].status==='rejected');
+  OO.sel={};
+  OO.bmsg={text:`${ok.length}건을 "${to}"(으)로 바꿨어요`+(bad.length?` · ${bad.length}건 실패(${bad.map(x=>x.o).join(', ')})`:''),fail:!!bad.length,undo:ok.map(x=>({...x,f:b.f}))};
+  render();
+}
+async function bulkUndo(){
+  const u=(OO.bmsg&&OO.bmsg.undo)||[]; if(!u.length) return;
+  const res=await Promise.allSettled(u.map(x=>saveNote(x.d,x.o,{[x.f]:x.v})));
+  const bad=res.filter(r=>r.status==='rejected').length;
+  OO.bmsg={text:`${u.length-bad}건을 되돌렸어요`+(bad?` · ${bad}건 실패`:''),fail:!!bad,undo:null};
+  render();
 }
 function filesCard(days,made,rows){
   return `<div class="ec-card"><h2>판매입력 파일 이력</h2>
@@ -1620,6 +1654,9 @@ function wire(root){
     if(t.id==='ecTfSort'){ TF.sort=t.value; render(); return; }
     if(t.id==='ecRvDate'){ if(t.value){ RV.date=t.value; syncSub(); loadRVDay(t.value); } return; }
     if(t.id==='ecRvMonth'){ RV.month=t.value||RV.month; RV.date=''; RV.idx=null; render(); loadRV().then(render); return; }
+    if(t.id==='ecOoBto'){ OO.bto=t.value; return; }
+    if(t.dataset.a==='oosel'){ if(t.checked) OO.sel[t.dataset.o]=true; else delete OO.sel[t.dataset.o]; OO.bmsg=null; render(); return; }
+    if(t.dataset.a==='oosall'){ const ok=OO.vis.filter(x=>{ const k=ooKind(x); return k==='adv'||k==='ship'; }); const k0=(OO.vis.find(x=>OO.sel[x.o.order_id])||ok[0]||{}); const kk=k0.o?ooKind(k0):null; ok.filter(x=>ooKind(x)===kk).forEach(x=>{ if(t.checked) OO.sel[x.o.order_id]=true; else delete OO.sel[x.o.order_id]; }); OO.bmsg=null; render(); return; }
     if(t.dataset.a==='rvdone'){ saveNote(t.dataset.d,t.dataset.o,{done:t.checked}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
     if(t.dataset.a==='rvast'){ saveNote(t.dataset.d,t.dataset.o,{ast:t.value}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
     if(t.dataset.a==='rvdst'){ saveNote(t.dataset.d,t.dataset.o,{dst:t.value}).then(render).catch(err=>alert('저장하지 못했습니다: '+err.message)); return; }
@@ -1638,7 +1675,10 @@ function wire(root){
     if(a==='dview'){ D.view=t.dataset.v; render(); return; }
     if(a==='logview'){ S.logView=t.dataset.v; render(); return; }
     if(a==='ooreload'){ OO.list=null; OO.force=true; await loadOpen(); return; }
-    if(a==='oocard'){ OO.card=t.dataset.k||''; OO.detail=''; OO.q=''; pushSub(); render(); const el=$('ooList'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+    if(a==='oobapply'){ await bulkApply(); return; }
+    if(a==='oobclr'){ OO.sel={}; render(); return; }
+    if(a==='oobundo'){ e.preventDefault(); await bulkUndo(); return; }
+    if(a==='oocard'){ OO.sel={}; OO.bmsg=null; OO.card=t.dataset.k||''; OO.detail=''; OO.q=''; pushSub(); render(); const el=$('ooList'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); return; }
     if(a==='oodetail'){ e.preventDefault(); window.scrollTo(0,0); if(!t.dataset.o){ OO.detail=''; pushSub(); render(); const el=$('ooList'); if(el) el.scrollIntoView({block:'start'}); } else { OO.detail=t.dataset.o; pushSub(); await openDetail(t.dataset.o); } return; }
     if(a==='godate'){ e.preventDefault(); D.date=t.dataset.d; D.loadedDate=false; setMenu('ecrecon'); return; }
     if(a==='rvday'){ if(!t.dataset.d) return; RV.q=''; RV.date=t.dataset.d; pushSub(); await loadRVDay(t.dataset.d); return; }
@@ -1725,7 +1765,7 @@ async function applySub(q){   // 뒤로가기로 돌아온 주소를 화면에 �
   const c=q.get('c')||'', o=q.get('o')||'', d=q.get('d')||'';
   if(S.page!=='log') return;
   let ch=false;
-  if(c!==OO.card){ OO.card=c; OO.q=''; ch=true; }
+  if(c!==OO.card){ OO.card=c; OO.q=''; OO.sel={}; OO.bmsg=null; ch=true; }
   if(o!==OO.detail){ if(o){ await openDetail(o); } else { OO.detail=''; } ch=true; }
   if(d!==RV.date){ if(d){ await loadRVDay(d); } else { RV.date=''; RV.day=null; } ch=true; }
   if(ch) render();
@@ -1754,5 +1794,5 @@ window.loadEcountTab=async function(el,page){
   render();
 };
 // 점검(test_ecount.mjs)과 브라우저 확인용으로 내부 함수를 연다
-window.__ecount={S,D,RV,TF,OO,amtOf,fillRVAmt,LISTS,kstDay,codeOf,loadOpen,undoFile,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
+window.__ecount={S,D,RV,TF,OO,amtOf,fillRVAmt,LISTS,kstDay,codeOf,loadOpen,bulkApply,bulkUndo,undoFile,learnFromRecon,learnFromSaved,learn,parseEcount,payType,buildRows,compute,render,vdayOf,remainOf,ecRange,covered,ecTags,tfApply,SHIPPOL};
 })();
