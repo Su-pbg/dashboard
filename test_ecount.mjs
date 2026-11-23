@@ -112,6 +112,22 @@ ctx.__ecount.OO.card = 'rec:missing'; ctx.__ecount.render(); truthy('미입력 �
 eq('진행 중 주문 분류', ctx.__ecount.OO.list.map((x) => [x.o.order_id, x.adv, x.ship]), [[O1, true, false], [O5, false, true]]);
 eq('웹훅 상태 덮기: O5 배송중 → 배송완료(배송방식이라 남김)', ctx.__ecount.OO.list.find((x) => x.o.order_id === O5).o.ship_status, 'T');
 truthy('웹훅 배송완료 반영 + 미입력 주문은 진행표에 안 들어감', (() => { ctx.__ecount.OO.card = ''; ctx.__ecount.render(); const x = ctx.__ecount.OO.list.find((y) => y.o.order_id === O5); const m = root.innerHTML.match(/data-k="ship:완료"[^>]*>[\s\S]*?<span[^>]*>(\d+)<\/span>/); return x.o.ship_status === 'T' && m && m[1] === '0'; })());
+// 일괄 상태 변경(2026-11-23): 체크 → 같은 구분끼리만 → 적용 → 되돌리기. 저장은 줄마다 고치는 것과 같은 /ecrecon note POST.
+{ const X = ctx.__ecount, posts = [], prevF = ctx.fetch, store2 = {};
+  ctx.fetch = async (u, opt = {}) => { if (String(u).includes('/ecrecon') && opt.method === 'POST') { const n = JSON.parse(opt.body).note; if (n.order === O5) throw new Error('boom'); posts.push(n); store2[n.order] = { ...(store2[n.order] || {}), ...n }; return json({ ok: true, note: store2[n.order] }); } return prevF(u, opt); };
+  X.OO.card = 'adv:접수'; X.OO.sel = {}; X.OO.bmsg = null; X.render();
+  truthy('목록에 체크박스 열(선수금 줄은 선택 가능)', root.innerHTML.includes('data-a="oosel" data-o="' + O1 + '"') && root.innerHTML.includes('data-a="oosall"') && !root.innerHTML.includes('data-a="oobapply"'));
+  X.OO.sel[O1] = true; X.render();
+  truthy('선택하면 일괄 막대(건수·셀렉트·적용)', root.innerHTML.includes('1건 선택') && root.innerHTML.includes('id="ecOoBto"') && root.innerHTML.includes('data-a="oobapply"'));
+  X.OO.bto = '발주 필요'; await X.bulkApply();
+  eq('적용: 선택한 주문만 ast 저장', posts.map((n) => [n.order, n.ast]), [[O1, '발주 필요']]);
+  truthy('적용 후 선택 해제 + 결과 안내 + 되돌리기 링크', Object.keys(X.OO.sel).length === 0 && root.innerHTML.includes('1건을 &quot;발주 필요&quot;(으)로 바꿨어요') && root.innerHTML.includes('data-a="oobundo"'));
+  await X.bulkUndo();
+  eq('되돌리기: 이전 값(빈 칸)으로 저장', posts.map((n) => [n.order, n.ast]), [[O1, '발주 필요'], [O1, '']]);
+  truthy('되돌린 뒤 안내', root.innerHTML.includes('1건을 되돌렸어요') && !root.innerHTML.includes('data-a="oobundo"'));
+  X.OO.card = 'rec:missing'; X.OO.sel = {}; X.render();
+  truthy('구분 섞임 방지: 배송방식 줄 선택 시 선수금 줄은 체크 불가', (() => { X.OO.sel[O5] = true; X.render(); const h = root.innerHTML; X.OO.sel = {}; return h.includes('data-o="' + O5 + '" checked'); })());
+  X.OO.card = ''; X.OO.sel = {}; X.OO.bmsg = null; ctx.fetch = prevF; }
 eq('화면 네 개', pages, { map: 'ok', log: 'ok', daily: 'ok', recon: 'ok' });
 // 대조 현황: 날짜 상세 · 판매입력 파일 이력
 try { E.S.page = 'log'; E.S.logView = 'rv'; E.RV.date = DATE; E.RV.day = DAY; E.render(); truthy('대조 현황 날짜 상세', root.innerHTML.includes(O5)); } catch (e) { bad++; console.log('FAIL 대조 현황 날짜 상세 ' + e.message); }
